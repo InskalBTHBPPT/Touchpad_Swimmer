@@ -11,7 +11,8 @@ RATE_HZ = 500.0
 BUFFER_SIZE = 100_000
 SAMPLES_PER_LOOP = int(RATE_HZ // 10)  # 1/10 rate → 50 sampel per iterasi
 
-DEVICE_CHANNEL = "Dev2/ai0"
+# Urutan = kolom print: timestamp, ai0, ai1 (timing task sama untuk semua saluran).
+DEVICE_CHANNELS = ("Dev2/ai0", "Dev2/ai1")
 # None = loop tak terbatas (hentikan dengan Ctrl+C).
 NUM_LOOPS = None
 
@@ -27,36 +28,51 @@ READ_MODE: Literal["A", "B"] = "A"
 TIME_PRINT_MODE_A: Literal["iso", "relative_sec"] = "relative_sec"
 
 
-def _print_samples_iso(timestamps: list[dt.datetime], values) -> None:
-    for ts, value in zip(timestamps, values):
-        print(ts.isoformat(), float(value))
+def _format_ts(
+    time_print_mode: Literal["iso", "relative_sec"],
+    sample_offset: int,
+    i: int,
+    t0_nominal: dt.datetime,
+    dt_sample: dt.timedelta,
+) -> str:
+    if time_print_mode == "iso":
+        ts = t0_nominal + dt_sample * (sample_offset + i)
+        return ts.isoformat()
+    if time_print_mode == "relative_sec":
+        rel_s = (sample_offset + i) / RATE_HZ
+        return f"{rel_s:g}"
+    raise ValueError(
+        f"TIME_PRINT_MODE_A tidak dikenal: {time_print_mode!r} "
+        "(pakai 'iso' atau 'relative_sec')."
+    )
 
 
-def _print_chunk_like_mode_a(
-    data,
+def _print_dual_chunk(
+    ai0: list[float],
+    ai1: list[float],
     sample_offset: int,
     t0_nominal: dt.datetime,
     dt_sample: dt.timedelta,
     time_print_mode: Literal["iso", "relative_sec"],
 ) -> None:
-    if time_print_mode == "iso":
-        times = [
-            t0_nominal + dt_sample * (sample_offset + i) for i in range(len(data))
-        ]
-        _print_samples_iso(times, data)
-    elif time_print_mode == "relative_sec":
-        for i, value in enumerate(data):
-            rel_s = (sample_offset + i) / RATE_HZ
-            print(f"{rel_s:g}", float(value))
-    else:
+    if len(ai0) != len(ai1):
         raise ValueError(
-            f"TIME_PRINT_MODE_A tidak dikenal: {time_print_mode!r} "
-            "(pakai 'iso' atau 'relative_sec')."
+            f"Panjang saluran tidak sama: ai0={len(ai0)}, ai1={len(ai1)}"
         )
+    for i in range(len(ai0)):
+        ts = _format_ts(time_print_mode, sample_offset, i, t0_nominal, dt_sample)
+        print(ts, float(ai0[i]), float(ai1[i]))
+
+
+def _as_float_list(samples) -> list[float]:
+    if hasattr(samples, "tolist"):
+        return [float(x) for x in samples.tolist()]
+    return [float(x) for x in samples]
 
 
 with nidaqmx.Task() as task:
-    task.ai_channels.add_ai_voltage_chan(DEVICE_CHANNEL)
+    for ch in DEVICE_CHANNELS:
+        task.ai_channels.add_ai_voltage_chan(ch)
     task.timing.cfg_samp_clk_timing(
         rate=RATE_HZ,
         sample_mode=AcquisitionType.CONTINUOUS,
@@ -74,15 +90,23 @@ with nidaqmx.Task() as task:
         n = 0
         while NUM_LOOPS is None or n < NUM_LOOPS:
             if READ_MODE == "A":
-                data = task.read(number_of_samples_per_channel=SAMPLES_PER_LOOP)
-                _print_chunk_like_mode_a(
-                    data, sample_offset, t0_nominal, dt_sample, TIME_PRINT_MODE_A
+                raw = task.read(number_of_samples_per_channel=SAMPLES_PER_LOOP)
+                # GROUP_BY_CHANNEL: [[ai0...], [ai1...]]
+                ai0_samples = raw[0]
+                ai1_samples = raw[1]
+                _print_dual_chunk(
+                    ai0_samples,
+                    ai1_samples,
+                    sample_offset,
+                    t0_nominal,
+                    dt_sample,
+                    TIME_PRINT_MODE_A,
                 )
-                sample_offset += len(data)
+                sample_offset += len(ai0_samples)
             elif READ_MODE == "B":
                 if use_waveform_for_b:
                     try:
-                        wfm = task.read_waveform(
+                        wfms = task.read_waveform(
                             number_of_samples_per_channel=SAMPLES_PER_LOOP,
                         )
                     except DaqFunctionNotSupportedError:
@@ -96,31 +120,56 @@ with nidaqmx.Task() as task:
                             )
                             waveform_fallback_warned = True
                         use_waveform_for_b = False
-                        wfm = None
                     else:
-                        y = wfm.scaled_data
-                        t0_w = wfm.timing.start_time
-                        dt_w = wfm.timing.sample_interval
-                        if t0_w is None:
-                            t0_w = t0_nominal + dt_sample * sample_offset
-                        times = [t0_w + dt_w * i for i in range(len(y))]
-                        _print_samples_iso(times, y)
-                        sample_offset += len(y)
+                        w0, w1 = wfms[0], wfms[1]
+                        y0 = _as_float_list(w0.scaled_data)
+                        y1 = _as_float_list(w1.scaled_data)
+                        t0_w = w0.timing.start_time
+                        dt_w = w0.timing.sample_interval
+                        num = len(y0)
+                        if len(y1) != num:
+                            raise ValueError(
+                                f"Waveform ai0/a1 beda panjang: {num} vs {len(y1)}"
+                            )
+                        for i in range(num):
+                            if TIME_PRINT_MODE_A == "iso":
+                                if t0_w is not None:
+                                    ts_dt = t0_w + dt_w * i
+                                else:
+                                    ts_dt = (
+                                        t0_nominal + dt_sample * (
+                                            sample_offset + i))
+                                ts_str = ts_dt.isoformat()
+                            elif TIME_PRINT_MODE_A == "relative_sec":
+                                ts_str = f"{(sample_offset + i) / RATE_HZ:g}"
+                            else:
+                                raise ValueError(
+                                    f"TIME_PRINT_MODE_A tidak dikenal: "
+                                    f"{TIME_PRINT_MODE_A!r}"
+                                )
+                            print(ts_str, y0[i], y1[i])
+                        sample_offset += num
                         n += 1
                         continue
 
                 if not use_waveform_for_b:
-                    data = task.read(number_of_samples_per_channel=SAMPLES_PER_LOOP)
-                    _print_chunk_like_mode_a(
-                        data,
+                    raw = task.read(
+                        number_of_samples_per_channel=SAMPLES_PER_LOOP)
+                    ai0_samples = raw[0]
+                    ai1_samples = raw[1]
+                    _print_dual_chunk(
+                        ai0_samples,
+                        ai1_samples,
                         sample_offset,
                         t0_nominal,
                         dt_sample,
                         TIME_PRINT_MODE_A,
                     )
-                    sample_offset += len(data)
+                    sample_offset += len(ai0_samples)
             else:
-                raise ValueError(f"READ_MODE tidak dikenal: {READ_MODE!r} (pakai 'A' atau 'B').")
+                raise ValueError(
+                    f"READ_MODE tidak dikenal: {READ_MODE!r} (pakai 'A' atau 'B')."
+                )
             n += 1
     except KeyboardInterrupt:
         print("\nBerhenti (Ctrl+C).")
