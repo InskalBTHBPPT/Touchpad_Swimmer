@@ -17,6 +17,11 @@ NUM_LOOPS = None
 # "B" = task.read_waveform(): t0 & dt dari AnalogWaveform.timing (mirip LabVIEW).
 READ_MODE: Literal["A", "B"] = "A"
 
+# Hanya dipakai saat READ_MODE == "A".
+# "iso"          -> 2026-05-09T12:43:50.243578+07:00
+# "relative_sec" -> 0, 0.002, 0.004, ... (detik nominal sejak task start)
+TIME_PRINT_MODE_A: Literal["iso", "relative_sec"] = "iso"
+
 
 def _print_samples_with_time(timestamps: list[dt.datetime], values) -> None:
     for ts, value in zip(timestamps, values):
@@ -40,10 +45,22 @@ with nidaqmx.Task() as task:
         while NUM_LOOPS is None or n < NUM_LOOPS:
             if READ_MODE == "A":
                 data = task.read(number_of_samples_per_channel=SAMPLES_PER_LOOP)
-                times = [
-                    t0_nominal + dt_sample * (sample_offset + i) for i in range(len(data))
-                ]
-                _print_samples_with_time(times, data)
+                if TIME_PRINT_MODE_A == "iso":
+                    times = [
+                        t0_nominal + dt_sample * (sample_offset + i)
+                        for i in range(len(data))
+                    ]
+                    for ts, value in zip(times, data):
+                        print(ts.isoformat(), float(value))
+                elif TIME_PRINT_MODE_A == "relative_sec":
+                    for i, value in enumerate(data):
+                        rel_s = (sample_offset + i) / RATE_HZ
+                        print(f"{rel_s:g}", float(value))
+                else:
+                    raise ValueError(
+                        f"TIME_PRINT_MODE_A tidak dikenal: {TIME_PRINT_MODE_A!r} "
+                        "(pakai 'iso' atau 'relative_sec')."
+                    )
                 sample_offset += len(data)
             elif READ_MODE == "B":
                 wfm = task.read_waveform(
