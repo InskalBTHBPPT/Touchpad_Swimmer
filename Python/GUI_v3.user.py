@@ -1009,14 +1009,6 @@ class MainWindow(QMainWindow):
         return container
 
     # ── Analisa Data tab ──────────────────────────────────────────────────────
-    #: Pasangan warna (AI0, AI1) per file — masing-masing channel punya warna sendiri
-    _ANALISA_COLOR_PAIRS: list[tuple[str, str]] = [
-        ("#4fc3f7", "#ef5350"),  # biru – merah
-        ("#66bb6a", "#ffa726"),  # hijau – oranye
-        ("#ab47bc", "#26c6da"),  # ungu – cyan
-        ("#ffee58", "#ec407a"),  # kuning – pink
-        ("#80cbc4", "#ff7043"),  # teal – oranye tua
-    ]
 
     def _build_analisa_tab(self) -> QWidget:
         """Bangun tab Analisa Data: chart split time (kiri) + panel load (kanan)."""
@@ -1076,6 +1068,20 @@ class MainWindow(QMainWindow):
         )
         self._analisa_tbl_data.verticalHeader().hide()
 
+        self._analisa_tbl_split = QTableWidget(0, 4)
+        self._analisa_tbl_split.setHorizontalHeaderLabels(
+            ["50m ke-", "Touchpad", "t (s)", "Δt (s)"]
+        )
+        self._analisa_tbl_split.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._analisa_tbl_split.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self._analisa_tbl_split.setAlternatingRowColors(False)
+        self._analisa_tbl_split.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self._analisa_tbl_split.verticalHeader().hide()
+
         chart_vbox = QVBoxLayout()
         chart_vbox.setContentsMargins(0, 0, 0, 0)
         chart_vbox.setSpacing(8)
@@ -1121,7 +1127,13 @@ class MainWindow(QMainWindow):
         grp_tbl_data = QGroupBox("Data Table")
         lay_grp_tbl = QVBoxLayout(grp_tbl_data)
         lay_grp_tbl.setContentsMargins(4, 4, 4, 4)
-        lay_grp_tbl.addWidget(self._analisa_tbl_data)
+        lay_grp_tbl.addWidget(self._analisa_tbl_data, stretch=2)
+
+        grp_split_view = QGroupBox("Split Time (urutan sentuhan)")
+        lay_split_v = QVBoxLayout(grp_split_view)
+        lay_split_v.setContentsMargins(4, 4, 4, 4)
+        lay_split_v.addWidget(self._analisa_tbl_split)
+        lay_grp_tbl.addWidget(grp_split_view, stretch=1)
 
         grp_tbl_load = QGroupBox("CSV Table")
         lay_tl = QVBoxLayout(grp_tbl_load)
@@ -1165,57 +1177,121 @@ class MainWindow(QMainWindow):
 
     # ── Analisa slots ─────────────────────────────────────────────────────────
     def _on_analisa_load_table(self) -> None:
-        """Buka dialog pilih satu CSV Table, lalu tampilkan dan hitung delta time."""
+        """Buka dialog pilih satu CSV Table (format ber-seksi atau lama), lalu tampilkan data."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Pilih CSV Table", "", "CSV Files (*.csv);;All Files (*)"
         )
         if path:
             self._analisa_load_table_file(pathlib.Path(path))
 
-    def _analisa_load_table_file(self, filepath: pathlib.Path) -> None:
-        """Baca CSV Table, populate tabel analisa, dan plot delta time."""
-        meta: dict[str, str] = {}
+    def _analisa_set_split_table_from_rows(self, rows: list[list[str]]) -> None:
+        """Isi tabel split time dari baris CSV (4 kolom: 50m_ke, Touchpad, t_s, Delta_t_s)."""
+        self._analisa_tbl_split.setRowCount(len(rows))
+        for i, row in enumerate(rows):
+            for j in range(4):
+                val = row[j].strip() if j < len(row) else ""
+                item = QTableWidgetItem(val)
+                item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                self._analisa_tbl_split.setItem(i, j, item)
+            self._analisa_tbl_split.setRowHeight(i, 22)
+
+    def _analisa_fill_split_table_from_pad_lists(
+        self,
+        t1_list: list[float], p1_list: list[float],
+        t2_list: list[float], p2_list: list[float],
+    ) -> None:
+        """Hitung urutan sentuhan & delta dari data pad (file lama tanpa seksi SPLIT TIME)."""
+        events: list[tuple[float, str]] = (
+            [(t, "Pad1") for t in t1_list]
+            + [(t, "Pad2") for t in t2_list]
+        )
+        events.sort(key=lambda e: e[0])
         rows: list[list[str]] = []
+        for i, (t, dest) in enumerate(events):
+            dt_v = t if i == 0 else t - events[i - 1][0]
+            rows.append([str(i + 1), dest, f"{t:.4f}", f"{dt_v:.4f}"])
+        self._analisa_set_split_table_from_rows(rows)
+
+    def _analisa_load_table_file(self, filepath: pathlib.Path) -> None:
+        """Baca CSV Table: metadata ``#``, seksi PAD DETECTION, opsional SPLIT TIME.
+
+        Format baru (disimpan dari aplikasi): baris komentar ``# === ... ===`` memisahkan
+        seksi. Seksi PAD berisi waktu/tekanan per baris tabel; seksi SPLIT berisi
+        ``50m_ke``, Touchpad, ``t_s``, ``Delta_t_s``. File lama hanya berisi seksi pad
+        (tanpa penanda) — split time dihitung ulang dari data pad.
+        """
+        meta: dict[str, str] = {}
+        pad_rows: list[list[str]] = []
+        split_rows: list[list[str]] = []
+        section: str | None = None
 
         try:
-            with filepath.open("r", encoding="utf-8") as f:
+            with filepath.open("r", encoding="utf-8-sig") as f:
                 reader = csv.reader(f)
                 for row in reader:
                     if not row:
                         continue
-                    if row[0].startswith("#"):
-                        key = row[0][1:].strip()
+                    c0 = row[0].strip() if row[0] else ""
+                    if c0.startswith("#"):
+                        key = c0[1:].strip()
+                        uk = key.upper()
+                        if "PAD DETECTION" in uk:
+                            section = "pad"
+                            continue
+                        if "SPLIT TIME" in uk:
+                            section = "split"
+                            continue
+                        if not key:
+                            continue
                         val = row[1].strip() if len(row) > 1 else ""
                         meta[key] = val
-                    elif row[0].strip().lower() == "no":
-                        continue  # baris header kolom
+                        continue
+
+                    lc0 = c0.lower()
+                    if section == "pad":
+                        if lc0 == "no" and len(row) >= 2 and "time" in (
+                            row[1] or ""
+                        ).lower():
+                            continue
+                        pad_rows.append(row)
+                    elif section == "split":
+                        hdr = " ".join((row[j] or "").lower() for j in range(min(4, len(row))))
+                        if "50m_ke" in lc0 or (
+                            lc0.startswith("50m") and "touchpad" in hdr
+                        ):
+                            continue
+                        split_rows.append(row)
                     else:
-                        rows.append(row)
+                        if lc0 == "no" and len(row) >= 2 and "time" in (
+                            row[1] or ""
+                        ).lower():
+                            continue
+                        pad_rows.append(row)
         except OSError as exc:
             QMessageBox.critical(self, "Error", f"Gagal membuka file:\n{exc}")
             return
 
-        if not rows:
+        if not pad_rows:
             QMessageBox.warning(
-                self, "Data Kosong", f"Tidak ada data di:\n{filepath.name}"
+                self, "Data Kosong", f"Tidak ada data pad di:\n{filepath.name}"
             )
             return
 
-        # Update info perenang dari metadata (table section)
         self._analisa_lbl_tbl_file.setText(filepath.name)
         self._analisa_lbl_tbl_nama.setText(meta.get("Nama Perenang", "-"))
         self._analisa_lbl_tbl_gaya.setText(meta.get("Gaya", "-"))
         self._analisa_lbl_tbl_jarak.setText(meta.get("Jarak", "-"))
         self._analisa_lbl_tbl_tanggal.setText(meta.get("Tanggal", "-"))
 
-        # Populate QTableWidget dan kumpulkan data untuk plot
-        self._analisa_tbl_data.setRowCount(len(rows))
-        t1_list:  list[float] = []
-        p1_list:  list[float] = []
-        t2_list:  list[float] = []
-        p2_list:  list[float] = []
+        self._analisa_tbl_data.setRowCount(len(pad_rows))
+        t1_list: list[float] = []
+        p1_list: list[float] = []
+        t2_list: list[float] = []
+        p2_list: list[float] = []
 
-        for i, row in enumerate(rows):
+        for i, row in enumerate(pad_rows):
             for j in range(5):
                 val = row[j].strip() if j < len(row) else ""
                 item = QTableWidgetItem(val)
@@ -1227,7 +1303,6 @@ class MainWindow(QMainWindow):
             t1 = self._analisa_parse_time_s(row[1] if len(row) > 1 else "")
             t2 = self._analisa_parse_time_s(row[3] if len(row) > 3 else "")
 
-            # Pressure (kolom index 2 = Pad1, 4 = Pad2)
             try:
                 p1_val = float(row[2]) if len(row) > 2 and row[2].strip() else None
             except ValueError:
@@ -1243,6 +1318,13 @@ class MainWindow(QMainWindow):
             if t2 is not None and p2_val is not None:
                 t2_list.append(t2)
                 p2_list.append(p2_val)
+
+        if split_rows:
+            self._analisa_set_split_table_from_rows(split_rows)
+        else:
+            self._analisa_fill_split_table_from_pad_lists(
+                t1_list, p1_list, t2_list, p2_list
+            )
 
         self._analisa_compute_and_plot_deltas(t1_list, p1_list, t2_list, p2_list)
 
@@ -1424,6 +1506,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         self._analisa_tbl_data.setRowCount(0)
+        self._analisa_tbl_split.setRowCount(0)
 
         # Reset label CSV Table
         self._analisa_lbl_tbl_file.setText("(belum ada file)")
