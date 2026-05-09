@@ -954,6 +954,16 @@ class MainWindow(QMainWindow):
             self._inp_csv_folder.setText(folder)
             self._update_csv_preview()
 
+    def _update_prefix_from_swimmer(self) -> None:
+        """Perbarui prefix CSV otomatis dari nama, gaya, dan jarak perenang."""
+        if not hasattr(self, "_inp_csv_prefix"):
+            return
+        name = self._inp_swimmer_name.text().strip().replace(" ", "_")
+        stroke = self._dd_stroke.currentText()
+        distance = self._dd_distance.currentText()
+        base = name if name else DEFAULT_CSV_PREFIX
+        self._inp_csv_prefix.setText(f"{base}_{stroke}_{distance}")
+
     def _update_csv_preview(self) -> None:
         prefix = self._inp_csv_prefix.text().strip() or "DAQ"
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1137,6 +1147,30 @@ class MainWindow(QMainWindow):
         self._btn_set_param.setMinimumHeight(32)
         self._btn_set_param.clicked.connect(self._on_open_param_dialog)
 
+        # ── Info Perenang ────────────────────────────────────────────────────
+        swimmer_group = QGroupBox("Info Perenang")
+        swimmer_form = QFormLayout()
+        swimmer_form.setSpacing(6)
+        swimmer_form.setContentsMargins(10, 12, 10, 10)
+
+        self._inp_swimmer_name = QLineEdit()
+        self._inp_swimmer_name.setPlaceholderText("Nama perenang...")
+
+        self._dd_stroke = QComboBox()
+        self._dd_stroke.addItems(["Bebas", "Punggung", "Dada", "Kupu-kupu", "Gaya Ganti"])
+
+        self._dd_distance = QComboBox()
+        self._dd_distance.addItems(["50m", "100m", "200m", "400m", "800m", "1500m"])
+
+        swimmer_form.addRow("Nama:", self._inp_swimmer_name)
+        swimmer_form.addRow("Gaya:", self._dd_stroke)
+        swimmer_form.addRow("Jarak:", self._dd_distance)
+        swimmer_group.setLayout(swimmer_form)
+
+        self._inp_swimmer_name.textChanged.connect(self._update_prefix_from_swimmer)
+        self._dd_stroke.currentTextChanged.connect(self._update_prefix_from_swimmer)
+        self._dd_distance.currentTextChanged.connect(self._update_prefix_from_swimmer)
+
         # ── Export CSV (dipindah dari panel kiri) ────────────────────────────
         csv_group = QGroupBox("Export Log to CSV")
         csv_form = QFormLayout()
@@ -1206,6 +1240,7 @@ class MainWindow(QMainWindow):
         outer_vbox = QVBoxLayout()
         outer_vbox.setContentsMargins(0, 0, 0, 0)
         outer_vbox.setSpacing(6)
+        outer_vbox.addWidget(swimmer_group)
         outer_vbox.addWidget(csv_group)
         outer_vbox.addWidget(self._btn_start_stop)
         outer_vbox.addWidget(group, stretch=1)
