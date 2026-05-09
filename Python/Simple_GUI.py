@@ -90,7 +90,7 @@ _THEMES: dict[str, dict] = {
 
 
 DEFAULT_CSV_PREFIX = "Swimming"
-DEFAULT_CSV_FOLDER = str(pathlib.Path.home() / "Documents")
+DEFAULT_CSV_FOLDER = str(pathlib.Path(__file__).parent / "DataLog")
 
 
 # ─── CSV Writer ───────────────────────────────────────────────────────────────
@@ -257,7 +257,7 @@ class MainWindow(QMainWindow):
         self._plot_timer.setInterval(PLOT_REFRESH_MS)
         self._plot_timer.timeout.connect(self._refresh_plot)
 
-        self._apply_theme("Light")
+        self._apply_theme("Dark")
 
     # ── Parameter panel ──────────────────────────────────────────────────────
     def _build_param_panel(self) -> QWidget:
