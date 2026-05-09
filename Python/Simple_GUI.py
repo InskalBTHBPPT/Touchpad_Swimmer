@@ -125,6 +125,10 @@ N_COLLECT = 50          # jumlah sampel yang dirata-rata setelah trigger
 TABLE_ROWS = 10         # baris data pada tabel
 DEFAULT_HOLD_TIME = 10.0  # detik minimum di state HOLD sebelum bisa re-arm
 
+DEFAULT_THRESHOLD  = "0.05"
+DEFAULT_HYSTERESIS = "0.005"
+DEFAULT_SCALE      = "1.00"
+
 
 # ─── Channel Detector (Schmitt Trigger) ──────────────────────────────────────
 class ChannelDetector:
@@ -464,17 +468,26 @@ class MainWindow(QMainWindow):
         self._btn_start_stop.setMinimumHeight(44)
         self._btn_start_stop.clicked.connect(self._on_start_stop)
 
+        self._btn_set_default = QPushButton("↺  Set Default")
+        self._btn_set_default.setMinimumHeight(32)
+        self._btn_set_default.clicked.connect(self._on_set_defaults)
+
         self._btn_theme = QPushButton("🌙  Dark")
         self._btn_theme.setMinimumHeight(32)
         self._btn_theme.clicked.connect(self._on_toggle_theme)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(6)
+        btn_row.addWidget(self._btn_set_default)
+        btn_row.addWidget(self._btn_theme)
 
         vbox = QVBoxLayout()
         vbox.setSpacing(8)
         vbox.addWidget(group)
         vbox.addWidget(csv_group)
         vbox.addWidget(self._btn_start_stop)
-        vbox.addWidget(self._btn_theme)
         vbox.addStretch()
+        vbox.addLayout(btn_row)
 
         container = QWidget()
         container.setLayout(vbox)
@@ -643,9 +656,9 @@ class MainWindow(QMainWindow):
             )
             param_grid.addWidget(dev_lbl, row_base, 0)
 
-            inp_thresh = _make_param_input("0.05")
-            inp_hyst   = _make_param_input("0.005")
-            inp_scale  = _make_param_input("1.00")
+            inp_thresh = _make_param_input(DEFAULT_THRESHOLD)
+            inp_hyst   = _make_param_input(DEFAULT_HYSTERESIS)
+            inp_scale  = _make_param_input(DEFAULT_SCALE)
             inp_hold   = _make_param_input(str(DEFAULT_HOLD_TIME))
             param_grid.addWidget(inp_thresh, row_base, 1)
             param_grid.addWidget(inp_hyst,   row_base, 2)
@@ -1078,6 +1091,31 @@ class MainWindow(QMainWindow):
         else:
             color = "gray"
         self._status_label.setStyleSheet(f"color: {color}; padding: 2px 4px;")
+
+    def _on_set_defaults(self) -> None:
+        """Kembalikan semua input Parameter Setting dan detector ke nilai default."""
+        # Parameter Setting
+        self._inp_ch0.setText(DEFAULT_CH0)
+        self._inp_ch1.setText(DEFAULT_CH1)
+        self._inp_rate.setText(str(DEFAULT_RATE))
+        self._inp_buffer.setText(str(DEFAULT_BUFFER))
+        self._inp_spl.setText(str(DEFAULT_SAMPLES_PER_LOOP))
+        self._dd_terminal.setCurrentText(DEFAULT_TERMINAL)
+        self._dd_vrange.setCurrentText(DEFAULT_VOLTAGE_RANGE_DIFF)
+        self._dd_ts_set.setCurrentText(DEFAULT_TS_SET)
+        self._dd_ts_display.setCurrentText(DEFAULT_TS_DISPLAY)
+
+        # Threshold / Hysteresis / Scale / Hold Time – Dev 0
+        self._inp_thresh0.setText(DEFAULT_THRESHOLD)
+        self._inp_hyst0.setText(DEFAULT_HYSTERESIS)
+        self._inp_scale0.setText(DEFAULT_SCALE)
+        self._inp_hold0.setText(str(DEFAULT_HOLD_TIME))
+
+        # Threshold / Hysteresis / Scale / Hold Time – Dev 1
+        self._inp_thresh1.setText(DEFAULT_THRESHOLD)
+        self._inp_hyst1.setText(DEFAULT_HYSTERESIS)
+        self._inp_scale1.setText(DEFAULT_SCALE)
+        self._inp_hold1.setText(str(DEFAULT_HOLD_TIME))
 
     def _on_terminal_changed(self, text: str) -> None:
         """Sesuaikan pilihan input range sesuai mode terminal."""
