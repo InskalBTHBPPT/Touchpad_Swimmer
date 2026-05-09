@@ -1419,11 +1419,14 @@ class MainWindow(QMainWindow):
         delta_dest.append(events[0][1])
         press_y.append(events[0][2])
 
+        cum_t: list[float] = [events[0][0]]  # waktu kumulatif (absolut dari tabel)
+
         for i in range(1, len(events)):
             delta_x.append(float(i + 1))
             delta_y.append(events[i][0] - events[i - 1][0])
             delta_dest.append(events[i][1])
             press_y.append(events[i][2])
+            cum_t.append(events[i][0])
 
         # Pisahkan outbound / return untuk delta scatter
         x_out, y_out, x_ret, y_ret = [], [], [], []
@@ -1469,10 +1472,14 @@ class MainWindow(QMainWindow):
                 name="→ Pad1 (return)",
             ))
 
-        # Label nilai delta
-        for x, y in zip(delta_x, delta_y):
-            txt = pg.TextItem(f"{y:.3f}s", anchor=(0.5, 1.2), color="#cccccc")
-            txt.setPos(x, y)
+        # Label dua baris: t = waktu kumulatif, dt = delta
+        for x, dt_val, t_val in zip(delta_x, delta_y, cum_t):
+            txt = pg.TextItem(
+                f"t:{t_val:.2f}s\ndt:{dt_val:.2f}s",
+                anchor=(0.5, 1.2),
+                color="#cccccc",
+            )
+            txt.setPos(x, dt_val)
             pi.addItem(txt)
 
         # ── Sumbu Y kanan: Pressure ────────────────────────────────────────
