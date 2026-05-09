@@ -803,7 +803,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         """Inisialisasi MainWindow: buat semua widget dan load config.json."""
         super().__init__()
-        self.setWindowTitle("NI DAQ Monitor")
+        self.setWindowTitle("Swimmer Monitor")
         self.resize(1280, 640)
 
         self._worker: DaqWorker | None = None
