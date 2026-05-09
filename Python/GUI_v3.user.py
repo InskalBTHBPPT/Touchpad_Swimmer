@@ -1912,13 +1912,15 @@ class MainWindow(QMainWindow):
           1,...
           #
           # === SPLIT TIME ===
-          50m_ke,Touchpad,t_s,Delta_t_s
+          50m ke-,Touchpad,t (s),Δt (s)
           1,Pad2,10.368,10.368
           ...
 
-        Semua baris dimulai ``#`` adalah komentar/metadata — aman dilewati saat
-        import ke pandas dengan ``comment='#'``. Nilai waktu di seksi Split Time
-        selalu dalam detik (float) terlepas dari pilihan format tampilan.
+        Kolom Split Time sama dengan tabel di Layar: urutan 50m ke-, Touchpad
+        (Pad1/Pad2), waktu kumulatif ``t (s)``, dan ``Δt (s)`` dalam detik (4 desimal).
+
+        Baris yang dimulai ``#`` adalah komentar/metadata — aman dilewati saat
+        import ke pandas dengan ``comment='#'``.
         """
         prefix = self._inp_csv_prefix.text().strip() or "DAQ"
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1960,7 +1962,7 @@ class MainWindow(QMainWindow):
                 # ── Seksi 2: Split Time ────────────────────────────────────
                 writer.writerow(["#"])
                 writer.writerow(["# === SPLIT TIME ==="])
-                writer.writerow(["50m_ke", "Touchpad", "t_s", "Delta_t_s"])
+                writer.writerow(["50m ke-", "Touchpad", "t (s)", "Δt (s)"])
                 events = sorted(self._live_events, key=lambda e: e[0])
                 for i, (t_val, ch) in enumerate(events):
                     dt_val = t_val if i == 0 else t_val - events[i - 1][0]
