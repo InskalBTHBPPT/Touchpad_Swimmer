@@ -1050,7 +1050,7 @@ class MainWindow(QMainWindow):
         self._analisa_tbl_data.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
         )
-        self._analisa_tbl_data.setAlternatingRowColors(True)
+        self._analisa_tbl_data.setAlternatingRowColors(False)
         self._analisa_tbl_data.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
