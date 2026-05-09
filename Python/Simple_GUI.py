@@ -11,12 +11,14 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QThread, Signal, QTimer, Qt
 from PySide6.QtGui import QFont, QPalette, QColor, QBrush
+from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
     QFileDialog,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -428,7 +430,7 @@ class MainWindow(QMainWindow):
     # ── Table panel ──────────────────────────────────────────────────────────
     def _build_table_panel(self) -> QWidget:
         group = QGroupBox("Table")
-        group.setFixedWidth(330)
+        group.setFixedWidth(360)
 
         NUM_DATA_ROWS = 10
         COLS = 5
@@ -490,8 +492,64 @@ class MainWindow(QMainWindow):
 
         self._update_table_header_colors()
 
+        # ── Parameter di atas tabel ──────────────────────────────────────────
+        dbl = QDoubleValidator()
+        dbl.setNotation(QDoubleValidator.Notation.StandardNotation)
+
+        def _make_param_input(default: str) -> QLineEdit:
+            le = QLineEdit(default)
+            le.setValidator(dbl)
+            le.setFixedWidth(90)
+            le.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            return le
+
+        param_grid = QGridLayout()
+        param_grid.setSpacing(4)
+        param_grid.setContentsMargins(0, 0, 0, 6)
+
+        col_headers = [
+            "Threshold (Volt)", "Hysteresis (Volt)", "Scale (Kg/Volt)"
+        ]
+        for col, text in enumerate(col_headers):
+            lbl = QLabel(text)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            small = QFont()
+            small.setPointSize(8)
+            lbl.setFont(small)
+            param_grid.addWidget(lbl, 0, col + 1)
+
+        for dev_idx in range(2):
+            row_base = dev_idx * 2 + 1
+            dev_lbl = QLabel(f"Dev. {dev_idx}")
+            dev_lbl.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            param_grid.addWidget(dev_lbl, row_base, 0)
+
+            inp_thresh = _make_param_input("0.05")
+            inp_hyst   = _make_param_input("0.005")
+            inp_scale  = _make_param_input("1.00")
+            param_grid.addWidget(inp_thresh, row_base, 1)
+            param_grid.addWidget(inp_hyst,   row_base, 2)
+            param_grid.addWidget(inp_scale,  row_base, 3)
+
+            if dev_idx == 0:
+                self._inp_thresh0 = inp_thresh
+                self._inp_hyst0   = inp_hyst
+                self._inp_scale0  = inp_scale
+            else:
+                self._inp_thresh1 = inp_thresh
+                self._inp_hyst1   = inp_hyst
+                self._inp_scale1  = inp_scale
+
+        param_grid.setColumnStretch(0, 0)
+        for c in range(1, 4):
+            param_grid.setColumnStretch(c, 1)
+
         vbox = QVBoxLayout()
         vbox.setContentsMargins(8, 12, 8, 8)
+        vbox.setSpacing(6)
+        vbox.addLayout(param_grid)
         vbox.addWidget(self._data_table)
         vbox.addStretch()
         group.setLayout(vbox)
