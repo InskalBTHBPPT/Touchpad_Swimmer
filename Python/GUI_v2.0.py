@@ -198,6 +198,15 @@ DEFAULT_SCALE      = "1.00"
 
 CONFIG_PATH = pathlib.Path(__file__).parent / "config.json"
 
+# Jarak valid per gaya renang (sesuai standar kompetisi)
+STROKE_DISTANCES: dict[str, list[str]] = {
+    "Bebas":      ["50m", "100m", "200m", "400m", "800m", "1500m"],
+    "Punggung":   ["50m", "100m", "200m"],
+    "Dada":       ["50m", "100m", "200m"],
+    "Kupu-kupu":  ["50m", "100m", "200m"],
+    "Gaya Ganti": ["200m", "400m"],
+}
+
 
 # ─── Config persistence ───────────────────────────────────────────────────────
 def _load_config() -> dict | None:
@@ -954,6 +963,18 @@ class MainWindow(QMainWindow):
             self._inp_csv_folder.setText(folder)
             self._update_csv_preview()
 
+    def _on_stroke_changed(self, stroke: str) -> None:
+        """Perbarui pilihan jarak sesuai gaya yang dipilih, pertahankan jika masih valid."""
+        valid = STROKE_DISTANCES.get(stroke, [])
+        current = self._dd_distance.currentText()
+        self._dd_distance.blockSignals(True)
+        self._dd_distance.clear()
+        self._dd_distance.addItems(valid)
+        if current in valid:
+            self._dd_distance.setCurrentText(current)
+        self._dd_distance.blockSignals(False)
+        self._update_prefix_from_swimmer()
+
     def _update_prefix_from_swimmer(self) -> None:
         """Perbarui prefix CSV otomatis dari nama, gaya, dan jarak perenang."""
         if not hasattr(self, "_inp_csv_prefix"):
@@ -1157,10 +1178,10 @@ class MainWindow(QMainWindow):
         self._inp_swimmer_name.setPlaceholderText("Nama perenang...")
 
         self._dd_stroke = QComboBox()
-        self._dd_stroke.addItems(["Bebas", "Punggung", "Dada", "Kupu-kupu", "Gaya Ganti"])
+        self._dd_stroke.addItems(list(STROKE_DISTANCES.keys()))
 
         self._dd_distance = QComboBox()
-        self._dd_distance.addItems(["50m", "100m", "200m", "400m", "800m", "1500m"])
+        self._dd_distance.addItems(STROKE_DISTANCES["Bebas"])
 
         swimmer_form.addRow("Nama:", self._inp_swimmer_name)
         swimmer_form.addRow("Gaya:", self._dd_stroke)
@@ -1168,7 +1189,7 @@ class MainWindow(QMainWindow):
         swimmer_group.setLayout(swimmer_form)
 
         self._inp_swimmer_name.textChanged.connect(self._update_prefix_from_swimmer)
-        self._dd_stroke.currentTextChanged.connect(self._update_prefix_from_swimmer)
+        self._dd_stroke.currentTextChanged.connect(self._on_stroke_changed)
         self._dd_distance.currentTextChanged.connect(self._update_prefix_from_swimmer)
 
         # ── Export CSV (dipindah dari panel kiri) ────────────────────────────
