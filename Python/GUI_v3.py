@@ -1023,7 +1023,7 @@ class MainWindow(QMainWindow):
         pi_delta: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
         pi_delta.setTitle("Split Time & Tekanan per Sentuhan")
         pi_delta.setLabel("left", "Δ Time", units="s")
-        pi_delta.setLabel("bottom", "Titik ke-")
+        pi_delta.setLabel("bottom", "Sentuhan ke-")
         pi_delta.showGrid(x=True, y=True, alpha=0.3)
         self._analisa_delta_legend = pi_delta.addLegend(offset=(10, 10))
 
@@ -1481,24 +1481,28 @@ class MainWindow(QMainWindow):
             )
 
         if x_pr1:
-            self._analisa_vb_press.addItem(pg.ScatterPlotItem(
+            sc_pr1 = pg.ScatterPlotItem(
                 x=x_pr1, y=y_pr1, symbol="s", size=9,
                 pen=pg.mkPen(None),
                 brush=pg.mkBrush("#39ff14"),  # neon green — Pad1
-                name="Press Pad1",
-            ))
+            )
+            self._analisa_vb_press.addItem(sc_pr1)
+            # Daftarkan manual ke legend (secondary ViewBox tidak otomatis masuk)
+            self._analisa_delta_legend.addItem(sc_pr1, "Press Pad1")
             for x, y in zip(x_pr1, y_pr1):
                 txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, -0.3), color="#39ff14")
                 txt.setPos(x, y)
                 self._analisa_vb_press.addItem(txt)
 
         if x_pr2:
-            self._analisa_vb_press.addItem(pg.ScatterPlotItem(
+            sc_pr2 = pg.ScatterPlotItem(
                 x=x_pr2, y=y_pr2, symbol="s", size=9,
                 pen=pg.mkPen(None),
                 brush=pg.mkBrush("#ffe600"),  # yellow — Pad2
-                name="Press Pad2",
-            ))
+            )
+            self._analisa_vb_press.addItem(sc_pr2)
+            # Daftarkan manual ke legend
+            self._analisa_delta_legend.addItem(sc_pr2, "Press Pad2")
             for x, y in zip(x_pr2, y_pr2):
                 txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, 1.4), color="#ffe600")
                 txt.setPos(x, y)
