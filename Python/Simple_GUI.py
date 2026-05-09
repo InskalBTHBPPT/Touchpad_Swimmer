@@ -97,6 +97,69 @@ _THEMES: dict[str, dict] = {
 DEFAULT_CSV_PREFIX = "Swimming"
 DEFAULT_CSV_FOLDER = str(pathlib.Path(__file__).parent / "DataLog")
 
+N_COLLECT = 20          # jumlah sampel yang dirata-rata setelah trigger
+TABLE_ROWS = 10         # baris data pada tabel
+
+
+# ─── Channel Detector (Schmitt Trigger) ──────────────────────────────────────
+class ChannelDetector:
+    """Deteksi rising-edge dengan hysteresis (Schmitt trigger).
+
+    State machine:
+        ARMED      → sinyal naik ke >= lower_trip → COLLECTING
+        COLLECTING → kumpulkan N_COLLECT sampel   → HOLD
+        HOLD       → sinyal turun ke < lower_trip  → ARMED
+    """
+
+    def __init__(
+        self,
+        threshold: float,
+        hysteresis: float,
+        scale: float,
+        n_collect: int = N_COLLECT,
+    ) -> None:
+        self.threshold = threshold
+        self.hysteresis = hysteresis
+        self.scale = scale
+        self.n_collect = n_collect
+        self._state = "ARMED"
+        self._buf: list[float] = []
+        self._t0 = 0.0
+
+    @property
+    def lower_trip(self) -> float:
+        return self.threshold - self.hysteresis
+
+    def reset(self) -> None:
+        self._state = "ARMED"
+        self._buf = []
+        self._t0 = 0.0
+
+    def process(self, value: float, timestamp: float) -> tuple[float, float] | None:
+        """Proses satu sampel.
+
+        Returns (t0_s, pressure_scaled) saat deteksi selesai, else None.
+        """
+        if self._state == "ARMED":
+            if value >= self.lower_trip:
+                self._state = "COLLECTING"
+                self._t0 = timestamp
+                self._buf = [value]
+
+        elif self._state == "COLLECTING":
+            self._buf.append(value)
+            if len(self._buf) >= self.n_collect:
+                pressure = (sum(self._buf) / self.n_collect) * self.scale
+                self._state = "HOLD"
+                self._buf = []
+                return (self._t0, pressure)
+
+        elif self._state == "HOLD":
+            if value < self.lower_trip:
+                self._state = "ARMED"
+
+        return None
+
 
 # ─── CSV Writer ───────────────────────────────────────────────────────────────
 class CsvWriter:
@@ -243,6 +306,9 @@ class MainWindow(QMainWindow):
         self._dt_sample = 1.0 / DEFAULT_RATE
         self._t0_nominal: dt.datetime | None = None
         self._current_theme = "Light"
+        self._detector0: ChannelDetector | None = None
+        self._detector1: ChannelDetector | None = None
+        self._table_next_row = 2  # baris 0-1 adalah header
 
         max_pts = int(DEFAULT_RATE * PLOT_WINDOW_SEC)
         self._buf_x: collections.deque[float] = collections.deque(maxlen=max_pts)
@@ -304,7 +370,7 @@ class MainWindow(QMainWindow):
         group.setLayout(form)
 
         # ── CSV export group ──────────────────────────────────────────────
-        csv_group = QGroupBox("Export CSV")
+        csv_group = QGroupBox("Export Log to CSV")
         csv_group.setFixedWidth(270)
         csv_form = QFormLayout()
         csv_form.setSpacing(6)
@@ -644,6 +710,32 @@ class MainWindow(QMainWindow):
         self._dt_sample = 1.0 / rate
         self._t0_nominal = dt.datetime.now().astimezone()
 
+        # Buat detector dari nilai parameter saat ini
+        def _safe_float(text: str, default: float) -> float:
+            try:
+                return float(text)
+            except ValueError:
+                return default
+
+        self._detector0 = ChannelDetector(
+            threshold=_safe_float(self._inp_thresh0.text(), 0.05),
+            hysteresis=_safe_float(self._inp_hyst0.text(),  0.005),
+            scale=_safe_float(self._inp_scale0.text(),      1.0),
+        )
+        self._detector1 = ChannelDetector(
+            threshold=_safe_float(self._inp_thresh1.text(), 0.05),
+            hysteresis=_safe_float(self._inp_hyst1.text(),  0.005),
+            scale=_safe_float(self._inp_scale1.text(),      1.0),
+        )
+
+        # Reset tabel: hapus isi baris data (baris 0-1 adalah header)
+        self._table_next_row = 2
+        for row in range(2, 2 + TABLE_ROWS):
+            for col in range(self._data_table.columnCount()):
+                item = self._data_table.item(row, col)
+                if item:
+                    item.setText("")
+
         # Buka CSV writer jika checkbox aktif
         self._csv_writer = None
         if self._chk_csv.isChecked():
@@ -694,6 +786,8 @@ class MainWindow(QMainWindow):
             self._csv_writer.close()
             saved_msg = f"  |  Saved: {self._csv_writer.filepath.name}"
             self._csv_writer = None
+        self._detector0 = None
+        self._detector1 = None
         self._set_param_inputs_enabled(True)
         self._chk_csv.setEnabled(True)
         self._inp_csv_prefix.setEnabled(True)
@@ -709,6 +803,17 @@ class MainWindow(QMainWindow):
             self._buf_ai0.append(ai0[i])
             self._buf_ai1.append(ai1[i])
 
+            # Proses detector per sampel
+            if self._detector0 is not None:
+                result0 = self._detector0.process(ai0[i], x_val)
+                if result0 is not None:
+                    self._append_table_row(result0[0], result0[1], channel=0)
+
+            if self._detector1 is not None:
+                result1 = self._detector1.process(ai1[i], x_val)
+                if result1 is not None:
+                    self._append_table_row(result1[0], result1[1], channel=1)
+
         if self._csv_writer is not None:
             self._csv_writer.write_chunk(ai0, ai1, offset)
 
@@ -723,6 +828,35 @@ class MainWindow(QMainWindow):
         #     else:
         #         ts_str = f"{rel_s:g}"
         #     print(ts_str, float(ai0[i]), float(ai1[i]))
+
+    def _append_table_row(self, t0: float, pressure: float, channel: int) -> None:
+        """Tulis satu hasil deteksi ke tabel.
+
+        channel=0 → kolom 0 (Time Pad1) & 1 (Pressure Pad1)
+        channel=1 → kolom 2 (Time Pad2) & 3 (Pressure Pad2)
+        Saat semua baris penuh, geser ke atas (scroll up) dan kosongkan baris terakhir.
+        """
+        col_time = channel * 2       # 0 atau 2
+        col_press = channel * 2 + 1  # 1 atau 3
+
+        if self._table_next_row >= 2 + TABLE_ROWS:
+            # Geser semua baris ke atas satu langkah
+            for row in range(2, 2 + TABLE_ROWS - 1):
+                for col in (col_time, col_press):
+                    src = self._data_table.item(row + 1, col)
+                    dst = self._data_table.item(row, col)
+                    if dst and src:
+                        dst.setText(src.text())
+            self._table_next_row = 2 + TABLE_ROWS - 1
+
+        row = self._table_next_row
+        t_item = self._data_table.item(row, col_time)
+        p_item = self._data_table.item(row, col_press)
+        if t_item:
+            t_item.setText(f"{t0:.3f}")
+        if p_item:
+            p_item.setText(f"{pressure:.4f}")
+        self._table_next_row += 1
 
     def _refresh_plot(self) -> None:
         if not self._buf_x:
