@@ -1019,23 +1019,9 @@ class MainWindow(QMainWindow):
     ]
 
     def _build_analisa_tab(self) -> QWidget:
-        """Bangun tab Analisa Data: chart overlay (kiri) + panel load (kanan)."""
+        """Bangun tab Analisa Data: chart split time (kiri) + panel load (kanan)."""
 
-        # ── Chart panel (kiri) ─────────────────────────────────────────────
-        self._analisa_pw_log = pg.PlotWidget()
-        pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
-        pi_log.setTitle("CSV Log — Overlay")
-        pi_log.setLabel("left", "Voltage", units="V")
-        pi_log.setLabel("bottom", "Time", units="s")
-        pi_log.showGrid(x=True, y=True, alpha=0.3)
-        self._analisa_legend = pi_log.addLegend(offset=(10, 10))
-
-        grp_log_plot = QGroupBox("CSV Log Overlay")
-        lay_lp = QVBoxLayout(grp_log_plot)
-        lay_lp.setContentsMargins(4, 4, 4, 4)
-        lay_lp.addWidget(self._analisa_pw_log)
-
-        # ── Bottom: scatter delta time (full width) ───────────────────────
+        # ── Plot split time & tekanan ──────────────────────────────────────
         # Scatter plot delta time
         self._analisa_pw_delta = pg.PlotWidget()
         pi_delta: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
@@ -1093,7 +1079,6 @@ class MainWindow(QMainWindow):
         chart_vbox = QVBoxLayout()
         chart_vbox.setContentsMargins(0, 0, 0, 0)
         chart_vbox.setSpacing(8)
-        chart_vbox.addWidget(grp_log_plot, stretch=1)
         chart_vbox.addWidget(grp_table_plot, stretch=1)
         chart_container = QWidget()
         chart_container.setLayout(chart_vbox)
@@ -1112,39 +1097,6 @@ class MainWindow(QMainWindow):
             form.addRow("Jarak:", lbl_jarak)
             form.addRow("Tanggal:", lbl_tanggal)
             return form
-
-        # ── Bagian CSV Log ────────────────────────────────────────────────
-        self._btn_load_log = QPushButton("📂  Load CSV Log")
-        self._btn_load_log.setToolTip("Muat satu atau beberapa file CSV Log untuk di-overlay")
-        self._btn_load_log.clicked.connect(self._on_analisa_load_log)
-        btn_load_log = self._btn_load_log
-
-        self._analisa_lbl_log_file = QLabel("(belum ada file)")
-        self._analisa_lbl_log_file.setWordWrap(True)
-        self._analisa_lbl_log_file.setTextFormat(Qt.TextFormat.RichText)
-        self._analisa_lbl_log_file.setStyleSheet("font-style: italic; font-size: 10px;")
-
-        self._analisa_lbl_log_nama = QLabel("-")
-        self._analisa_lbl_log_gaya = QLabel("-")
-        self._analisa_lbl_log_jarak = QLabel("-")
-        self._analisa_lbl_log_tanggal = QLabel("-")
-        for lbl in (
-            self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
-            self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
-        ):
-            lbl.setWordWrap(True)
-
-        grp_log_load = QGroupBox("CSV Log")
-        lay_ll = QVBoxLayout(grp_log_load)
-        lay_ll.setSpacing(4)
-        lay_ll.addWidget(btn_load_log)
-        lay_ll.addWidget(self._analisa_lbl_log_file)
-        lay_ll.addLayout(
-            _info_form(
-                self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
-                self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
-            )
-        )
 
         # ── Bagian CSV Table ──────────────────────────────────────────────
         self._btn_load_table = QPushButton("📂  Load CSV Table")
@@ -1192,7 +1144,6 @@ class MainWindow(QMainWindow):
         load_vbox = QVBoxLayout()
         load_vbox.setContentsMargins(0, 0, 0, 0)
         load_vbox.setSpacing(8)
-        load_vbox.addWidget(grp_log_load)
         load_vbox.addWidget(grp_tbl_load, stretch=1)
         load_vbox.addWidget(btn_clear)
 
@@ -1210,99 +1161,9 @@ class MainWindow(QMainWindow):
         root_widget = QWidget()
         root_widget.setLayout(root_hbox)
 
-        # State: list of (filename_stem, curve_ai0, curve_ai1)
-        self._analisa_log_curves: list[tuple[str, pg.PlotDataItem, pg.PlotDataItem]] = []
-
         return root_widget
 
     # ── Analisa slots ─────────────────────────────────────────────────────────
-    def _on_analisa_load_log(self) -> None:
-        """Buka dialog pilih satu/banyak CSV Log, lalu plot overlay."""
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, "Pilih CSV Log", "", "CSV Files (*.csv);;All Files (*)"
-        )
-        for path in paths:
-            self._analisa_load_log_file(pathlib.Path(path))
-
-    def _analisa_load_log_file(self, filepath: pathlib.Path) -> None:
-        """Baca satu CSV Log, update info perenang, dan tambah kurva ke plot."""
-        meta: dict[str, str] = {}
-        times: list[float] = []
-        ai0_data: list[float] = []
-        ai1_data: list[float] = []
-
-        try:
-            with filepath.open("r", encoding="utf-8") as f:
-                reader = csv.reader(f)
-                for row in reader:
-                    if not row:
-                        continue
-                    if row[0].startswith("#"):
-                        key = row[0][1:].strip()
-                        val = row[1].strip() if len(row) > 1 else ""
-                        meta[key] = val
-                    elif row[0].strip().lower() == "timestamp_s":
-                        continue  # baris header kolom
-                    else:
-                        try:
-                            times.append(float(row[0]))
-                            ai0_data.append(float(row[1]))
-                            ai1_data.append(float(row[2]))
-                        except (ValueError, IndexError):
-                            pass
-        except OSError as exc:
-            QMessageBox.critical(self, "Error", f"Gagal membuka file:\n{exc}")
-            return
-
-        if not times:
-            QMessageBox.warning(
-                self, "Data Kosong", f"Tidak ditemukan data numerik di:\n{filepath.name}"
-            )
-            return
-
-        # Tampilkan info perenang dari metadata (log section)
-        self._analisa_lbl_log_nama.setText(meta.get("Nama Perenang", "-"))
-        self._analisa_lbl_log_gaya.setText(meta.get("Gaya", "-"))
-        self._analisa_lbl_log_jarak.setText(meta.get("Jarak", "-"))
-        self._analisa_lbl_log_tanggal.setText(meta.get("Tanggal", "-"))
-
-        # Pilih pasangan warna (AI0, AI1) berdasarkan urutan file
-        color_ai0, color_ai1 = self._ANALISA_COLOR_PAIRS[
-            len(self._analisa_log_curves) % len(self._ANALISA_COLOR_PAIRS)
-        ]
-        t_arr = np.array(times, dtype=float)
-        ai0_arr = np.array(ai0_data, dtype=float)
-        ai1_arr = np.array(ai1_data, dtype=float)
-
-        stem = filepath.stem
-        pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
-        curve0 = pi_log.plot(
-            t_arr, ai0_arr,
-            pen=pg.mkPen(color_ai0, width=2.0),
-            name=f"{stem} · AI0",
-        )
-        curve1 = pi_log.plot(
-            t_arr, ai1_arr,
-            pen=pg.mkPen(color_ai1, width=2.0),
-            name=f"{stem} · AI1",
-        )
-        self._analisa_log_curves.append((stem, curve0, curve1))
-        self._update_analisa_files_label()
-
-    def _update_analisa_files_label(self) -> None:
-        """Perbarui label daftar file CSV Log yang dimuat (colored HTML list)."""
-        if not self._analisa_log_curves:
-            self._analisa_lbl_log_file.setText("(belum ada file)")
-            return
-        lines: list[str] = []
-        for i, (stem, _, _) in enumerate(self._analisa_log_curves):
-            c0, c1 = self._ANALISA_COLOR_PAIRS[i % len(self._ANALISA_COLOR_PAIRS)]
-            lines.append(
-                f'<span style="color:{c0};">&#9632;</span>'
-                f'<span style="color:{c1};">&#9632;</span> {stem}'
-            )
-        self._analisa_lbl_log_file.setText("<br>".join(lines))
-
     def _on_analisa_load_table(self) -> None:
         """Buka dialog pilih satu CSV Table, lalu tampilkan dan hitung delta time."""
         path, _ = QFileDialog.getOpenFileName(
@@ -1554,19 +1415,7 @@ class MainWindow(QMainWindow):
         pi.setXRange(0, len(delta_x) + 0.5, padding=0)
 
     def _on_analisa_clear(self) -> None:
-        """Hapus semua kurva overlay dan data tabel dari panel analisa."""
-        # Bersihkan CSV Log overlay
-        pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
-        for _stem, c0, c1 in self._analisa_log_curves:
-            try:
-                self._analisa_legend.removeItem(c0)
-                self._analisa_legend.removeItem(c1)
-            except Exception:
-                pass
-            pi_log.removeItem(c0)
-            pi_log.removeItem(c1)
-        self._analisa_log_curves.clear()
-
+        """Hapus plot dan data tabel dari panel analisa."""
         # Bersihkan CSV Table: delta scatter, secondary vb, legend, tabel
         self._analisa_pw_delta.getPlotItem().clear()
         self._analisa_vb_press.clear()
@@ -1575,14 +1424,6 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         self._analisa_tbl_data.setRowCount(0)
-
-        # Reset label CSV Log
-        for lbl in (
-            self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
-            self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
-        ):
-            lbl.setText("-")
-        self._update_analisa_files_label()
 
         # Reset label CSV Table
         self._analisa_lbl_tbl_file.setText("(belum ada file)")
@@ -2094,7 +1935,6 @@ class MainWindow(QMainWindow):
         self._btn_start_stop.setStyleSheet(bs["start"])
         self._btn_save_table.setStyleSheet(bs["save"])
         self._btn_theme.setStyleSheet(bs["theme"])
-        self._btn_load_log.setStyleSheet(bs["load_log"])
         self._btn_load_table.setStyleSheet(bs["load_table"])
 
         # Label tombol tema
