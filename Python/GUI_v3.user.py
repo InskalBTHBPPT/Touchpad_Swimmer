@@ -1053,11 +1053,10 @@ class MainWindow(QMainWindow):
         grp_table_plot = QGroupBox("CSV Table Analysis")
         grp_table_plot.setLayout(bottom_hbox)
 
-        # Tabel data — dipindah ke load_container (lihat di bawah)
-        self._analisa_tbl_data = QTableWidget(0, 5)
-        self._analisa_tbl_data.setHorizontalHeaderLabels(
-            ["No", "Time Pad1 (s)", "Press Pad1 (Kg)", "Time Pad2 (s)", "Press Pad2 (Kg)"]
-        )
+        # Tabel data — header 2 baris + merge sama seperti tab Live (+ kolom No)
+        self._analisa_tbl_data = QTableWidget(2, 5)
+        self._analisa_tbl_data.horizontalHeader().hide()
+        self._analisa_tbl_data.verticalHeader().hide()
         self._analisa_tbl_data.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._analisa_tbl_data.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -1066,7 +1065,7 @@ class MainWindow(QMainWindow):
         self._analisa_tbl_data.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
-        self._analisa_tbl_data.verticalHeader().hide()
+        self._analisa_apply_pad_table_headers()
 
         self._analisa_tbl_split = QTableWidget(0, 4)
         self._analisa_tbl_split.setHorizontalHeaderLabels(
@@ -1175,6 +1174,59 @@ class MainWindow(QMainWindow):
         root_widget.setLayout(root_hbox)
 
         return root_widget
+
+    def _analisa_apply_pad_table_headers(self) -> None:
+        """Header tabel pad detection — struktur sama tab Live: Pad 1 / Pad 2 + Time / Press."""
+        dt = self._analisa_tbl_data
+        if dt.rowCount() < 2:
+            dt.setRowCount(2)
+        dt.setColumnCount(5)
+        bold = QFont()
+        bold.setBold(True)
+
+        dt.setSpan(0, 0, 2, 1)
+        dt.setSpan(0, 1, 1, 2)
+        dt.setSpan(0, 3, 1, 2)
+
+        row0_labels = {0: "No", 1: "Pad 1", 3: "Pad 2"}
+        row1_labels = {1: "Time", 2: "Press (Kg)", 3: "Time", 4: "Press (Kg)"}
+
+        for col, text in row0_labels.items():
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            item.setFont(bold)
+            dt.setItem(0, col, item)
+
+        for col, text in row1_labels.items():
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            item.setFont(bold)
+            dt.setItem(1, col, item)
+
+        dt.setRowHeight(0, 26)
+        dt.setRowHeight(1, 22)
+        self._analisa_update_pad_table_header_colors()
+
+    def _analisa_update_pad_table_header_colors(self) -> None:
+        """Warna sel header tabel pad Analisa — mengikuti tema seperti tab Live."""
+        if not hasattr(self, "_analisa_tbl_data"):
+            return
+        if self._current_theme == "Dark":
+            bg = QColor("#4a4d51")
+            fg = QColor("#dddddd")
+        else:
+            bg = QColor("#d6d9df")
+            fg = QColor("#1a1a1a")
+        header_cells = [(0, 0), (0, 1), (0, 3), (1, 1), (1, 2), (1, 3), (1, 4)]
+        for row, col in header_cells:
+            item = self._analisa_tbl_data.item(row, col)
+            if item:
+                item.setBackground(QBrush(bg))
+                item.setForeground(QBrush(fg))
 
     # ── Analisa slots ─────────────────────────────────────────────────────────
     def _on_analisa_load_table(self) -> None:
@@ -1286,7 +1338,8 @@ class MainWindow(QMainWindow):
         self._analisa_lbl_tbl_jarak.setText(meta.get("Jarak", "-"))
         self._analisa_lbl_tbl_tanggal.setText(meta.get("Tanggal", "-"))
 
-        self._analisa_tbl_data.setRowCount(len(pad_rows))
+        self._analisa_tbl_data.setRowCount(len(pad_rows) + 2)
+        self._analisa_apply_pad_table_headers()
         t1_list: list[float] = []
         p1_list: list[float] = []
         t2_list: list[float] = []
@@ -1299,7 +1352,7 @@ class MainWindow(QMainWindow):
                 item.setTextAlignment(
                     Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
                 )
-                self._analisa_tbl_data.setItem(i, j, item)
+                self._analisa_tbl_data.setItem(i + 2, j, item)
 
             t1 = self._analisa_parse_time_s(row[1] if len(row) > 1 else "")
             t2 = self._analisa_parse_time_s(row[3] if len(row) > 3 else "")
@@ -1319,6 +1372,8 @@ class MainWindow(QMainWindow):
             if t2 is not None and p2_val is not None:
                 t2_list.append(t2)
                 p2_list.append(p2_val)
+
+            self._analisa_tbl_data.setRowHeight(i + 2, 22)
 
         if split_rows:
             self._analisa_set_split_table_from_rows(split_rows)
@@ -1506,7 +1561,8 @@ class MainWindow(QMainWindow):
             self._analisa_press_legend_box.clear()
         except Exception:
             pass
-        self._analisa_tbl_data.setRowCount(0)
+        self._analisa_tbl_data.setRowCount(2)
+        self._analisa_apply_pad_table_headers()
         self._analisa_tbl_split.setRowCount(0)
 
         # Reset label CSV Table
@@ -2017,6 +2073,7 @@ class MainWindow(QMainWindow):
 
         # Warna header tabel
         self._update_table_header_colors()
+        self._analisa_update_pad_table_header_colors()
 
         # Warna tombol aksi
         bs = theme["btn_styles"]
