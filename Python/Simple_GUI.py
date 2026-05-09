@@ -495,13 +495,8 @@ class MainWindow(QMainWindow):
         vbox.addWidget(self._data_table)
         vbox.addStretch()
         group.setLayout(vbox)
-
-        container = QWidget()
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.addWidget(group)
-        container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        return container
+        group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        return group
 
     def _update_table_header_colors(self) -> None:
         """Sesuaikan warna background sel header dengan tema aktif."""
