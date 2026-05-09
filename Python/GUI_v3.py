@@ -321,9 +321,15 @@ class CsvWriter:
 
     _SENTINEL = None  # sinyal untuk menghentikan worker loop
 
-    def __init__(self, filepath: pathlib.Path, dt_sample: float) -> None:
+    def __init__(
+        self,
+        filepath: pathlib.Path,
+        dt_sample: float,
+        metadata: dict[str, str] | None = None,
+    ) -> None:
         self._filepath = filepath
         self._dt_sample = dt_sample
+        self._metadata: dict[str, str] = metadata or {}
         self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._worker_loop, daemon=True)
         self._thread.start()
@@ -331,6 +337,8 @@ class CsvWriter:
     def _worker_loop(self) -> None:
         with self._filepath.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
+            for key, val in self._metadata.items():
+                writer.writerow([f"# {key}", val])
             writer.writerow(["timestamp_s", "ai0_V", "ai1_V"])
             while True:
                 item = self._queue.get()
@@ -1010,6 +1018,15 @@ class MainWindow(QMainWindow):
         base = name if name else DEFAULT_CSV_PREFIX
         self._inp_csv_prefix.setText(f"{base}_{stroke}_{distance}")
 
+    def _build_swimmer_metadata(self) -> dict[str, str]:
+        """Kembalikan dict metadata perenang untuk header CSV."""
+        return {
+            "Nama Perenang": self._inp_swimmer_name.text().strip() or "-",
+            "Gaya": self._dd_stroke.currentText(),
+            "Jarak": self._dd_distance.currentText(),
+            "Tanggal": dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
     def _update_csv_preview(self) -> None:
         prefix = self._inp_csv_prefix.text().strip() or "DAQ"
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1342,6 +1359,8 @@ class MainWindow(QMainWindow):
         try:
             with filepath.open("w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
+                for key, val in self._build_swimmer_metadata().items():
+                    writer.writerow([f"# {key}", val])
                 writer.writerow(
                     ["No", "Time_Pad1", "Pressure_Pad1(Kg)", "Time_Pad2", "Pressure_Pad2(Kg)"]
                 )
@@ -1479,7 +1498,9 @@ class MainWindow(QMainWindow):
         self._csv_writer = None
         if self._chk_csv.isChecked():
             csv_path = self._build_csv_filepath(self._t0_nominal)
-            self._csv_writer = CsvWriter(csv_path, self._dt_sample)
+            self._csv_writer = CsvWriter(
+                csv_path, self._dt_sample, metadata=self._build_swimmer_metadata()
+            )
 
         max_pts = int(rate * PLOT_WINDOW_SEC)
         self._buf_x = collections.deque(maxlen=max_pts)
