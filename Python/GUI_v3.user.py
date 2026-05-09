@@ -1887,13 +1887,12 @@ class MainWindow(QMainWindow):
         self._btn_theme.setMinimumHeight(32)
         self._btn_theme.clicked.connect(self._on_toggle_theme)
 
-        # Layout QGroupBox("Table") — time format + tabel + folder + save
+        # Layout QGroupBox("Table") — time format + tabel saja
         table_vbox = QVBoxLayout()
         table_vbox.setContentsMargins(8, 8, 8, 8)
         table_vbox.setSpacing(6)
         table_vbox.addLayout(fmt_row)
         table_vbox.addWidget(self._data_table)
-        table_vbox.addLayout(folder_form)
         group.setLayout(table_vbox)
 
         # ── Tabel Split Time (delta time live) ───────────────────────────────
@@ -1924,6 +1923,7 @@ class MainWindow(QMainWindow):
         left_vbox.setSpacing(6)
         left_vbox.addWidget(self._status_label)
         left_vbox.addLayout(tables_row, stretch=1)
+        left_vbox.addLayout(folder_form)   # di bawah kedua tabel
 
         left_widget = QWidget()
         left_widget.setLayout(left_vbox)
@@ -1975,7 +1975,24 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _on_save_table_csv(self) -> None:
-        """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV."""
+        """Simpan tabel Pad Detection dan Split Time ke satu file CSV dua seksi.
+
+        Format file:
+          # metadata baris ...
+          #
+          # === PAD DETECTION ===
+          No,Time_Pad1,Pressure_Pad1(Kg),Time_Pad2,Pressure_Pad2(Kg)
+          1,...
+          #
+          # === SPLIT TIME ===
+          50m_ke,Touchpad,t_s,Delta_t_s
+          1,Pad2,10.368,10.368
+          ...
+
+        Semua baris dimulai ``#`` adalah komentar/metadata — aman dilewati saat
+        import ke pandas dengan ``comment='#'``. Nilai waktu di seksi Split Time
+        selalu dalam detik (float) terlepas dari pilihan format tampilan.
+        """
         prefix = self._inp_csv_prefix.text().strip() or "DAQ"
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         folder = pathlib.Path(self._inp_table_folder.text())
@@ -1989,10 +2006,17 @@ class MainWindow(QMainWindow):
         try:
             with filepath.open("w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
+
+                # ── Metadata ──────────────────────────────────────────────
                 for key, val in self._build_swimmer_metadata().items():
                     writer.writerow([f"# {key}", val])
+
+                # ── Seksi 1: Pad Detection ─────────────────────────────────
+                writer.writerow(["#"])
+                writer.writerow(["# === PAD DETECTION ==="])
                 writer.writerow(
-                    ["No", "Time_Pad1", "Pressure_Pad1(Kg)", "Time_Pad2", "Pressure_Pad2(Kg)"]
+                    ["No", "Time_Pad1", "Pressure_Pad1(Kg)",
+                     "Time_Pad2", "Pressure_Pad2(Kg)"]
                 )
                 for idx, row in enumerate(range(2, 2 + TABLE_ROWS), start=1):
                     t1 = self._data_table.item(row, 0)
@@ -2005,6 +2029,17 @@ class MainWindow(QMainWindow):
                     p2_val = p2.text() if p2 else ""
                     if t1_val or p1_val or t2_val or p2_val:
                         writer.writerow([idx, t1_val, p1_val, t2_val, p2_val])
+
+                # ── Seksi 2: Split Time ────────────────────────────────────
+                writer.writerow(["#"])
+                writer.writerow(["# === SPLIT TIME ==="])
+                writer.writerow(["50m_ke", "Touchpad", "t_s", "Delta_t_s"])
+                events = sorted(self._live_events, key=lambda e: e[0])
+                for i, (t_val, ch) in enumerate(events):
+                    dt_val = t_val if i == 0 else t_val - events[i - 1][0]
+                    pad_name = "Pad2" if ch == 1 else "Pad1"
+                    writer.writerow([i + 1, pad_name, f"{t_val:.4f}", f"{dt_val:.4f}"])
+
         except OSError as exc:
             QMessageBox.critical(self, "Error", f"Gagal menyimpan file:\n{exc}")
             return
