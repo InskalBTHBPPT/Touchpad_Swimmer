@@ -1514,9 +1514,9 @@ class MainWindow(QMainWindow):
 
         # Pastikan sumbu X bertick integer
         pi.getAxis("bottom").setTicks(
-            [[(i, str(int(i))) for i in delta_x]]
+            [[(0, "0")] + [(i, str(int(i))) for i in delta_x]]
         )
-        pi.setXRange(0.5, len(delta_x) + 0.5, padding=0)
+        pi.setXRange(0, len(delta_x) + 0.5, padding=0)
 
     def _on_analisa_clear(self) -> None:
         """Hapus semua kurva overlay dan data tabel dari panel analisa."""
