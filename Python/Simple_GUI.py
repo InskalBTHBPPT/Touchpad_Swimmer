@@ -119,7 +119,7 @@ _THEMES: dict[str, dict] = {
 DEFAULT_CSV_PREFIX = "Swimming"
 DEFAULT_CSV_FOLDER = str(pathlib.Path(__file__).parent / "DataLog")
 
-N_COLLECT = 20          # jumlah sampel yang dirata-rata setelah trigger
+N_COLLECT = 50          # jumlah sampel yang dirata-rata setelah trigger
 TABLE_ROWS = 10         # baris data pada tabel
 DEFAULT_HOLD_TIME = 10.0  # detik minimum di state HOLD sebelum bisa re-arm
 
@@ -566,7 +566,7 @@ class MainWindow(QMainWindow):
         self._data_table.setSpan(0, 2, 1, 2)
 
         row0_labels = {0: "Pad 1", 2: "Pad 2"}
-        row1_labels = {0: "Time", 1: "Pressure", 2: "Time", 3: "Pressure"}
+        row1_labels = {0: "Time", 1: "Pressure (Kg)", 2: "Time", 3: "Pressure (Kg)"}
 
         bold = QFont()
         bold.setBold(True)
@@ -623,7 +623,7 @@ class MainWindow(QMainWindow):
 
         col_headers = [
             "Threshold\n(Volt)", "Hysteresis\n(Volt)",
-            "Scale\n(Kg/Volt)", "Hold Time\n(s)"
+            "Scale\n(Kg/Volt)", "Delay Time\n(s)"
         ]
         for col, text in enumerate(col_headers):
             lbl = QLabel(text)
