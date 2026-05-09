@@ -1,45 +1,35 @@
 """
-GUI_v3.py — NI DAQ Monitor for Touchpad Swimmer
-================================================
-Aplikasi desktop real-time untuk akuisisi dan analisis data tekanan
-dari dua sensor touchpad (Pad 1 / Pad 2) menggunakan perangkat
-NI Data Acquisition (NI DAQ).
+GUI_v3.user.py — NI DAQ Monitor for Touchpad Swimmer (User Edition)
+====================================================================
+Versi pengguna akhir dari GUI_v3.py. Dirancang untuk operator/perenang —
+parameter teknis DAQ dikunci dari antarmuka dan dimuat otomatis dari
+config.json yang disiapkan oleh tim riset/tester.
 
-Fitur Utama
------------
+Perbedaan dari GUI_v3.py (versi tester/research)
+-------------------------------------------------
+* Tombol "⚙️ Set Parameter" dihilangkan — parameter tidak dapat diubah
+  melalui antarmuka. Sistem membaca config.json saat startup; jika tidak
+  ada, nilai default pabrik yang digunakan.
+* Grafik real-time (Channel AI0 / AI1) dihilangkan dari tab Live Data.
+* Tabel hasil deteksi dipindahkan ke panel kiri (bekas area chart),
+  memberikan tampilan yang lebih luas dan mudah dibaca.
+
+Fitur yang Tetap Ada
+--------------------
 * Akuisisi kontinu dua channel analog (AI0, AI1) via NI-DAQmx.
-* Visualisasi real-time dengan pyqtgraph (10 detik jendela tampil, ~10 FPS).
-* Deteksi sentuhan otomatis per channel menggunakan Schmitt trigger
-  (threshold + hysteresis) dengan anti-debounce hold-time.
-* Tabel hasil deteksi (10 baris per pad) dengan auto-scroll.
-* Export log mentah ke CSV (semua sampel) dan tabel ringkas ke CSV.
-* Metadata perenang (Nama, Gaya, Jarak) ditulis sebagai header CSV
-  untuk traceability data.
-* Input Info Perenang (Nama, Gaya Renang, Jarak) yang otomatis
-  menjadi prefix nama file CSV dengan dropdown jarak dinamis per gaya.
-* Konfigurasi parameter disimpan/dimuat dari config.json secara otomatis.
-* Tema Light/Dark yang dapat diubah kapan saja.
-* Antarmuka bertab: "Live Data" (akuisisi real-time) dan
-  "Analisa Data" (analisis file CSV hasil rekaman).
-
-Tab Analisa Data
-----------------
-* Load dan overlay beberapa file CSV Log pada satu plot (multi-file overlay).
-* Load file CSV Table untuk menampilkan data dalam tabel dan plot analisis.
-* Plot "Split Time & Tekanan per Sentuhan":
-  - Sumbu kiri  : Δ Time (s) — delta waktu antar sentuhan berurutan.
-  - Sumbu kanan : Pressure (Kg) — tekanan per sentuhan (secondary Y axis).
-  - Label dua baris per titik: t (waktu kumulatif) dan dt (delta).
-  - Warna berbeda per arah: biru (→Pad2/outbound), merah (→Pad1/return).
-  - Marker pressure: kotak hijau neon (Pad1), kuning (Pad2).
-* Info Perenang otomatis terbaca dari metadata file CSV.
+* Deteksi sentuhan otomatis menggunakan Schmitt trigger.
+* Tabel hasil deteksi (Pad1 / Pad2) dengan format waktu Seconds / MM:SS.
+* Input Info Perenang (Nama, Gaya, Jarak) — prefix CSV otomatis.
+* Rekaman Log CSV dan ekspor Tabel CSV dengan metadata perenang.
+* Tab Analisa Data: overlay CSV Log, plot split time & tekanan.
+* Tema Light/Dark.
 
 Struktur Kelas
 --------------
 ChannelDetector  — State machine Schmitt trigger per channel.
-CsvWriter        — Penulis CSV asinkron berbasis queue/thread (+ metadata header).
+CsvWriter        — Penulis CSV asinkron berbasis queue/thread.
 DaqWorker        — Thread akuisisi NI-DAQmx (non-blocking terhadap GUI).
-ParameterDialog  — Dialog modal untuk konfigurasi parameter & detektor.
+ParameterDialog  — Dialog konfigurasi (internal, tidak diekspos ke UI).
 MainWindow       — Jendela utama aplikasi (PySide6 QMainWindow).
 
 Dependensi
@@ -52,10 +42,10 @@ nidaqmx  (NI-DAQmx Python driver)
 
 Cara Menjalankan
 ----------------
-    python GUI_v3.py
+    python GUI_v3.user.py
 
 Penulis  : Tim Pengujian Touchpad Swimmer
-Versi    : 3.0
+Versi    : 3.0-user
 """
 
 import collections
@@ -171,6 +161,9 @@ _THEMES: dict[str, dict] = {
             QTabBar::tab:selected { background: #ffffff; color: #000000;
                                     font-weight: bold; }
             QTabBar::tab:hover { background: #eeeeee; }
+            QHeaderView::section { background-color: #d0d3d8; color: #1a1a1a;
+                                    border: 1px solid #bbb; padding: 3px 6px;
+                                    font-weight: bold; }
         """,
         "btn_styles": {
             "start":      _btn_ss("#388e3c", "#43a047", "#b71c1c"),
@@ -209,6 +202,9 @@ _THEMES: dict[str, dict] = {
             QTabBar::tab:selected { background: #2b2b2b; color: #ffffff;
                                     font-weight: bold; border-bottom: 1px solid #2b2b2b; }
             QTabBar::tab:hover { background: #4c5052; }
+            QHeaderView::section { background-color: #4a4d51; color: #dddddd;
+                                    border: 1px solid #555; padding: 3px 6px;
+                                    font-weight: bold; }
         """,
         "btn_styles": {
             "start":      _btn_ss("#2e7d32", "#388e3c", "#b71c1c"),
@@ -222,7 +218,7 @@ _THEMES: dict[str, dict] = {
 }
 
 
-DEFAULT_CSV_PREFIX = "Swimming"
+DEFAULT_CSV_PREFIX = "User_Swimming"
 DEFAULT_CSV_FOLDER = str(pathlib.Path(__file__).parent / "DataLog")
 DEFAULT_TABLE_FOLDER = str(pathlib.Path(__file__).parent / "DataTable")
 
@@ -861,7 +857,8 @@ class MainWindow(QMainWindow):
         self._current_theme = "Light"
         self._detector0: ChannelDetector | None = None
         self._detector1: ChannelDetector | None = None
-        self._table_next_row = [2, 2]  # [pad0, pad1] – baris 0-1 adalah header
+        self._table_next_row = [2, 2]   # [pad0, pad1] – baris 0-1 adalah header
+        self._live_events: list[tuple[float, int]] = []  # (timestamp, channel)
 
         max_pts = int(DEFAULT_RATE * PLOT_WINDOW_SEC)
         self._buf_x: collections.deque[float] = collections.deque(maxlen=max_pts)
@@ -875,12 +872,15 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._tabs)
 
         # Tab 1: Live Data
+        # Chart objects dibuat untuk keperluan buffer data (tidak ditampilkan)
+        self._chart_container = self._build_chart_panel()
         live_tab = QWidget()
         live_layout = QHBoxLayout(live_tab)
         live_layout.setContentsMargins(10, 10, 10, 10)
         live_layout.setSpacing(14)
-        live_layout.addWidget(self._build_chart_panel(), stretch=1)
-        live_layout.addWidget(self._build_table_panel(), stretch=0)
+        left_w, right_w = self._build_table_panel()
+        live_layout.addWidget(left_w, stretch=1)
+        live_layout.addWidget(right_w, stretch=0)
         self._tabs.addTab(live_tab, "Live Data")
 
         # Tab 2: Analisa Data
@@ -1009,33 +1009,11 @@ class MainWindow(QMainWindow):
         return container
 
     # ── Analisa Data tab ──────────────────────────────────────────────────────
-    #: Pasangan warna (AI0, AI1) per file — masing-masing channel punya warna sendiri
-    _ANALISA_COLOR_PAIRS: list[tuple[str, str]] = [
-        ("#4fc3f7", "#ef5350"),  # biru – merah
-        ("#66bb6a", "#ffa726"),  # hijau – oranye
-        ("#ab47bc", "#26c6da"),  # ungu – cyan
-        ("#ffee58", "#ec407a"),  # kuning – pink
-        ("#80cbc4", "#ff7043"),  # teal – oranye tua
-    ]
 
     def _build_analisa_tab(self) -> QWidget:
-        """Bangun tab Analisa Data: chart overlay (kiri) + panel load (kanan)."""
+        """Bangun tab Analisa Data: chart split time (kiri) + panel load (kanan)."""
 
-        # ── Chart panel (kiri) ─────────────────────────────────────────────
-        self._analisa_pw_log = pg.PlotWidget()
-        pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
-        pi_log.setTitle("CSV Log — Overlay")
-        pi_log.setLabel("left", "Voltage", units="V")
-        pi_log.setLabel("bottom", "Time", units="s")
-        pi_log.showGrid(x=True, y=True, alpha=0.3)
-        self._analisa_legend = pi_log.addLegend(offset=(10, 10))
-
-        grp_log_plot = QGroupBox("CSV Log Overlay")
-        lay_lp = QVBoxLayout(grp_log_plot)
-        lay_lp.setContentsMargins(4, 4, 4, 4)
-        lay_lp.addWidget(self._analisa_pw_log)
-
-        # ── Bottom: scatter delta time (full width) ───────────────────────
+        # ── Plot split time & tekanan ──────────────────────────────────────
         # Scatter plot delta time
         self._analisa_pw_delta = pg.PlotWidget()
         pi_delta: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
@@ -1075,11 +1053,10 @@ class MainWindow(QMainWindow):
         grp_table_plot = QGroupBox("CSV Table Analysis")
         grp_table_plot.setLayout(bottom_hbox)
 
-        # Tabel data — dipindah ke load_container (lihat di bawah)
-        self._analisa_tbl_data = QTableWidget(0, 5)
-        self._analisa_tbl_data.setHorizontalHeaderLabels(
-            ["No", "Time Pad1 (s)", "Press Pad1 (Kg)", "Time Pad2 (s)", "Press Pad2 (Kg)"]
-        )
+        # Tabel data — header 2 baris + merge sama seperti tab Live (+ kolom No)
+        self._analisa_tbl_data = QTableWidget(2, 5)
+        self._analisa_tbl_data.horizontalHeader().hide()
+        self._analisa_tbl_data.verticalHeader().hide()
         self._analisa_tbl_data.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._analisa_tbl_data.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -1088,12 +1065,25 @@ class MainWindow(QMainWindow):
         self._analisa_tbl_data.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
-        self._analisa_tbl_data.verticalHeader().hide()
+        self._analisa_apply_pad_table_headers()
+
+        self._analisa_tbl_split = QTableWidget(0, 4)
+        self._analisa_tbl_split.setHorizontalHeaderLabels(
+            ["50m ke-", "Touchpad", "t (s)", "Δt (s)"]
+        )
+        self._analisa_tbl_split.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._analisa_tbl_split.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self._analisa_tbl_split.setAlternatingRowColors(False)
+        self._analisa_tbl_split.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self._analisa_tbl_split.verticalHeader().hide()
 
         chart_vbox = QVBoxLayout()
         chart_vbox.setContentsMargins(0, 0, 0, 0)
         chart_vbox.setSpacing(8)
-        chart_vbox.addWidget(grp_log_plot, stretch=1)
         chart_vbox.addWidget(grp_table_plot, stretch=1)
         chart_container = QWidget()
         chart_container.setLayout(chart_vbox)
@@ -1112,39 +1102,6 @@ class MainWindow(QMainWindow):
             form.addRow("Jarak:", lbl_jarak)
             form.addRow("Tanggal:", lbl_tanggal)
             return form
-
-        # ── Bagian CSV Log ────────────────────────────────────────────────
-        self._btn_load_log = QPushButton("📂  Load CSV Log")
-        self._btn_load_log.setToolTip("Muat satu atau beberapa file CSV Log untuk di-overlay")
-        self._btn_load_log.clicked.connect(self._on_analisa_load_log)
-        btn_load_log = self._btn_load_log
-
-        self._analisa_lbl_log_file = QLabel("(belum ada file)")
-        self._analisa_lbl_log_file.setWordWrap(True)
-        self._analisa_lbl_log_file.setTextFormat(Qt.TextFormat.RichText)
-        self._analisa_lbl_log_file.setStyleSheet("font-style: italic; font-size: 10px;")
-
-        self._analisa_lbl_log_nama = QLabel("-")
-        self._analisa_lbl_log_gaya = QLabel("-")
-        self._analisa_lbl_log_jarak = QLabel("-")
-        self._analisa_lbl_log_tanggal = QLabel("-")
-        for lbl in (
-            self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
-            self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
-        ):
-            lbl.setWordWrap(True)
-
-        grp_log_load = QGroupBox("CSV Log")
-        lay_ll = QVBoxLayout(grp_log_load)
-        lay_ll.setSpacing(4)
-        lay_ll.addWidget(btn_load_log)
-        lay_ll.addWidget(self._analisa_lbl_log_file)
-        lay_ll.addLayout(
-            _info_form(
-                self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
-                self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
-            )
-        )
 
         # ── Bagian CSV Table ──────────────────────────────────────────────
         self._btn_load_table = QPushButton("📂  Load CSV Table")
@@ -1169,7 +1126,14 @@ class MainWindow(QMainWindow):
         grp_tbl_data = QGroupBox("Data Table")
         lay_grp_tbl = QVBoxLayout(grp_tbl_data)
         lay_grp_tbl.setContentsMargins(4, 4, 4, 4)
-        lay_grp_tbl.addWidget(self._analisa_tbl_data)
+        # Rasio tinggi: pad = ½ × split time → stretch 1 : 2
+        lay_grp_tbl.addWidget(self._analisa_tbl_data, stretch=1)
+
+        grp_split_view = QGroupBox("Split Time (urutan sentuhan)")
+        lay_split_v = QVBoxLayout(grp_split_view)
+        lay_split_v.setContentsMargins(4, 4, 4, 4)
+        lay_split_v.addWidget(self._analisa_tbl_split)
+        lay_grp_tbl.addWidget(grp_split_view, stretch=2)
 
         grp_tbl_load = QGroupBox("CSV Table")
         lay_tl = QVBoxLayout(grp_tbl_load)
@@ -1192,7 +1156,6 @@ class MainWindow(QMainWindow):
         load_vbox = QVBoxLayout()
         load_vbox.setContentsMargins(0, 0, 0, 0)
         load_vbox.setSpacing(8)
-        load_vbox.addWidget(grp_log_load)
         load_vbox.addWidget(grp_tbl_load, stretch=1)
         load_vbox.addWidget(btn_clear)
 
@@ -1210,163 +1173,190 @@ class MainWindow(QMainWindow):
         root_widget = QWidget()
         root_widget.setLayout(root_hbox)
 
-        # State: list of (filename_stem, curve_ai0, curve_ai1)
-        self._analisa_log_curves: list[tuple[str, pg.PlotDataItem, pg.PlotDataItem]] = []
-
         return root_widget
 
+    def _analisa_apply_pad_table_headers(self) -> None:
+        """Header tabel pad detection — struktur sama tab Live: Pad 1 / Pad 2 + Time / Press."""
+        dt = self._analisa_tbl_data
+        if dt.rowCount() < 2:
+            dt.setRowCount(2)
+        dt.setColumnCount(5)
+        bold = QFont()
+        bold.setBold(True)
+
+        dt.setSpan(0, 0, 2, 1)
+        dt.setSpan(0, 1, 1, 2)
+        dt.setSpan(0, 3, 1, 2)
+
+        row0_labels = {0: "No", 1: "Pad 1", 3: "Pad 2"}
+        row1_labels = {1: "Time", 2: "Press (Kg)", 3: "Time", 4: "Press (Kg)"}
+
+        for col, text in row0_labels.items():
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            item.setFont(bold)
+            dt.setItem(0, col, item)
+
+        for col, text in row1_labels.items():
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            item.setFont(bold)
+            dt.setItem(1, col, item)
+
+        dt.setRowHeight(0, 26)
+        dt.setRowHeight(1, 22)
+        self._analisa_update_pad_table_header_colors()
+
+    def _analisa_update_pad_table_header_colors(self) -> None:
+        """Warna sel header tabel pad Analisa — mengikuti tema seperti tab Live."""
+        if not hasattr(self, "_analisa_tbl_data"):
+            return
+        if self._current_theme == "Dark":
+            bg = QColor("#4a4d51")
+            fg = QColor("#dddddd")
+        else:
+            bg = QColor("#d6d9df")
+            fg = QColor("#1a1a1a")
+        header_cells = [(0, 0), (0, 1), (0, 3), (1, 1), (1, 2), (1, 3), (1, 4)]
+        for row, col in header_cells:
+            item = self._analisa_tbl_data.item(row, col)
+            if item:
+                item.setBackground(QBrush(bg))
+                item.setForeground(QBrush(fg))
+
     # ── Analisa slots ─────────────────────────────────────────────────────────
-    def _on_analisa_load_log(self) -> None:
-        """Buka dialog pilih satu/banyak CSV Log, lalu plot overlay."""
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, "Pilih CSV Log", "", "CSV Files (*.csv);;All Files (*)"
-        )
-        for path in paths:
-            self._analisa_load_log_file(pathlib.Path(path))
-
-    def _analisa_load_log_file(self, filepath: pathlib.Path) -> None:
-        """Baca satu CSV Log, update info perenang, dan tambah kurva ke plot."""
-        meta: dict[str, str] = {}
-        times: list[float] = []
-        ai0_data: list[float] = []
-        ai1_data: list[float] = []
-
-        try:
-            with filepath.open("r", encoding="utf-8") as f:
-                reader = csv.reader(f)
-                for row in reader:
-                    if not row:
-                        continue
-                    if row[0].startswith("#"):
-                        key = row[0][1:].strip()
-                        val = row[1].strip() if len(row) > 1 else ""
-                        meta[key] = val
-                    elif row[0].strip().lower() == "timestamp_s":
-                        continue  # baris header kolom
-                    else:
-                        try:
-                            times.append(float(row[0]))
-                            ai0_data.append(float(row[1]))
-                            ai1_data.append(float(row[2]))
-                        except (ValueError, IndexError):
-                            pass
-        except OSError as exc:
-            QMessageBox.critical(self, "Error", f"Gagal membuka file:\n{exc}")
-            return
-
-        if not times:
-            QMessageBox.warning(
-                self, "Data Kosong", f"Tidak ditemukan data numerik di:\n{filepath.name}"
-            )
-            return
-
-        # Tampilkan info perenang dari metadata (log section)
-        self._analisa_lbl_log_nama.setText(meta.get("Nama Perenang", "-"))
-        self._analisa_lbl_log_gaya.setText(meta.get("Gaya", "-"))
-        self._analisa_lbl_log_jarak.setText(meta.get("Jarak", "-"))
-        self._analisa_lbl_log_tanggal.setText(meta.get("Tanggal", "-"))
-
-        # Pilih pasangan warna (AI0, AI1) berdasarkan urutan file
-        color_ai0, color_ai1 = self._ANALISA_COLOR_PAIRS[
-            len(self._analisa_log_curves) % len(self._ANALISA_COLOR_PAIRS)
-        ]
-        t_arr = np.array(times, dtype=float)
-        ai0_arr = np.array(ai0_data, dtype=float)
-        ai1_arr = np.array(ai1_data, dtype=float)
-
-        stem = filepath.stem
-        pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
-        curve0 = pi_log.plot(
-            t_arr, ai0_arr,
-            pen=pg.mkPen(color_ai0, width=2.0),
-            name=f"{stem} · AI0",
-        )
-        curve1 = pi_log.plot(
-            t_arr, ai1_arr,
-            pen=pg.mkPen(color_ai1, width=2.0),
-            name=f"{stem} · AI1",
-        )
-        self._analisa_log_curves.append((stem, curve0, curve1))
-        self._update_analisa_files_label()
-
-    def _update_analisa_files_label(self) -> None:
-        """Perbarui label daftar file CSV Log yang dimuat (colored HTML list)."""
-        if not self._analisa_log_curves:
-            self._analisa_lbl_log_file.setText("(belum ada file)")
-            return
-        lines: list[str] = []
-        for i, (stem, _, _) in enumerate(self._analisa_log_curves):
-            c0, c1 = self._ANALISA_COLOR_PAIRS[i % len(self._ANALISA_COLOR_PAIRS)]
-            lines.append(
-                f'<span style="color:{c0};">&#9632;</span>'
-                f'<span style="color:{c1};">&#9632;</span> {stem}'
-            )
-        self._analisa_lbl_log_file.setText("<br>".join(lines))
-
     def _on_analisa_load_table(self) -> None:
-        """Buka dialog pilih satu CSV Table, lalu tampilkan dan hitung delta time."""
+        """Buka dialog pilih satu CSV Table (format ber-seksi atau lama), lalu tampilkan data."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Pilih CSV Table", "", "CSV Files (*.csv);;All Files (*)"
         )
         if path:
             self._analisa_load_table_file(pathlib.Path(path))
 
-    def _analisa_load_table_file(self, filepath: pathlib.Path) -> None:
-        """Baca CSV Table, populate tabel analisa, dan plot delta time."""
-        meta: dict[str, str] = {}
+    def _analisa_set_split_table_from_rows(self, rows: list[list[str]]) -> None:
+        """Isi tabel split time dari baris CSV (4 kolom: 50m_ke, Touchpad, t_s, Delta_t_s)."""
+        self._analisa_tbl_split.setRowCount(len(rows))
+        for i, row in enumerate(rows):
+            for j in range(4):
+                val = row[j].strip() if j < len(row) else ""
+                item = QTableWidgetItem(val)
+                item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                self._analisa_tbl_split.setItem(i, j, item)
+            self._analisa_tbl_split.setRowHeight(i, 22)
+
+    def _analisa_fill_split_table_from_pad_lists(
+        self,
+        t1_list: list[float], p1_list: list[float],
+        t2_list: list[float], p2_list: list[float],
+    ) -> None:
+        """Hitung urutan sentuhan & delta dari data pad (file lama tanpa seksi SPLIT TIME)."""
+        events: list[tuple[float, str]] = (
+            [(t, "Pad1") for t in t1_list]
+            + [(t, "Pad2") for t in t2_list]
+        )
+        events.sort(key=lambda e: e[0])
         rows: list[list[str]] = []
+        for i, (t, dest) in enumerate(events):
+            dt_v = t if i == 0 else t - events[i - 1][0]
+            rows.append([str(i + 1), dest, f"{t:.4f}", f"{dt_v:.4f}"])
+        self._analisa_set_split_table_from_rows(rows)
+
+    def _analisa_load_table_file(self, filepath: pathlib.Path) -> None:
+        """Baca CSV Table: metadata ``#``, seksi PAD DETECTION, opsional SPLIT TIME.
+
+        Format baru (disimpan dari aplikasi): baris komentar ``# === ... ===`` memisahkan
+        seksi. Seksi PAD berisi waktu/tekanan per baris tabel; seksi SPLIT berisi
+        ``50m_ke``, Touchpad, ``t_s``, ``Delta_t_s``. File lama hanya berisi seksi pad
+        (tanpa penanda) — split time dihitung ulang dari data pad.
+        """
+        meta: dict[str, str] = {}
+        pad_rows: list[list[str]] = []
+        split_rows: list[list[str]] = []
+        section: str | None = None
 
         try:
-            with filepath.open("r", encoding="utf-8") as f:
+            with filepath.open("r", encoding="utf-8-sig") as f:
                 reader = csv.reader(f)
                 for row in reader:
                     if not row:
                         continue
-                    if row[0].startswith("#"):
-                        key = row[0][1:].strip()
+                    c0 = row[0].strip() if row[0] else ""
+                    if c0.startswith("#"):
+                        key = c0[1:].strip()
+                        uk = key.upper()
+                        if "PAD DETECTION" in uk:
+                            section = "pad"
+                            continue
+                        if "SPLIT TIME" in uk:
+                            section = "split"
+                            continue
+                        if not key:
+                            continue
                         val = row[1].strip() if len(row) > 1 else ""
                         meta[key] = val
-                    elif row[0].strip().lower() == "no":
-                        continue  # baris header kolom
+                        continue
+
+                    lc0 = c0.lower()
+                    if section == "pad":
+                        if lc0 == "no" and len(row) >= 2 and "time" in (
+                            row[1] or ""
+                        ).lower():
+                            continue
+                        pad_rows.append(row)
+                    elif section == "split":
+                        hdr = " ".join((row[j] or "").lower() for j in range(min(4, len(row))))
+                        if "50m_ke" in lc0 or (
+                            lc0.startswith("50m") and "touchpad" in hdr
+                        ):
+                            continue
+                        split_rows.append(row)
                     else:
-                        rows.append(row)
+                        if lc0 == "no" and len(row) >= 2 and "time" in (
+                            row[1] or ""
+                        ).lower():
+                            continue
+                        pad_rows.append(row)
         except OSError as exc:
             QMessageBox.critical(self, "Error", f"Gagal membuka file:\n{exc}")
             return
 
-        if not rows:
+        if not pad_rows:
             QMessageBox.warning(
-                self, "Data Kosong", f"Tidak ada data di:\n{filepath.name}"
+                self, "Data Kosong", f"Tidak ada data pad di:\n{filepath.name}"
             )
             return
 
-        # Update info perenang dari metadata (table section)
         self._analisa_lbl_tbl_file.setText(filepath.name)
         self._analisa_lbl_tbl_nama.setText(meta.get("Nama Perenang", "-"))
         self._analisa_lbl_tbl_gaya.setText(meta.get("Gaya", "-"))
         self._analisa_lbl_tbl_jarak.setText(meta.get("Jarak", "-"))
         self._analisa_lbl_tbl_tanggal.setText(meta.get("Tanggal", "-"))
 
-        # Populate QTableWidget dan kumpulkan data untuk plot
-        self._analisa_tbl_data.setRowCount(len(rows))
-        t1_list:  list[float] = []
-        p1_list:  list[float] = []
-        t2_list:  list[float] = []
-        p2_list:  list[float] = []
+        self._analisa_tbl_data.setRowCount(len(pad_rows) + 2)
+        self._analisa_apply_pad_table_headers()
+        t1_list: list[float] = []
+        p1_list: list[float] = []
+        t2_list: list[float] = []
+        p2_list: list[float] = []
 
-        for i, row in enumerate(rows):
+        for i, row in enumerate(pad_rows):
             for j in range(5):
                 val = row[j].strip() if j < len(row) else ""
                 item = QTableWidgetItem(val)
                 item.setTextAlignment(
                     Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
                 )
-                self._analisa_tbl_data.setItem(i, j, item)
+                self._analisa_tbl_data.setItem(i + 2, j, item)
 
             t1 = self._analisa_parse_time_s(row[1] if len(row) > 1 else "")
             t2 = self._analisa_parse_time_s(row[3] if len(row) > 3 else "")
 
-            # Pressure (kolom index 2 = Pad1, 4 = Pad2)
             try:
                 p1_val = float(row[2]) if len(row) > 2 and row[2].strip() else None
             except ValueError:
@@ -1382,6 +1372,15 @@ class MainWindow(QMainWindow):
             if t2 is not None and p2_val is not None:
                 t2_list.append(t2)
                 p2_list.append(p2_val)
+
+            self._analisa_tbl_data.setRowHeight(i + 2, 22)
+
+        if split_rows:
+            self._analisa_set_split_table_from_rows(split_rows)
+        else:
+            self._analisa_fill_split_table_from_pad_lists(
+                t1_list, p1_list, t2_list, p2_list
+            )
 
         self._analisa_compute_and_plot_deltas(t1_list, p1_list, t2_list, p2_list)
 
@@ -1554,19 +1553,7 @@ class MainWindow(QMainWindow):
         pi.setXRange(0, len(delta_x) + 0.5, padding=0)
 
     def _on_analisa_clear(self) -> None:
-        """Hapus semua kurva overlay dan data tabel dari panel analisa."""
-        # Bersihkan CSV Log overlay
-        pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
-        for _stem, c0, c1 in self._analisa_log_curves:
-            try:
-                self._analisa_legend.removeItem(c0)
-                self._analisa_legend.removeItem(c1)
-            except Exception:
-                pass
-            pi_log.removeItem(c0)
-            pi_log.removeItem(c1)
-        self._analisa_log_curves.clear()
-
+        """Hapus plot dan data tabel dari panel analisa."""
         # Bersihkan CSV Table: delta scatter, secondary vb, legend, tabel
         self._analisa_pw_delta.getPlotItem().clear()
         self._analisa_vb_press.clear()
@@ -1574,15 +1561,9 @@ class MainWindow(QMainWindow):
             self._analisa_press_legend_box.clear()
         except Exception:
             pass
-        self._analisa_tbl_data.setRowCount(0)
-
-        # Reset label CSV Log
-        for lbl in (
-            self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
-            self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
-        ):
-            lbl.setText("-")
-        self._update_analisa_files_label()
+        self._analisa_tbl_data.setRowCount(2)
+        self._analisa_apply_pad_table_headers()
+        self._analisa_tbl_split.setRowCount(0)
 
         # Reset label CSV Table
         self._analisa_lbl_tbl_file.setText("(belum ada file)")
@@ -1645,7 +1626,7 @@ class MainWindow(QMainWindow):
         return folder / f"{prefix}_{ts}.csv"
 
     # ── Table panel ──────────────────────────────────────────────────────────
-    def _build_table_panel(self) -> QWidget:
+    def _build_table_panel(self) -> tuple[QWidget, QWidget]:
         group = QGroupBox("Table")
 
         NUM_DATA_ROWS = 10
@@ -1801,19 +1782,17 @@ class MainWindow(QMainWindow):
         table_folder_lay.addWidget(self._inp_table_folder)
         table_folder_lay.addWidget(btn_browse_table)
 
-        folder_form = QHBoxLayout()
-        folder_lbl = QLabel("Folder:")
-        folder_lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        folder_form.addWidget(folder_lbl)
-        folder_form.addWidget(table_folder_row)
-
         self._btn_save_table = QPushButton("💾  Save Table to CSV")
         self._btn_save_table.setMinimumHeight(32)
         self._btn_save_table.clicked.connect(self._on_save_table_csv)
 
-        self._btn_set_param = QPushButton("⚙️  Set Parameter")
-        self._btn_set_param.setMinimumHeight(32)
-        self._btn_set_param.clicked.connect(self._on_open_param_dialog)
+        folder_form = QHBoxLayout()
+        folder_form.setSpacing(4)
+        folder_lbl = QLabel("Folder:")
+        folder_lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        folder_form.addWidget(folder_lbl)
+        folder_form.addWidget(table_folder_row, stretch=1)
+        folder_form.addWidget(self._btn_save_table)
 
         # ── Info Perenang ────────────────────────────────────────────────────
         swimmer_group = QGroupBox("Info Perenang")
@@ -1889,36 +1868,65 @@ class MainWindow(QMainWindow):
         self._btn_theme.setMinimumHeight(32)
         self._btn_theme.clicked.connect(self._on_toggle_theme)
 
-        # Layout dalam QGroupBox("Table") — hanya elemen tabel
+        # Layout QGroupBox("Table") — time format + tabel saja
         table_vbox = QVBoxLayout()
         table_vbox.setContentsMargins(8, 8, 8, 8)
         table_vbox.setSpacing(6)
         table_vbox.addLayout(fmt_row)
         table_vbox.addWidget(self._data_table)
-        table_vbox.addLayout(folder_form)
-        table_vbox.addWidget(self._btn_save_table)
         group.setLayout(table_vbox)
 
-        # Layout container luar — semua elemen berurutan
-        btn_bottom_row = QHBoxLayout()
-        btn_bottom_row.setSpacing(6)
-        btn_bottom_row.addWidget(self._btn_set_param)
-        btn_bottom_row.addWidget(self._btn_theme)
+        # ── Tabel Split Time (delta time live) ───────────────────────────────
+        self._delta_tbl = QTableWidget(0, 4)
+        self._delta_tbl.setHorizontalHeaderLabels(
+            ["50m ke-", "Touchpad", "t (s)", "Δt (s)"]
+        )
+        self._delta_tbl.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self._delta_tbl.verticalHeader().hide()
+        self._delta_tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._delta_tbl.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._delta_tbl.setAlternatingRowColors(False)
+        self._delta_tbl.setShowGrid(True)
 
-        outer_vbox = QVBoxLayout()
-        outer_vbox.setContentsMargins(0, 0, 0, 0)
-        outer_vbox.setSpacing(6)
-        outer_vbox.addWidget(swimmer_group)
-        outer_vbox.addWidget(csv_group)
-        outer_vbox.addWidget(self._btn_start_stop)
-        outer_vbox.addWidget(group, stretch=1)
-        outer_vbox.addLayout(btn_bottom_row)
+        delta_group = QGroupBox("Split Time")
+        delta_lay = QVBoxLayout(delta_group)
+        delta_lay.setContentsMargins(4, 4, 4, 4)
+        delta_lay.addWidget(self._delta_tbl)
 
-        container = QWidget()
-        container.setFixedWidth(360)
-        container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        container.setLayout(outer_vbox)
-        return container
+        # ── Panel kiri: status label + dua tabel berdampingan ────────────────
+        tables_row = QHBoxLayout()
+        tables_row.setSpacing(8)
+        tables_row.addWidget(group, stretch=3)
+        tables_row.addWidget(delta_group, stretch=2)
+
+        left_vbox = QVBoxLayout()
+        left_vbox.setContentsMargins(0, 0, 0, 0)
+        left_vbox.setSpacing(6)
+        left_vbox.addWidget(self._status_label)
+        left_vbox.addLayout(tables_row, stretch=1)
+        left_vbox.addLayout(folder_form)   # di bawah kedua tabel
+
+        left_widget = QWidget()
+        left_widget.setLayout(left_vbox)
+
+        # ── Panel kanan: kontrol (swimmer, csv, start, theme) ─────────────────
+        right_vbox = QVBoxLayout()
+        right_vbox.setContentsMargins(0, 0, 0, 0)
+        right_vbox.setSpacing(6)
+        right_vbox.addWidget(swimmer_group)
+        right_vbox.addWidget(csv_group)
+        right_vbox.addWidget(self._btn_start_stop)
+        right_vbox.addStretch()
+        right_vbox.addWidget(self._btn_theme)
+
+        right_widget = QWidget()
+        right_widget.setFixedWidth(360)
+        right_widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        right_widget.setLayout(right_vbox)
+
+        return left_widget, right_widget
 
     def _update_table_header_colors(self) -> None:
         """Sesuaikan warna background sel header dengan tema aktif."""
@@ -1950,7 +1958,26 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _on_save_table_csv(self) -> None:
-        """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV."""
+        """Simpan tabel Pad Detection dan Split Time ke satu file CSV dua seksi.
+
+        Format file:
+          # metadata baris ...
+          #
+          # === PAD DETECTION ===
+          No,Time_Pad1,Pressure_Pad1(Kg),Time_Pad2,Pressure_Pad2(Kg)
+          1,...
+          #
+          # === SPLIT TIME ===
+          50m ke-,Touchpad,t (s),Δt (s)
+          1,Pad2,10.368,10.368
+          ...
+
+        Kolom Split Time sama dengan tabel di Layar: urutan 50m ke-, Touchpad
+        (Pad1/Pad2), waktu kumulatif ``t (s)``, dan ``Δt (s)`` dalam detik (4 desimal).
+
+        Baris yang dimulai ``#`` adalah komentar/metadata — aman dilewati saat
+        import ke pandas dengan ``comment='#'``.
+        """
         prefix = self._inp_csv_prefix.text().strip() or "DAQ"
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         folder = pathlib.Path(self._inp_table_folder.text())
@@ -1964,10 +1991,17 @@ class MainWindow(QMainWindow):
         try:
             with filepath.open("w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
+
+                # ── Metadata ──────────────────────────────────────────────
                 for key, val in self._build_swimmer_metadata().items():
                     writer.writerow([f"# {key}", val])
+
+                # ── Seksi 1: Pad Detection ─────────────────────────────────
+                writer.writerow(["#"])
+                writer.writerow(["# === PAD DETECTION ==="])
                 writer.writerow(
-                    ["No", "Time_Pad1", "Pressure_Pad1(Kg)", "Time_Pad2", "Pressure_Pad2(Kg)"]
+                    ["No", "Time_Pad1", "Pressure_Pad1(Kg)",
+                     "Time_Pad2", "Pressure_Pad2(Kg)"]
                 )
                 for idx, row in enumerate(range(2, 2 + TABLE_ROWS), start=1):
                     t1 = self._data_table.item(row, 0)
@@ -1980,6 +2014,17 @@ class MainWindow(QMainWindow):
                     p2_val = p2.text() if p2 else ""
                     if t1_val or p1_val or t2_val or p2_val:
                         writer.writerow([idx, t1_val, p1_val, t2_val, p2_val])
+
+                # ── Seksi 2: Split Time ────────────────────────────────────
+                writer.writerow(["#"])
+                writer.writerow(["# === SPLIT TIME ==="])
+                writer.writerow(["50m ke-", "Touchpad", "t (s)", "Δt (s)"])
+                events = sorted(self._live_events, key=lambda e: e[0])
+                for i, (t_val, ch) in enumerate(events):
+                    dt_val = t_val if i == 0 else t_val - events[i - 1][0]
+                    pad_name = "Pad2" if ch == 1 else "Pad1"
+                    writer.writerow([i + 1, pad_name, f"{t_val:.4f}", f"{dt_val:.4f}"])
+
         except OSError as exc:
             QMessageBox.critical(self, "Error", f"Gagal menyimpan file:\n{exc}")
             return
@@ -2028,14 +2073,13 @@ class MainWindow(QMainWindow):
 
         # Warna header tabel
         self._update_table_header_colors()
+        self._analisa_update_pad_table_header_colors()
 
         # Warna tombol aksi
         bs = theme["btn_styles"]
         self._btn_start_stop.setStyleSheet(bs["start"])
         self._btn_save_table.setStyleSheet(bs["save"])
-        self._btn_set_param.setStyleSheet(bs["set_param"])
         self._btn_theme.setStyleSheet(bs["theme"])
-        self._btn_load_log.setStyleSheet(bs["load_log"])
         self._btn_load_table.setStyleSheet(bs["load_table"])
 
         # Label tombol tema
@@ -2093,13 +2137,15 @@ class MainWindow(QMainWindow):
             hold_time=_safe_float(self._inp_hold1.text(),   DEFAULT_HOLD_TIME),
         )
 
-        # Reset tabel: hapus isi baris data (baris 0-1 adalah header)
+        # Reset tabel dan event list
         self._table_next_row = [2, 2]
+        self._live_events = []
         for row in range(2, 2 + TABLE_ROWS):
             for col in range(self._data_table.columnCount()):
                 item = self._data_table.item(row, col)
                 if item:
                     item.setText("")
+        self._delta_tbl.setRowCount(0)
 
         # Buka CSV writer jika checkbox aktif
         self._csv_writer = None
@@ -2225,7 +2271,7 @@ class MainWindow(QMainWindow):
         return f"{seconds:.3f}"
 
     def _reformat_table_times(self) -> None:
-        """Reformat semua sel Time di tabel tanpa mengubah data."""
+        """Reformat semua sel Time di tabel pad dan kolom t di delta table."""
         for row in range(2, 2 + TABLE_ROWS):
             for col in (0, 2):
                 item = self._data_table.item(row, col)
@@ -2233,6 +2279,13 @@ class MainWindow(QMainWindow):
                     val = item.data(Qt.ItemDataRole.UserRole)
                     if val is not None:
                         item.setText(self._fmt_time(val))
+        # Reformat kolom "t" (kolom 2) di tabel split time
+        for row in range(self._delta_tbl.rowCount()):
+            item = self._delta_tbl.item(row, 2)
+            if item:
+                val = item.data(Qt.ItemDataRole.UserRole)
+                if val is not None:
+                    item.setText(self._fmt_time(val))
 
     def _append_table_row(self, t0: float, pressure: float, channel: int) -> None:
         """Tulis satu hasil deteksi ke tabel.
@@ -2269,6 +2322,56 @@ class MainWindow(QMainWindow):
         if p_item:
             p_item.setText(f"{pressure:.4f}")
         self._table_next_row[channel] += 1
+
+        # Catat event dan perbarui tabel split time
+        self._live_events.append((t0, channel))
+        self._update_live_delta()
+
+    def _update_live_delta(self) -> None:
+        """Hitung dan tampilkan delta time antar sentuhan di tabel Split Time.
+
+        Event diurutkan berdasarkan timestamp, lalu delta dihitung secara
+        berurutan. Baris diwarnai berdasarkan arah sentuhan:
+        - Biru  : sentuhan Pad 2 (dinding jauh / outbound)
+        - Merah : sentuhan Pad 1 (dinding start / return)
+        """
+        if not self._live_events:
+            return
+
+        # Urutkan semua event berdasarkan waktu
+        events = sorted(self._live_events, key=lambda e: e[0])
+        n = len(events)
+
+        self._delta_tbl.setRowCount(n)
+
+        # Warna teks per arah (bekerja di tema terang maupun gelap)
+        color_pad2 = QColor("#4fc3f7")   # biru — outbound ke dinding jauh
+        color_pad1 = QColor("#ef9a9a")   # merah muda — return ke dinding start
+
+        for i, (t_val, ch) in enumerate(events):
+            dt_val = t_val if i == 0 else t_val - events[i - 1][0]
+            pad_name = "Pad2" if ch == 1 else "Pad1"
+
+            item_n  = QTableWidgetItem(str(i + 1))
+            item_pad = QTableWidgetItem(pad_name)
+            item_t  = QTableWidgetItem(self._fmt_time(t_val))
+            item_t.setData(Qt.ItemDataRole.UserRole, t_val)   # simpan float asli
+            item_dt = QTableWidgetItem(f"{dt_val:.3f}")
+
+            row_color = color_pad2 if ch == 1 else color_pad1
+            for item in (item_n, item_pad, item_t, item_dt):
+                item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                item.setForeground(QBrush(row_color))
+
+            self._delta_tbl.setItem(i, 0, item_n)
+            self._delta_tbl.setItem(i, 1, item_pad)
+            self._delta_tbl.setItem(i, 2, item_t)
+            self._delta_tbl.setItem(i, 3, item_dt)
+            self._delta_tbl.setRowHeight(i, 22)
+
+        self._delta_tbl.scrollToBottom()
 
     def _refresh_plot(self) -> None:
         """Update kurva pyqtgraph dari buffer deque. Dipanggil tiap 100 ms oleh QTimer."""
