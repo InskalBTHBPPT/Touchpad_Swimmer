@@ -712,6 +712,7 @@ class DaqWorker(QThread):
         self._running = False
 
     def run(self) -> None:
+        """Jalankan loop akuisisi. Dipanggil otomatis oleh QThread.start()."""
         self._running = True
         sample_offset = 0
         use_waveform = self.read_mode == "B"
@@ -767,12 +768,31 @@ class DaqWorker(QThread):
             self.error_occurred.emit(str(exc))
 
     def stop(self) -> None:
+        """Minta loop akuisisi berhenti pada iterasi berikutnya."""
         self._running = False
 
 
 # ─── Main Window ─────────────────────────────────────────────────────────────
 class MainWindow(QMainWindow):
+    """Jendela utama aplikasi NI DAQ Monitor.
+
+    Layout terdiri dari dua panel:
+    - Tengah : dua PlotWidget real-time (Channel AI0 dan AI1).
+    - Kanan  : kontrol CSV export, tombol Start/Stop, tabel hasil deteksi,
+               dan tombol utilitas (Set Parameter, tema).
+
+    Alur data
+    ---------
+    DaqWorker.data_ready → _on_data_ready()
+        → buffer deque (plot) + ChannelDetector (deteksi) + CsvWriter (log)
+    QTimer (100 ms) → _refresh_plot()
+        → update kurva pyqtgraph dari buffer deque
+    ChannelDetector.process() → _append_table_row()
+        → tulis hasil deteksi ke QTableWidget
+    """
+
     def __init__(self) -> None:
+        """Inisialisasi MainWindow: buat semua widget dan load config.json."""
         super().__init__()
         self.setWindowTitle("NI DAQ Monitor")
         self.resize(1280, 640)
@@ -1269,6 +1289,12 @@ class MainWindow(QMainWindow):
         self._apply_theme(next_theme)
 
     def _apply_theme(self, theme_name: str) -> None:
+        """Terapkan tema "Light" atau "Dark" ke seluruh aplikasi.
+
+        Mengubah: Qt stylesheet global, warna background/foreground pyqtgraph,
+        warna kurva AI0/AI1, warna header tabel, warna tombol aksi, dan label
+        tombol tema.
+        """
         theme = _THEMES[theme_name]
         self._current_theme = theme_name
 
@@ -1319,6 +1345,7 @@ class MainWindow(QMainWindow):
             self._stop_daq()
 
     def _start_daq(self) -> None:
+        """Mulai akuisisi: validasi input, buat DaqWorker & ChannelDetector, mulai timer plot."""
         try:
             rate = float(self._inp_rate.text())
             buffer_size = int(self._inp_buffer.text())
@@ -1414,6 +1441,7 @@ class MainWindow(QMainWindow):
         self._is_running = True
 
     def _stop_daq(self) -> None:
+        """Hentikan akuisisi: stop worker thread, flush CSV, reset UI state."""
         self._plot_timer.stop()
         if self._worker:
             self._worker.stop()
@@ -1434,6 +1462,18 @@ class MainWindow(QMainWindow):
 
     # ── Slots ─────────────────────────────────────────────────────────────────
     def _on_data_ready(self, ai0: list, ai1: list, offset: int) -> None:
+        """Terima chunk data dari DaqWorker.
+
+        Setiap sampel dimasukkan ke buffer plot, diproses oleh ChannelDetector,
+        dan (opsional) ditulis ke CSV melalui CsvWriter.
+
+        Parameters
+        ----------
+        ai0, ai1 : list[float]
+            Tegangan (Volt) per sampel untuk masing-masing channel.
+        offset : int
+            Indeks sampel pertama di chunk ini (untuk menghitung timestamp relatif).
+        """
         for i in range(len(ai0)):
             x_val = (offset + i) * self._dt_sample
             self._buf_x.append(x_val)
@@ -1522,6 +1562,7 @@ class MainWindow(QMainWindow):
         self._table_next_row[channel] += 1
 
     def _refresh_plot(self) -> None:
+        """Update kurva pyqtgraph dari buffer deque. Dipanggil tiap 100 ms oleh QTimer."""
         if not self._buf_x:
             return
         x = np.fromiter(self._buf_x, dtype=np.float64)
@@ -1553,6 +1594,10 @@ class MainWindow(QMainWindow):
         error: bool = False,
         running: bool = False,
     ) -> None:
+        """Perbarui label status di bawah chart.
+
+        Warna: merah (error), hijau (running), abu-abu (stopped/info).
+        """
         self._status_label.setText(text)
         if error:
             color = "red"
@@ -1603,6 +1648,7 @@ class MainWindow(QMainWindow):
         self._dd_vrange.blockSignals(False)
 
     def _set_param_inputs_enabled(self, enabled: bool) -> None:
+        """Enable/disable semua input parameter saat akuisisi berjalan/berhenti."""
         for widget in (
             self._inp_ch0,
             self._inp_ch1,
@@ -1618,6 +1664,7 @@ class MainWindow(QMainWindow):
             widget.setEnabled(enabled)
 
     def closeEvent(self, event) -> None:
+        """Pastikan DaqWorker dan CsvWriter dihentikan dengan benar sebelum app tutup."""
         if self._worker and self._worker.isRunning():
             self._worker.stop()
             self._worker.wait(3000)
