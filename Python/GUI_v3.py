@@ -1036,6 +1036,20 @@ class MainWindow(QMainWindow):
         pi_delta.showGrid(x=True, y=True, alpha=0.3)
         self._analisa_delta_legend = pi_delta.addLegend(offset=(10, 10))
 
+        # Sumbu Y sekunder (kanan) untuk Pressure
+        pi_delta.showAxis("right")
+        pi_delta.getAxis("right").setLabel("Pressure", units="Kg")
+        self._analisa_vb_press = pg.ViewBox()
+        pi_delta.scene().addItem(self._analisa_vb_press)
+        pi_delta.getAxis("right").linkToView(self._analisa_vb_press)
+        self._analisa_vb_press.setXLink(pi_delta.vb)
+        # Sinkronkan geometri ViewBox saat ukuran plot berubah
+        pi_delta.vb.sigResized.connect(
+            lambda: self._analisa_vb_press.setGeometry(
+                pi_delta.vb.sceneBoundingRect()
+            )
+        )
+
         bottom_hbox = QHBoxLayout()
         bottom_hbox.setContentsMargins(4, 4, 4, 4)
         bottom_hbox.setSpacing(8)
@@ -1354,7 +1368,7 @@ class MainWindow(QMainWindow):
                 p2_list.append(p2_val)
 
         self._analisa_plot_pressure(t1_list, p1_list, t2_list, p2_list)
-        self._analisa_compute_and_plot_deltas(t1_list, t2_list)
+        self._analisa_compute_and_plot_deltas(t1_list, p1_list, t2_list, p2_list)
 
     @staticmethod
     def _analisa_parse_time_s(val: str) -> float | None:
@@ -1438,92 +1452,112 @@ class MainWindow(QMainWindow):
             pi.addItem(sc2)
 
     def _analisa_compute_and_plot_deltas(
-        self, t1_list: list[float], t2_list: list[float]
+        self,
+        t1_list: list[float], p1_list: list[float],
+        t2_list: list[float], p2_list: list[float],
     ) -> None:
-        """Hitung dan plot scatter delta time antar sentuhan touchpad.
+        """Hitung dan plot scatter delta time + pressure pada sumbu Y sekunder.
 
-        Algoritma:
-        - Gabungkan semua event (t1 = Pad1, t2 = Pad2) lalu urutkan berdasarkan waktu.
-        - Point pertama: waktu absolut event pertama (dari detik 0).
-        - Point berikutnya: selisih antara event berurutan.
-        - Warna biru  (⬤) = menuju Pad2 (outbound ke dinding jauh)
-        - Warna merah (⬤) = menuju Pad1 (return ke dinding start)
+        Sumbu kiri  (Y1): Δ Time (s) — lingkaran biru/merah per arah
+        Sumbu kanan (Y2): Pressure (Kg) — kotak warna per pad
+        Sumbu bawah (X) : nomor titik (1, 2, 3, ...)
         """
-        events: list[tuple[float, str]] = (
-            [(t, "Pad1") for t in t1_list]
-            + [(t, "Pad2") for t in t2_list]
+        # Bangun events dengan pressure: (time, pad, pressure)
+        events: list[tuple[float, str, float]] = (
+            [(t, "Pad1", p) for t, p in zip(t1_list, p1_list)]
+            + [(t, "Pad2", p) for t, p in zip(t2_list, p2_list)]
         )
-        events.sort(key=lambda x: x[0])
+        events.sort(key=lambda e: e[0])
 
         if not events:
             return
 
         # Hitung delta times
-        delta_x: list[float] = []
-        delta_y: list[float] = []
-        delta_dest: list[str] = []  # "Pad1" atau "Pad2"
+        delta_x:    list[float] = []
+        delta_y:    list[float] = []
+        delta_dest: list[str]   = []
+        press_y:    list[float] = []
 
         delta_x.append(1.0)
         delta_y.append(events[0][0])
         delta_dest.append(events[0][1])
+        press_y.append(events[0][2])
 
         for i in range(1, len(events)):
             delta_x.append(float(i + 1))
             delta_y.append(events[i][0] - events[i - 1][0])
             delta_dest.append(events[i][1])
+            press_y.append(events[i][2])
 
-        # Pisahkan outbound (→Pad2) dan return (→Pad1)
+        # Pisahkan outbound / return untuk delta scatter
         x_out, y_out, x_ret, y_ret = [], [], [], []
         for x, y, dest in zip(delta_x, delta_y, delta_dest):
             if dest == "Pad2":
-                x_out.append(x)
-                y_out.append(y)
+                x_out.append(x); y_out.append(y)
             else:
-                x_ret.append(x)
-                y_ret.append(y)
+                x_ret.append(x); y_ret.append(y)
 
+        # Pisahkan pressure per pad
+        x_pr1, y_pr1, x_pr2, y_pr2 = [], [], [], []
+        for x, dest, p in zip(delta_x, delta_dest, press_y):
+            if dest == "Pad1":
+                x_pr1.append(x); y_pr1.append(p)
+            else:
+                x_pr2.append(x); y_pr2.append(p)
+
+        # ── Bersihkan plot ─────────────────────────────────────────────────
         pi: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
         pi.clear()
+        self._analisa_vb_press.clear()
         try:
             self._analisa_delta_legend.clear()
         except Exception:
             pass
 
-        # Garis penghubung semua titik
+        # ── Sumbu Y kiri: Δ Time ───────────────────────────────────────────
         pi.plot(
             np.array(delta_x), np.array(delta_y),
             pen=pg.mkPen("#888888", width=1, style=Qt.PenStyle.DashLine),
         )
-
-        # Scatter outbound (→ Pad2)
         if x_out:
-            scatter_out = pg.ScatterPlotItem(
-                x=x_out, y=y_out,
-                symbol="o", size=12,
-                pen=pg.mkPen(None),
-                brush=pg.mkBrush("#4fc3f7"),
+            pi.addItem(pg.ScatterPlotItem(
+                x=x_out, y=y_out, symbol="o", size=12,
+                pen=pg.mkPen(None), brush=pg.mkBrush("#4fc3f7"),
                 name="→ Pad2 (outbound)",
-            )
-            pi.addItem(scatter_out)
-
-        # Scatter return (→ Pad1)
+            ))
         if x_ret:
-            scatter_ret = pg.ScatterPlotItem(
-                x=x_ret, y=y_ret,
-                symbol="o", size=12,
-                pen=pg.mkPen(None),
-                brush=pg.mkBrush("#ef5350"),
+            pi.addItem(pg.ScatterPlotItem(
+                x=x_ret, y=y_ret, symbol="o", size=12,
+                pen=pg.mkPen(None), brush=pg.mkBrush("#ef5350"),
                 name="→ Pad1 (return)",
-            )
-            pi.addItem(scatter_ret)
+            ))
 
-        # Label nilai delta di atas setiap titik
+        # Label nilai delta
         for x, y in zip(delta_x, delta_y):
             txt = pg.TextItem(f"{y:.3f}s", anchor=(0.5, 1.2), color="#cccccc")
             txt.setPos(x, y)
             pi.addItem(txt)
 
-        # Pastikan sumbu X integer dari 1
+        # ── Sumbu Y kanan: Pressure ────────────────────────────────────────
+        if x_pr1:
+            self._analisa_vb_press.addItem(pg.ScatterPlotItem(
+                x=x_pr1, y=y_pr1, symbol="s", size=9,
+                pen=pg.mkPen("#4fc3f7", width=1),
+                brush=pg.mkBrush(0, 0, 0, 0),  # transparan agar tidak nabrak delta
+                name="Press Pad1",
+            ))
+        if x_pr2:
+            self._analisa_vb_press.addItem(pg.ScatterPlotItem(
+                x=x_pr2, y=y_pr2, symbol="s", size=9,
+                pen=pg.mkPen("#ef5350", width=1),
+                brush=pg.mkBrush(0, 0, 0, 0),
+                name="Press Pad2",
+            ))
+
+        # Sinkronkan geometri ViewBox sekunder
+        self._analisa_vb_press.setGeometry(pi.vb.sceneBoundingRect())
+
+        # Pastikan sumbu X bertick integer
         pi.getAxis("bottom").setTicks(
             [[(i, str(int(i))) for i in delta_x]]
         )
@@ -1542,9 +1576,10 @@ class MainWindow(QMainWindow):
             pi_log.removeItem(c1)
         self._analisa_log_curves.clear()
 
-        # Bersihkan CSV Table: pressure plot, delta scatter, tabel
+        # Bersihkan CSV Table: pressure plot, delta scatter, secondary vb, tabel
         self._analisa_pw_pressure.getPlotItem().clear()
         self._analisa_pw_delta.getPlotItem().clear()
+        self._analisa_vb_press.clear()
         self._analisa_tbl_data.setRowCount(0)
 
         # Reset label CSV Log
