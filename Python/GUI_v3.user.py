@@ -1821,8 +1821,10 @@ class MainWindow(QMainWindow):
         group.setLayout(table_vbox)
 
         # ── Tabel Split Time (delta time live) ───────────────────────────────
-        self._delta_tbl = QTableWidget(0, 3)
-        self._delta_tbl.setHorizontalHeaderLabels(["50m ke-", "t", "Δt (s)"])
+        self._delta_tbl = QTableWidget(0, 4)
+        self._delta_tbl.setHorizontalHeaderLabels(
+            ["50m ke-", "Touchpad", "t (s)", "Δt (s)"]
+        )
         self._delta_tbl.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
@@ -2218,9 +2220,9 @@ class MainWindow(QMainWindow):
                     val = item.data(Qt.ItemDataRole.UserRole)
                     if val is not None:
                         item.setText(self._fmt_time(val))
-        # Reformat kolom "t" (kolom 1) di tabel split time
+        # Reformat kolom "t" (kolom 2) di tabel split time
         for row in range(self._delta_tbl.rowCount()):
-            item = self._delta_tbl.item(row, 1)
+            item = self._delta_tbl.item(row, 2)
             if item:
                 val = item.data(Qt.ItemDataRole.UserRole)
                 if val is not None:
@@ -2289,22 +2291,25 @@ class MainWindow(QMainWindow):
 
         for i, (t_val, ch) in enumerate(events):
             dt_val = t_val if i == 0 else t_val - events[i - 1][0]
+            pad_name = "Pad2" if ch == 1 else "Pad1"
 
             item_n  = QTableWidgetItem(str(i + 1))
+            item_pad = QTableWidgetItem(pad_name)
             item_t  = QTableWidgetItem(self._fmt_time(t_val))
             item_t.setData(Qt.ItemDataRole.UserRole, t_val)   # simpan float asli
             item_dt = QTableWidgetItem(f"{dt_val:.3f}")
 
             row_color = color_pad2 if ch == 1 else color_pad1
-            for item in (item_n, item_t, item_dt):
+            for item in (item_n, item_pad, item_t, item_dt):
                 item.setTextAlignment(
                     Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
                 )
                 item.setForeground(QBrush(row_color))
 
             self._delta_tbl.setItem(i, 0, item_n)
-            self._delta_tbl.setItem(i, 1, item_t)
-            self._delta_tbl.setItem(i, 2, item_dt)
+            self._delta_tbl.setItem(i, 1, item_pad)
+            self._delta_tbl.setItem(i, 2, item_t)
+            self._delta_tbl.setItem(i, 3, item_dt)
             self._delta_tbl.setRowHeight(i, 22)
 
         self._delta_tbl.scrollToBottom()
