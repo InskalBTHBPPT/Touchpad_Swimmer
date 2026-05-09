@@ -1017,16 +1017,7 @@ class MainWindow(QMainWindow):
         lay_lp.setContentsMargins(4, 4, 4, 4)
         lay_lp.addWidget(self._analisa_pw_log)
 
-        # ── Bottom: pressure plot (kiri) + scatter delta time (kanan) ──────
-        # Plot Pressure vs Time — dua kurva: Pad1 dan Pad2
-        self._analisa_pw_pressure = pg.PlotWidget()
-        pi_press: pg.PlotItem = self._analisa_pw_pressure.getPlotItem()
-        pi_press.setTitle("Pressure vs Time")
-        pi_press.setLabel("left", "Pressure", units="Kg")
-        pi_press.setLabel("bottom", "Time", units="s")
-        pi_press.showGrid(x=True, y=True, alpha=0.3)
-        self._analisa_press_legend = pi_press.addLegend(offset=(10, 10))
-
+        # ── Bottom: scatter delta time (full width) ───────────────────────
         # Scatter plot delta time
         self._analisa_pw_delta = pg.PlotWidget()
         pi_delta: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
@@ -1052,8 +1043,6 @@ class MainWindow(QMainWindow):
 
         bottom_hbox = QHBoxLayout()
         bottom_hbox.setContentsMargins(4, 4, 4, 4)
-        bottom_hbox.setSpacing(8)
-        bottom_hbox.addWidget(self._analisa_pw_pressure, stretch=1)
         bottom_hbox.addWidget(self._analisa_pw_delta, stretch=1)
 
         grp_table_plot = QGroupBox("CSV Table Analysis")
@@ -1367,7 +1356,6 @@ class MainWindow(QMainWindow):
                 t2_list.append(t2)
                 p2_list.append(p2_val)
 
-        self._analisa_plot_pressure(t1_list, p1_list, t2_list, p2_list)
         self._analisa_compute_and_plot_deltas(t1_list, p1_list, t2_list, p2_list)
 
     @staticmethod
@@ -1389,67 +1377,6 @@ class MainWindow(QMainWindow):
             return float(val)
         except ValueError:
             return None
-
-    def _analisa_plot_pressure(
-        self,
-        t1: list[float], p1: list[float],
-        t2: list[float], p2: list[float],
-    ) -> None:
-        """Plot Pressure vs Time — semua event digabung satu garis berurutan waktu.
-
-        Garis abu-abu menghubungkan seluruh event (Pad1 + Pad2) yang sudah
-        diurutkan berdasarkan waktu. Titik Pad1 berwarna biru, Pad2 merah,
-        sehingga tetap bisa dibedakan meski terhubung satu garis.
-        """
-        pi: pg.PlotItem = self._analisa_pw_pressure.getPlotItem()
-        pi.clear()
-        try:
-            self._analisa_press_legend.clear()
-        except Exception:
-            pass
-
-        all_events: list[tuple[float, float, str]] = (
-            [(t, p, "Pad1") for t, p in zip(t1, p1)]
-            + [(t, p, "Pad2") for t, p in zip(t2, p2)]
-        )
-        if not all_events:
-            return
-
-        all_events.sort(key=lambda e: e[0])
-        t_all = np.array([e[0] for e in all_events])
-        p_all = np.array([e[1] for e in all_events])
-
-        # Garis penghubung semua titik (satu garis kontinyu)
-        pi.plot(
-            t_all, p_all,
-            pen=pg.mkPen("#888888", width=1.5),
-        )
-
-        # Scatter Pad1 (biru) dan Pad2 (merah) — ditambah ke legend
-        t1_arr = np.array([e[0] for e in all_events if e[2] == "Pad1"])
-        p1_arr = np.array([e[1] for e in all_events if e[2] == "Pad1"])
-        t2_arr = np.array([e[0] for e in all_events if e[2] == "Pad2"])
-        p2_arr = np.array([e[1] for e in all_events if e[2] == "Pad2"])
-
-        if len(t1_arr):
-            sc1 = pg.ScatterPlotItem(
-                x=t1_arr, y=p1_arr,
-                symbol="o", size=11,
-                pen=pg.mkPen(None),
-                brush=pg.mkBrush("#4fc3f7"),
-                name="Pad1",
-            )
-            pi.addItem(sc1)
-
-        if len(t2_arr):
-            sc2 = pg.ScatterPlotItem(
-                x=t2_arr, y=p2_arr,
-                symbol="o", size=11,
-                pen=pg.mkPen(None),
-                brush=pg.mkBrush("#ef5350"),
-                name="Pad2",
-            )
-            pi.addItem(sc2)
 
     def _analisa_compute_and_plot_deltas(
         self,
@@ -1576,8 +1503,7 @@ class MainWindow(QMainWindow):
             pi_log.removeItem(c1)
         self._analisa_log_curves.clear()
 
-        # Bersihkan CSV Table: pressure plot, delta scatter, secondary vb, tabel
-        self._analisa_pw_pressure.getPlotItem().clear()
+        # Bersihkan CSV Table: delta scatter, secondary vb, tabel
         self._analisa_pw_delta.getPlotItem().clear()
         self._analisa_vb_press.clear()
         self._analisa_tbl_data.setRowCount(0)
