@@ -26,10 +26,10 @@ Di samping atau di bawah tiap plot, tampilkan nilai terbaru AI0 dan AI1 sebagai 
 - Beri tombol color-picker kecil di sebelah label "AI 0" dan "AI 1"
 - Default: AI0 = biru (30,144,255), AI1 = oranye (220,80,0) -->
 
-## 6. Export CSV
+<!-- ## 6. Export CSV
 - Tombol "Save CSV" untuk menyimpan isi rolling buffer (atau semua data sejak Start) ke file `.csv`
 - Format: `timestamp, ai0, ai1`
-- Gunakan `QFileDialog` untuk memilih lokasi simpan
+- Gunakan `QFileDialog` untuk memilih lokasi simpan -->
 
 ## 7. Status Bar: Sample Rate Aktual
 - Hitung sample rate aktual dari waktu antar chunk yang diterima
