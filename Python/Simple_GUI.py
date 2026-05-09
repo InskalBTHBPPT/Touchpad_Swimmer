@@ -58,6 +58,26 @@ TERMINAL_MAP: dict[str, TerminalConfiguration] = {
     "NRSE": TerminalConfiguration.NRSE,
 }
 
+# (min_val, max_val) dalam Volt untuk add_ai_voltage_chan
+# Differential mode: 8 pilihan range
+VOLTAGE_RANGE_DIFF: dict[str, tuple[float, float]] = {
+    "±1 V":    (-1.0,    1.0),
+    "±1.25 V": (-1.25,   1.25),
+    "±2 V":    (-2.0,    2.0),
+    "±2.5 V":  (-2.5,    2.5),
+    "±4 V":    (-4.0,    4.0),
+    "±5 V":    (-5.0,    5.0),
+    "±10 V":   (-10.0,  10.0),
+    "±20 V":   (-20.0,  20.0),
+}
+# Single-Ended (RSE / NRSE): hanya satu pilihan
+VOLTAGE_RANGE_SE: dict[str, tuple[float, float]] = {
+    "±10 V": (-10.0, 10.0),
+}
+VOLTAGE_RANGE_MAP = VOLTAGE_RANGE_DIFF  # alias untuk DaqWorker lookup gabungan
+DEFAULT_VOLTAGE_RANGE_DIFF = "±10 V"
+DEFAULT_VOLTAGE_RANGE_SE   = "±10 V"
+
 # ─── Theme definitions ────────────────────────────────────────────────────────
 # Setiap theme menyimpan: warna plot background, warna foreground (axis/text),
 # warna kurva AI0 & AI1, stylesheet Qt untuk widget.
@@ -227,6 +247,8 @@ class DaqWorker(QThread):
         samples_per_loop: int,
         terminal_config: TerminalConfiguration,
         read_mode: Literal["A", "B"],
+        min_val: float = -10.0,
+        max_val: float = 10.0,
     ) -> None:
         super().__init__()
         self.ch0 = ch0
@@ -236,6 +258,8 @@ class DaqWorker(QThread):
         self.samples_per_loop = samples_per_loop
         self.terminal_config = terminal_config
         self.read_mode = read_mode
+        self.min_val = min_val
+        self.max_val = max_val
         self._running = False
 
     def run(self) -> None:
@@ -248,7 +272,10 @@ class DaqWorker(QThread):
             with nidaqmx.Task() as task:
                 for ch in (self.ch0, self.ch1):
                     task.ai_channels.add_ai_voltage_chan(
-                        ch, terminal_config=self.terminal_config
+                        ch,
+                        terminal_config=self.terminal_config,
+                        min_val=self.min_val,
+                        max_val=self.max_val,
                     )
                 task.timing.cfg_samp_clk_timing(
                     rate=self.rate,
@@ -352,6 +379,13 @@ class MainWindow(QMainWindow):
         self._dd_terminal.addItems(["DIFF", "RSE", "NRSE"])
         self._dd_terminal.setCurrentText(DEFAULT_TERMINAL)
 
+        self._dd_vrange = QComboBox()
+        self._dd_vrange.addItems(list(VOLTAGE_RANGE_DIFF.keys()))
+        self._dd_vrange.setCurrentText(DEFAULT_VOLTAGE_RANGE_DIFF)
+
+        # Saat terminal berubah, sesuaikan pilihan input range
+        self._dd_terminal.currentTextChanged.connect(self._on_terminal_changed)
+
         self._dd_ts_set = QComboBox()
         self._dd_ts_set.addItems(["Manual (A)", "Waveform (B)"])
         self._dd_ts_set.setCurrentText(DEFAULT_TS_SET)
@@ -366,6 +400,7 @@ class MainWindow(QMainWindow):
         form.addRow("Buffer Size:", self._inp_buffer)
         form.addRow("Samples / Loop:", self._inp_spl)
         form.addRow("Terminal:", self._dd_terminal)
+        form.addRow("Input Range:", self._dd_vrange)
         form.addRow("Timestamp Set:", self._dd_ts_set)
         form.addRow("Timestamp Display:", self._dd_ts_display)
 
@@ -769,6 +804,10 @@ class MainWindow(QMainWindow):
         self._buf_ai0 = collections.deque(maxlen=max_pts)
         self._buf_ai1 = collections.deque(maxlen=max_pts)
 
+        vrange_key = self._dd_vrange.currentText()
+        all_ranges = {**VOLTAGE_RANGE_DIFF, **VOLTAGE_RANGE_SE}
+        vmin, vmax = all_ranges[vrange_key]
+
         self._worker = DaqWorker(
             ch0=self._inp_ch0.text().strip(),
             ch1=self._inp_ch1.text().strip(),
@@ -777,6 +816,8 @@ class MainWindow(QMainWindow):
             samples_per_loop=spl,
             terminal_config=terminal,
             read_mode=read_mode,
+            min_val=vmin,
+            max_val=vmax,
         )
         self._worker.data_ready.connect(self._on_data_ready)
         self._worker.error_occurred.connect(self._on_worker_error)
@@ -946,6 +987,21 @@ class MainWindow(QMainWindow):
             color = "gray"
         self._status_label.setStyleSheet(f"color: {color}; padding: 2px 4px;")
 
+    def _on_terminal_changed(self, text: str) -> None:
+        """Sesuaikan pilihan input range sesuai mode terminal."""
+        if text == "DIFF":
+            items = list(VOLTAGE_RANGE_DIFF.keys())
+            default = DEFAULT_VOLTAGE_RANGE_DIFF
+        else:
+            items = list(VOLTAGE_RANGE_SE.keys())
+            default = DEFAULT_VOLTAGE_RANGE_SE
+
+        self._dd_vrange.blockSignals(True)
+        self._dd_vrange.clear()
+        self._dd_vrange.addItems(items)
+        self._dd_vrange.setCurrentText(default)
+        self._dd_vrange.blockSignals(False)
+
     def _set_param_inputs_enabled(self, enabled: bool) -> None:
         for widget in (
             self._inp_ch0,
@@ -954,6 +1010,7 @@ class MainWindow(QMainWindow):
             self._inp_buffer,
             self._inp_spl,
             self._dd_terminal,
+            self._dd_vrange,
             self._dd_ts_set,
         ):
             widget.setEnabled(enabled)
