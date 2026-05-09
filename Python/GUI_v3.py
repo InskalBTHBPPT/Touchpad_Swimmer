@@ -1050,7 +1050,7 @@ class MainWindow(QMainWindow):
         chart_vbox = QVBoxLayout()
         chart_vbox.setContentsMargins(0, 0, 0, 0)
         chart_vbox.setSpacing(8)
-        chart_vbox.addWidget(grp_log_plot, stretch=3)
+        chart_vbox.addWidget(grp_log_plot, stretch=1)
         chart_vbox.addWidget(grp_table_plot, stretch=1)
         chart_container = QWidget()
         chart_container.setLayout(chart_vbox)
