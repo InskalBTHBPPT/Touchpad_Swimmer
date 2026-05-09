@@ -145,7 +145,15 @@ _THEMES: dict[str, dict] = {
         "pg_fg": "k",
         "curve_ai0": (30, 144, 255),
         "curve_ai1": (220, 80, 0),
-        "qt_stylesheet": "",
+        "qt_stylesheet": """
+            QTabWidget::pane   { border: 1px solid #ccc; }
+            QTabBar::tab       { background: #e0e0e0; color: #222222;
+                                 padding: 6px 18px; border: 1px solid #ccc;
+                                 border-bottom: none; border-radius: 4px 4px 0 0; }
+            QTabBar::tab:selected { background: #ffffff; color: #000000;
+                                    font-weight: bold; }
+            QTabBar::tab:hover { background: #eeeeee; }
+        """,
         "btn_styles": {
             "start":     _btn_ss("#388e3c", "#43a047", "#b71c1c"),
             "save":      _btn_ss("#1976d2", "#1e88e5"),
@@ -174,6 +182,13 @@ _THEMES: dict[str, dict] = {
                                border-radius: 4px; color: #dddddd; padding: 4px 8px; }
             QPushButton:hover   { background: #4c5052; }
             QLabel           { color: #cccccc; }
+            QTabWidget::pane   { border: 1px solid #444; }
+            QTabBar::tab       { background: #3c3f41; color: #cccccc;
+                                 padding: 6px 18px; border: 1px solid #555;
+                                 border-bottom: none; border-radius: 4px 4px 0 0; }
+            QTabBar::tab:selected { background: #2b2b2b; color: #ffffff;
+                                    font-weight: bold; border-bottom: 1px solid #2b2b2b; }
+            QTabBar::tab:hover { background: #4c5052; }
         """,
         "btn_styles": {
             "start":     _btn_ss("#2e7d32", "#388e3c", "#b71c1c"),
@@ -1209,7 +1224,7 @@ class MainWindow(QMainWindow):
         csv_form.setContentsMargins(10, 12, 10, 10)
 
         self._chk_csv = QCheckBox("Record CSV saat Start")
-        self._chk_csv.setChecked(False)
+        self._chk_csv.setChecked(True)
 
         self._inp_csv_prefix = QLineEdit(DEFAULT_CSV_PREFIX)
 
