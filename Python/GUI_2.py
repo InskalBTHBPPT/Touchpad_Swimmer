@@ -83,6 +83,18 @@ DEFAULT_VOLTAGE_RANGE_SE   = "±10 V"
 # ─── Theme definitions ────────────────────────────────────────────────────────
 # Setiap theme menyimpan: warna plot background, warna foreground (axis/text),
 # warna kurva AI0 & AI1, stylesheet Qt untuk widget.
+def _btn_ss(bg: str, hover: str, checked: str = "") -> str:
+    """Buat stylesheet ringkas untuk satu QPushButton."""
+    base = (
+        f"QPushButton {{ background:{bg}; color:#ffffff; border:none;"
+        f" border-radius:4px; padding:4px 8px; }}"
+        f" QPushButton:hover {{ background:{hover}; }}"
+    )
+    if checked:
+        base += f" QPushButton:checked {{ background:{checked}; color:#ffffff; }}"
+    return base
+
+
 _THEMES: dict[str, dict] = {
     "Light": {
         "pg_bg": "w",
@@ -90,6 +102,12 @@ _THEMES: dict[str, dict] = {
         "curve_ai0": (30, 144, 255),
         "curve_ai1": (220, 80, 0),
         "qt_stylesheet": "",
+        "btn_styles": {
+            "start":     _btn_ss("#388e3c", "#43a047", "#b71c1c"),
+            "save":      _btn_ss("#1976d2", "#1e88e5"),
+            "set_param": _btn_ss("#455a64", "#546e7a"),
+            "theme":     _btn_ss("#512da8", "#5e35b1"),
+        },
     },
     "Dark": {
         "pg_bg": "#1e1e1e",
@@ -111,9 +129,14 @@ _THEMES: dict[str, dict] = {
             QPushButton      { background: #3c3f41; border: 1px solid #666;
                                border-radius: 4px; color: #dddddd; padding: 4px 8px; }
             QPushButton:hover   { background: #4c5052; }
-            QPushButton:checked { background: #8b1a1a; color: #ffffff; }
             QLabel           { color: #cccccc; }
         """,
+        "btn_styles": {
+            "start":     _btn_ss("#2e7d32", "#388e3c", "#b71c1c"),
+            "save":      _btn_ss("#1565c0", "#1976d2"),
+            "set_param": _btn_ss("#37474f", "#455a64"),
+            "theme":     _btn_ss("#4527a0", "#512da8"),
+        },
     },
 }
 
@@ -1083,7 +1106,14 @@ class MainWindow(QMainWindow):
         # Warna header tabel
         self._update_table_header_colors()
 
-        # Label tombol
+        # Warna tombol aksi
+        bs = theme["btn_styles"]
+        self._btn_start_stop.setStyleSheet(bs["start"])
+        self._btn_save_table.setStyleSheet(bs["save"])
+        self._btn_set_param.setStyleSheet(bs["set_param"])
+        self._btn_theme.setStyleSheet(bs["theme"])
+
+        # Label tombol tema
         if theme_name == "Dark":
             self._btn_theme.setText("☀️  Light")
         else:
