@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
     QSizePolicy,
+    QHeaderView,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -434,7 +435,6 @@ class MainWindow(QMainWindow):
 
         NUM_DATA_ROWS = 10
         COLS = 5
-        COL_W = 58
 
         self._data_table = QTableWidget(2 + NUM_DATA_ROWS, COLS)
         self._data_table.horizontalHeader().hide()
@@ -483,8 +483,10 @@ class MainWindow(QMainWindow):
                 )
                 self._data_table.setItem(row, col, item)
 
-        for col in range(COLS):
-            self._data_table.setColumnWidth(col, COL_W)
+        # Stretch semua kolom agar mengisi penuh lebar container
+        self._data_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         self._data_table.setRowHeight(0, 26)
         self._data_table.setRowHeight(1, 22)
         for row in range(2, 2 + NUM_DATA_ROWS):
