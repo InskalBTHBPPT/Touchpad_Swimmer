@@ -1,36 +1,47 @@
 """
 GUI_v3.user.py — NI DAQ Monitor for Touchpad Swimmer (User Edition)
 ====================================================================
-Versi pengguna akhir dari GUI_v3.py. Dirancang untuk operator/perenang —
-parameter teknis DAQ dikunci dari antarmuka dan dimuat otomatis dari
-config.json yang disiapkan oleh tim riset/tester.
+Aplikasi desktop untuk akuisisi tekanan dua touchpad (NI DAQ) dan analisis
+CSV. Edisi ini untuk **operator/perenang**: parameter teknis DAQ/detektor
+**tidak dapat diubah dari antarmuka** — nilai dibaca dari ``config.json``
+(yang disiapkan tim riset/uji). Tanpa grafik live AI0/AI1 di tab Live;
+fokus pada tabel Pad Detection, Split Time, rekaman CSV, dan tab Analisa.
+
+Dokumentasi pengguna
+--------------------
+* **UserManual_v3.user.md** — panduan lengkap (Markdown), satu folder dengan skrip ini.
+* **UserManual_v3.user.pdf** — ekspor PDF; generate dengan::
+
+      python md_to_pdf_xhtml2pdf.py
+
+  Memakai paket ``markdown`` + ``xhtml2pdf`` (tanpa WeasyPrint/Pandoc).
 
 Perbedaan dari GUI_v3.py (versi tester/research)
--------------------------------------------------
-* Tombol "⚙️ Set Parameter" dihilangkan — parameter tidak dapat diubah
-  melalui antarmuka. Sistem membaca config.json saat startup; jika tidak
-  ada, nilai default pabrik yang digunakan.
-* Grafik real-time (Channel AI0 / AI1) dihilangkan dari tab Live Data.
-* Tabel hasil deteksi dipindahkan ke panel kiri (bekas area chart),
-  memberikan tampilan yang lebih luas dan mudah dibaca.
+------------------------------------------------
+* Tombol "⚙️ Set Parameter" tidak ditampilkan — tidak ada pengaturan DAQ dari UI.
+* Grafik real-time Channel AI0 / AI1 tidak ditampilkan di tab Live Data
+  (buffer/plot internal tetap ada untuk pipeline data).
+* Layout Live: panel lebar berisi tabel deteksi + tabel Split Time; kontrol
+  kanan (Info Perenang, CSV, Start/Stop, tema).
 
 Fitur yang Tetap Ada
 --------------------
 * Akuisisi kontinu dua channel analog (AI0, AI1) via NI-DAQmx.
-* Deteksi sentuhan otomatis menggunakan Schmitt trigger.
-* Tabel hasil deteksi (Pad1 / Pad2) dengan format waktu Seconds / MM:SS.
-* Input Info Perenang (Nama, Gaya, Jarak) — prefix CSV otomatis.
-* Rekaman Log CSV dan ekspor Tabel CSV dengan metadata perenang.
-* Tab Analisa Data: overlay CSV Log, plot split time & tekanan.
+* Deteksi sentuhan otomatis (Schmitt trigger); tabel Pad 1 / Pad 2;
+  format waktu Seconds / MM:SS.
+* Info Perenang — prefix file CSV otomatis; metadata di header CSV.
+* Rekaman Log CSV; **Save Table to CSV** (PAD DETECTION + SPLIT TIME).
+* Tab Analisa Data: overlay CSV Log; plot split time & tekanan; tabel CSV
+  Table dengan header selaras tab Live (+ kolom No).
 * Tema Light/Dark.
 
 Struktur Kelas
 --------------
-ChannelDetector  — State machine Schmitt trigger per channel.
-CsvWriter        — Penulis CSV asinkron berbasis queue/thread.
-DaqWorker        — Thread akuisisi NI-DAQmx (non-blocking terhadap GUI).
-ParameterDialog  — Dialog konfigurasi (internal, tidak diekspos ke UI).
-MainWindow       — Jendela utama aplikasi (PySide6 QMainWindow).
+ChannelDetector   — State machine Schmitt trigger per channel.
+CsvWriter         — Penulis CSV asinkron berbasis queue/thread.
+DaqWorker         — Thread akuisisi NI-DAQmx (non-blocking terhadap GUI).
+ParameterDialog   — Dialog konfigurasi (kelas tetap ada; tidak dipakai di UI edisi ini).
+MainWindow        — Jendela utama (PySide6 QMainWindow).
 
 Dependensi
 ----------
@@ -825,21 +836,21 @@ class DaqWorker(QThread):
 
 # ─── Main Window ─────────────────────────────────────────────────────────────
 class MainWindow(QMainWindow):
-    """Jendela utama aplikasi NI DAQ Monitor.
+    """Jendela utama NI DAQ Monitor — **User Edition** (`GUI_v3.user.py`).
 
-    Layout terdiri dari dua panel:
-    - Tengah : dua PlotWidget real-time (Channel AI0 dan AI1).
-    - Kanan  : kontrol CSV export, tombol Start/Stop, tabel hasil deteksi,
-               dan tombol utilitas (Set Parameter, tema).
+    Tab **Live Data**: panel kiri berisi status, tabel Pad Detection, tabel
+    Split Time (live), dan bar penyimpanan tabel; panel kanan berisi Info
+    Perenang, Export Log CSV, Start/Stop, toggle tema. Grafik AI0/AI1 tidak
+    ditampilkan (data tetap di-buffer untuk deteksi dan opsi analisis).
+
+    Tab **Analisa Data**: muat CSV Log / CSV Table, plot split time vs tekanan.
 
     Alur data
     ---------
     DaqWorker.data_ready → _on_data_ready()
-        → buffer deque (plot) + ChannelDetector (deteksi) + CsvWriter (log)
-    QTimer (100 ms) → _refresh_plot()
-        → update kurva pyqtgraph dari buffer deque
-    ChannelDetector.process() → _append_table_row()
-        → tulis hasil deteksi ke QTableWidget
+        → buffer deque + ChannelDetector (deteksi) + CsvWriter (log)
+    QTimer (100 ms) → _refresh_plot() → memelihara buffer internal (grafik tidak ditampilkan)
+    ChannelDetector.process() → _append_table_row() → tulis ke tabel deteksi
     """
 
     def __init__(self) -> None:
