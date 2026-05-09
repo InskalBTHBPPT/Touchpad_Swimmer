@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFormLayout,
     QGridLayout,
@@ -247,6 +248,249 @@ class CsvWriter:
         return self._filepath
 
 
+# ─── Parameter Dialog ─────────────────────────────────────────────────────────
+class ParameterDialog(QDialog):
+    """Modal dialog untuk mengubah parameter akuisisi dan detektor.
+
+    Behaviour:
+      Apply       → tulis nilai ke MainWindow, dialog tetap terbuka
+      Set Default → reset ke default lalu tulis ke MainWindow, dialog tetap terbuka
+      Cancel / X  → tutup tanpa mengubah apapun di MainWindow
+    """
+
+    def __init__(self, main_window: "MainWindow", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Set Parameter")
+        self.setModal(True)
+        self.setMinimumWidth(460)
+        self._mw = main_window
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(12, 12, 12, 12)
+
+        layout.addWidget(self._build_param_group())
+        layout.addWidget(self._build_detector_group())
+        layout.addLayout(self._build_button_row())
+
+        self._load_from_main()
+
+    # ── Parameter Setting group ───────────────────────────────────────────────
+    def _build_param_group(self) -> QGroupBox:
+        group = QGroupBox("Parameter Setting")
+        form = QFormLayout()
+        form.setSpacing(8)
+        form.setContentsMargins(10, 14, 10, 10)
+
+        self._d_ch0    = QLineEdit()
+        self._d_ch1    = QLineEdit()
+        self._d_rate   = QLineEdit()
+        self._d_buffer = QLineEdit()
+        self._d_spl    = QLineEdit()
+
+        self._d_terminal = QComboBox()
+        self._d_terminal.addItems(["DIFF", "RSE", "NRSE"])
+        self._d_terminal.currentTextChanged.connect(self._on_terminal_changed)
+
+        self._d_vrange = QComboBox()
+        self._d_vrange.addItems(list(VOLTAGE_RANGE_DIFF.keys()))
+
+        self._d_ts_set = QComboBox()
+        self._d_ts_set.addItems(["Manual (A)", "Waveform (B)"])
+
+        self._d_ts_display = QComboBox()
+        self._d_ts_display.addItems(["Relative", "ISO"])
+
+        form.addRow("Device Ch 0:",       self._d_ch0)
+        form.addRow("Device Ch 1:",       self._d_ch1)
+        form.addRow("Rate (Hz):",         self._d_rate)
+        form.addRow("Buffer Size:",       self._d_buffer)
+        form.addRow("Samples / Loop:",    self._d_spl)
+        form.addRow("Terminal:",          self._d_terminal)
+        form.addRow("Input Range:",       self._d_vrange)
+        form.addRow("Timestamp Set:",     self._d_ts_set)
+        form.addRow("Timestamp Display:", self._d_ts_display)
+
+        group.setLayout(form)
+        return group
+
+    # ── Detector Parameters group ─────────────────────────────────────────────
+    def _build_detector_group(self) -> QGroupBox:
+        group = QGroupBox("Detector Parameters")
+        grid = QGridLayout()
+        grid.setSpacing(4)
+        grid.setContentsMargins(10, 14, 10, 10)
+
+        dbl = QDoubleValidator()
+        dbl.setNotation(QDoubleValidator.Notation.StandardNotation)
+        small = QFont()
+        small.setPointSize(8)
+
+        col_headers = [
+            "Threshold\n(Volt)", "Hysteresis\n(Volt)",
+            "Scale\n(Kg/Volt)", "Delay Time\n(s)",
+        ]
+        for col, text in enumerate(col_headers):
+            lbl = QLabel(text)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setFont(small)
+            grid.addWidget(lbl, 0, col + 1)
+
+        self._d_thresh: list[QLineEdit] = []
+        self._d_hyst:   list[QLineEdit] = []
+        self._d_scale:  list[QLineEdit] = []
+        self._d_hold:   list[QLineEdit] = []
+
+        for dev_idx in range(2):
+            row = dev_idx + 1
+            dev_lbl = QLabel(f"Dev. {dev_idx}")
+            dev_lbl.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            grid.addWidget(dev_lbl, row, 0)
+
+            def _inp() -> QLineEdit:
+                le = QLineEdit()
+                le.setValidator(dbl)
+                le.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                return le
+
+            t, h, s, d = _inp(), _inp(), _inp(), _inp()
+            self._d_thresh.append(t)
+            self._d_hyst.append(h)
+            self._d_scale.append(s)
+            self._d_hold.append(d)
+
+            grid.addWidget(t, row, 1)
+            grid.addWidget(h, row, 2)
+            grid.addWidget(s, row, 3)
+            grid.addWidget(d, row, 4)
+
+        grid.setColumnStretch(0, 0)
+        for c in range(1, 5):
+            grid.setColumnStretch(c, 1)
+
+        group.setLayout(grid)
+        return group
+
+    # ── Button row ────────────────────────────────────────────────────────────
+    def _build_button_row(self) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(8)
+
+        btn_default = QPushButton("↺  Set Default")
+        btn_default.setMinimumHeight(32)
+        btn_default.clicked.connect(self._on_set_default)
+
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.setMinimumHeight(32)
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_apply = QPushButton("Apply")
+        btn_apply.setMinimumHeight(32)
+        bold = QFont()
+        bold.setBold(True)
+        btn_apply.setFont(bold)
+        btn_apply.clicked.connect(self._on_apply)
+
+        row.addWidget(btn_default)
+        row.addStretch()
+        row.addWidget(btn_cancel)
+        row.addWidget(btn_apply)
+        return row
+
+    # ── Slots ─────────────────────────────────────────────────────────────────
+    def _on_terminal_changed(self, text: str) -> None:
+        if text == "DIFF":
+            items = list(VOLTAGE_RANGE_DIFF.keys())
+            default = DEFAULT_VOLTAGE_RANGE_DIFF
+        else:
+            items = list(VOLTAGE_RANGE_SE.keys())
+            default = DEFAULT_VOLTAGE_RANGE_SE
+        self._d_vrange.blockSignals(True)
+        self._d_vrange.clear()
+        self._d_vrange.addItems(items)
+        self._d_vrange.setCurrentText(default)
+        self._d_vrange.blockSignals(False)
+
+    def _load_from_main(self) -> None:
+        mw = self._mw
+        self._d_ch0.setText(mw._inp_ch0.text())
+        self._d_ch1.setText(mw._inp_ch1.text())
+        self._d_rate.setText(mw._inp_rate.text())
+        self._d_buffer.setText(mw._inp_buffer.text())
+        self._d_spl.setText(mw._inp_spl.text())
+
+        self._d_terminal.blockSignals(True)
+        self._d_terminal.setCurrentText(mw._dd_terminal.currentText())
+        self._d_terminal.blockSignals(False)
+        self._on_terminal_changed(mw._dd_terminal.currentText())
+        self._d_vrange.setCurrentText(mw._dd_vrange.currentText())
+
+        self._d_ts_set.setCurrentText(mw._dd_ts_set.currentText())
+        self._d_ts_display.setCurrentText(mw._dd_ts_display.currentText())
+
+        self._d_thresh[0].setText(mw._inp_thresh0.text())
+        self._d_hyst[0].setText(mw._inp_hyst0.text())
+        self._d_scale[0].setText(mw._inp_scale0.text())
+        self._d_hold[0].setText(mw._inp_hold0.text())
+
+        self._d_thresh[1].setText(mw._inp_thresh1.text())
+        self._d_hyst[1].setText(mw._inp_hyst1.text())
+        self._d_scale[1].setText(mw._inp_scale1.text())
+        self._d_hold[1].setText(mw._inp_hold1.text())
+
+    def _reset_to_defaults(self) -> None:
+        self._d_ch0.setText(DEFAULT_CH0)
+        self._d_ch1.setText(DEFAULT_CH1)
+        self._d_rate.setText(str(DEFAULT_RATE))
+        self._d_buffer.setText(str(DEFAULT_BUFFER))
+        self._d_spl.setText(str(DEFAULT_SAMPLES_PER_LOOP))
+        self._d_terminal.blockSignals(True)
+        self._d_terminal.setCurrentText(DEFAULT_TERMINAL)
+        self._d_terminal.blockSignals(False)
+        self._on_terminal_changed(DEFAULT_TERMINAL)
+        self._d_vrange.setCurrentText(DEFAULT_VOLTAGE_RANGE_DIFF)
+        self._d_ts_set.setCurrentText(DEFAULT_TS_SET)
+        self._d_ts_display.setCurrentText(DEFAULT_TS_DISPLAY)
+        self._d_thresh[0].setText(DEFAULT_THRESHOLD)
+        self._d_hyst[0].setText(DEFAULT_HYSTERESIS)
+        self._d_scale[0].setText(DEFAULT_SCALE)
+        self._d_hold[0].setText(str(DEFAULT_HOLD_TIME))
+        self._d_thresh[1].setText(DEFAULT_THRESHOLD)
+        self._d_hyst[1].setText(DEFAULT_HYSTERESIS)
+        self._d_scale[1].setText(DEFAULT_SCALE)
+        self._d_hold[1].setText(str(DEFAULT_HOLD_TIME))
+
+    def _apply_to_main(self) -> None:
+        mw = self._mw
+        mw._inp_ch0.setText(self._d_ch0.text())
+        mw._inp_ch1.setText(self._d_ch1.text())
+        mw._inp_rate.setText(self._d_rate.text())
+        mw._inp_buffer.setText(self._d_buffer.text())
+        mw._inp_spl.setText(self._d_spl.text())
+        # Set terminal dahulu agar _on_terminal_changed memperbarui opsi vrange di main
+        mw._dd_terminal.setCurrentText(self._d_terminal.currentText())
+        mw._dd_vrange.setCurrentText(self._d_vrange.currentText())
+        mw._dd_ts_set.setCurrentText(self._d_ts_set.currentText())
+        mw._dd_ts_display.setCurrentText(self._d_ts_display.currentText())
+        mw._inp_thresh0.setText(self._d_thresh[0].text())
+        mw._inp_hyst0.setText(self._d_hyst[0].text())
+        mw._inp_scale0.setText(self._d_scale[0].text())
+        mw._inp_hold0.setText(self._d_hold[0].text())
+        mw._inp_thresh1.setText(self._d_thresh[1].text())
+        mw._inp_hyst1.setText(self._d_hyst[1].text())
+        mw._inp_scale1.setText(self._d_scale[1].text())
+        mw._inp_hold1.setText(self._d_hold[1].text())
+
+    def _on_set_default(self) -> None:
+        self._reset_to_defaults()
+        self._apply_to_main()
+
+    def _on_apply(self) -> None:
+        self._apply_to_main()
+
+
 # ─── DAQ Worker Thread ────────────────────────────────────────────────────────
 class DaqWorker(QThread):
     """Menjalankan nidaqmx.read() di thread terpisah agar GUI tidak freeze."""
@@ -468,26 +712,16 @@ class MainWindow(QMainWindow):
         self._btn_start_stop.setMinimumHeight(44)
         self._btn_start_stop.clicked.connect(self._on_start_stop)
 
-        self._btn_set_default = QPushButton("↺  Set Default")
-        self._btn_set_default.setMinimumHeight(32)
-        self._btn_set_default.clicked.connect(self._on_set_defaults)
-
         self._btn_theme = QPushButton("🌙  Dark")
         self._btn_theme.setMinimumHeight(32)
         self._btn_theme.clicked.connect(self._on_toggle_theme)
 
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(6)
-        btn_row.addWidget(self._btn_set_default)
-        btn_row.addWidget(self._btn_theme)
-
         vbox = QVBoxLayout()
         vbox.setSpacing(8)
-        vbox.addWidget(group)
         vbox.addWidget(csv_group)
         vbox.addWidget(self._btn_start_stop)
         vbox.addStretch()
-        vbox.addLayout(btn_row)
+        vbox.addWidget(self._btn_theme)
 
         container = QWidget()
         container.setLayout(vbox)
@@ -725,14 +959,18 @@ class MainWindow(QMainWindow):
         self._btn_save_table.setMinimumHeight(32)
         self._btn_save_table.clicked.connect(self._on_save_table_csv)
 
+        self._btn_set_param = QPushButton("⚙️  Set Parameter")
+        self._btn_set_param.setMinimumHeight(32)
+        self._btn_set_param.clicked.connect(self._on_open_param_dialog)
+
         vbox = QVBoxLayout()
         vbox.setContentsMargins(8, 12, 8, 8)
         vbox.setSpacing(6)
-        vbox.addLayout(param_grid)
         vbox.addLayout(fmt_row)
         vbox.addWidget(self._data_table)
         vbox.addLayout(folder_form)
         vbox.addWidget(self._btn_save_table)
+        vbox.addWidget(self._btn_set_param)
         vbox.addStretch()
         group.setLayout(vbox)
         group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
@@ -762,6 +1000,10 @@ class MainWindow(QMainWindow):
         )
         if folder:
             self._inp_table_folder.setText(folder)
+
+    def _on_open_param_dialog(self) -> None:
+        dlg = ParameterDialog(self, parent=self)
+        dlg.exec()
 
     def _on_save_table_csv(self) -> None:
         """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV."""
