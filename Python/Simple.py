@@ -20,7 +20,7 @@ READ_MODE: Literal["A", "B"] = "A"
 # Hanya dipakai saat READ_MODE == "A".
 # "iso"          -> 2026-05-09T12:43:50.243578+07:00
 # "relative_sec" -> 0, 0.002, 0.004, ... (detik nominal sejak task start)
-TIME_PRINT_MODE_A: Literal["iso", "relative_sec"] = "iso"
+TIME_PRINT_MODE_A: Literal["iso", "relative_sec"] = "relative_sec"
 
 
 def _print_samples_with_time(timestamps: list[dt.datetime], values) -> None:
