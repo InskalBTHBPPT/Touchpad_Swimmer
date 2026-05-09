@@ -22,9 +22,9 @@ Di samping atau di bawah tiap plot, tampilkan nilai terbaru AI0 dan AI1 sebagai 
 - Menampilkan pesan error, peringatan fallback mode B, dan info status
 - Pengganti `stderr` terminal agar informasi tampil di GUI
 
-## 5. Warna Channel Configurable
+<!-- ## 5. Warna Channel Configurable
 - Beri tombol color-picker kecil di sebelah label "AI 0" dan "AI 1"
-- Default: AI0 = biru (30,144,255), AI1 = oranye (220,80,0)
+- Default: AI0 = biru (30,144,255), AI1 = oranye (220,80,0) -->
 
 ## 6. Export CSV
 - Tombol "Save CSV" untuk menyimpan isi rolling buffer (atau semua data sejak Start) ke file `.csv`
