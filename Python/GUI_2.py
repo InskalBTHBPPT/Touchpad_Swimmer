@@ -666,6 +666,8 @@ class MainWindow(QMainWindow):
         form.addRow("Timestamp Display:", self._dd_ts_display)
 
         group.setLayout(form)
+        # Simpan referensi agar Qt tidak men-GC widget anak (inp_ch0, dll.)
+        self._hidden_param_group = group
 
         # ── CSV export group ──────────────────────────────────────────────
         csv_group = QGroupBox("Export Log to CSV")
