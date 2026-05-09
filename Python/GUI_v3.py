@@ -1021,7 +1021,7 @@ class MainWindow(QMainWindow):
         # Scatter plot delta time
         self._analisa_pw_delta = pg.PlotWidget()
         pi_delta: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
-        pi_delta.setTitle("Delta Time Antar Touchpad")
+        pi_delta.setTitle("Split Time & Tekanan per Sentuhan")
         pi_delta.setLabel("left", "Δ Time", units="s")
         pi_delta.setLabel("bottom", "Titik ke-")
         pi_delta.showGrid(x=True, y=True, alpha=0.3)
@@ -1466,6 +1466,20 @@ class MainWindow(QMainWindow):
             pi.addItem(txt)
 
         # ── Sumbu Y kanan: Pressure ────────────────────────────────────────
+        # Garis penghubung semua marker pressure (urut berdasarkan titik X)
+        all_press = sorted(
+            [(x, y) for x, y in zip(x_pr1, y_pr1)]
+            + [(x, y) for x, y in zip(x_pr2, y_pr2)],
+            key=lambda e: e[0],
+        )
+        if len(all_press) > 1:
+            px = np.array([e[0] for e in all_press])
+            py = np.array([e[1] for e in all_press])
+            self._analisa_vb_press.addItem(
+                pg.PlotDataItem(px, py, pen=pg.mkPen("#aaaaaa", width=1.2,
+                                                      style=Qt.PenStyle.DashLine))
+            )
+
         if x_pr1:
             self._analisa_vb_press.addItem(pg.ScatterPlotItem(
                 x=x_pr1, y=y_pr1, symbol="s", size=9,
