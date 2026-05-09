@@ -611,7 +611,7 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(10, 10, 10, 10)
         root.setSpacing(14)
 
-        root.addWidget(self._build_param_panel(), stretch=0)
+        self._build_param_panel()
         root.addWidget(self._build_chart_panel(), stretch=1)
         root.addWidget(self._build_table_panel(), stretch=0)
 
@@ -621,10 +621,9 @@ class MainWindow(QMainWindow):
 
         self._apply_theme("Dark")
 
-    # ── Parameter panel ──────────────────────────────────────────────────────
-    def _build_param_panel(self) -> QWidget:
+    # ── Hidden parameter widgets (tidak ditampilkan, diakses via ParameterDialog) ─
+    def _build_param_panel(self) -> None:
         group = QGroupBox("Parameter Setting")
-        group.setFixedWidth(270)
 
         form = QFormLayout()
         form.setSpacing(8)
@@ -668,67 +667,6 @@ class MainWindow(QMainWindow):
         group.setLayout(form)
         # Simpan referensi agar Qt tidak men-GC widget anak (inp_ch0, dll.)
         self._hidden_param_group = group
-
-        # ── CSV export group ──────────────────────────────────────────────
-        csv_group = QGroupBox("Export Log to CSV")
-        csv_group.setFixedWidth(270)
-        csv_form = QFormLayout()
-        csv_form.setSpacing(6)
-        csv_form.setContentsMargins(10, 12, 10, 10)
-
-        self._chk_csv = QCheckBox("Record CSV saat Start")
-        self._chk_csv.setChecked(False)
-
-        self._inp_csv_prefix = QLineEdit(DEFAULT_CSV_PREFIX)
-
-        folder_row = QWidget()
-        folder_lay = QHBoxLayout(folder_row)
-        folder_lay.setContentsMargins(0, 0, 0, 0)
-        folder_lay.setSpacing(4)
-        self._inp_csv_folder = QLineEdit(DEFAULT_CSV_FOLDER)
-        self._inp_csv_folder.setReadOnly(True)
-        btn_browse = QPushButton("…")
-        btn_browse.setFixedWidth(28)
-        btn_browse.clicked.connect(self._on_browse_csv_folder)
-        folder_lay.addWidget(self._inp_csv_folder)
-        folder_lay.addWidget(btn_browse)
-
-        self._lbl_csv_preview = QLabel("")
-        self._lbl_csv_preview.setWordWrap(True)
-        self._lbl_csv_preview.setStyleSheet("font-size: 10px; color: gray;")
-
-        csv_form.addRow(self._chk_csv)
-        csv_form.addRow("Prefix:", self._inp_csv_prefix)
-        csv_form.addRow("Folder:", folder_row)
-        csv_form.addRow("File:", self._lbl_csv_preview)
-        csv_group.setLayout(csv_form)
-
-        self._inp_csv_prefix.textChanged.connect(self._update_csv_preview)
-        self._update_csv_preview()
-
-        self._btn_start_stop = QPushButton("▶  Start")
-        self._btn_start_stop.setCheckable(True)
-        bold = QFont()
-        bold.setBold(True)
-        self._btn_start_stop.setFont(bold)
-        self._btn_start_stop.setMinimumHeight(44)
-        self._btn_start_stop.clicked.connect(self._on_start_stop)
-
-        self._btn_theme = QPushButton("🌙  Dark")
-        self._btn_theme.setMinimumHeight(32)
-        self._btn_theme.clicked.connect(self._on_toggle_theme)
-
-        vbox = QVBoxLayout()
-        vbox.setSpacing(8)
-        vbox.addWidget(csv_group)
-        vbox.addWidget(self._btn_start_stop)
-        vbox.addStretch()
-        vbox.addWidget(self._btn_theme)
-
-        container = QWidget()
-        container.setLayout(vbox)
-        container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        return container
 
     # ── Chart panel ──────────────────────────────────────────────────────────
     def _build_chart_panel(self) -> QWidget:
@@ -965,15 +903,68 @@ class MainWindow(QMainWindow):
         self._btn_set_param.setMinimumHeight(32)
         self._btn_set_param.clicked.connect(self._on_open_param_dialog)
 
+        # ── Export CSV (dipindah dari panel kiri) ────────────────────────────
+        csv_group = QGroupBox("Export Log to CSV")
+        csv_form = QFormLayout()
+        csv_form.setSpacing(6)
+        csv_form.setContentsMargins(10, 12, 10, 10)
+
+        self._chk_csv = QCheckBox("Record CSV saat Start")
+        self._chk_csv.setChecked(False)
+
+        self._inp_csv_prefix = QLineEdit(DEFAULT_CSV_PREFIX)
+
+        csv_folder_row = QWidget()
+        csv_folder_lay = QHBoxLayout(csv_folder_row)
+        csv_folder_lay.setContentsMargins(0, 0, 0, 0)
+        csv_folder_lay.setSpacing(4)
+        self._inp_csv_folder = QLineEdit(DEFAULT_CSV_FOLDER)
+        self._inp_csv_folder.setReadOnly(True)
+        btn_browse_csv = QPushButton("…")
+        btn_browse_csv.setFixedWidth(28)
+        btn_browse_csv.clicked.connect(self._on_browse_csv_folder)
+        csv_folder_lay.addWidget(self._inp_csv_folder)
+        csv_folder_lay.addWidget(btn_browse_csv)
+
+        self._lbl_csv_preview = QLabel("")
+        self._lbl_csv_preview.setWordWrap(True)
+        self._lbl_csv_preview.setStyleSheet("font-size: 10px; color: gray;")
+
+        csv_form.addRow(self._chk_csv)
+        csv_form.addRow("Prefix:", self._inp_csv_prefix)
+        csv_form.addRow("Folder:", csv_folder_row)
+        csv_form.addRow("File:", self._lbl_csv_preview)
+        csv_group.setLayout(csv_form)
+
+        self._inp_csv_prefix.textChanged.connect(self._update_csv_preview)
+        self._update_csv_preview()
+
+        # ── Start/Stop (dipindah dari panel kiri) ───────────────────────────
+        self._btn_start_stop = QPushButton("▶  Start")
+        self._btn_start_stop.setCheckable(True)
+        bold_start = QFont()
+        bold_start.setBold(True)
+        self._btn_start_stop.setFont(bold_start)
+        self._btn_start_stop.setMinimumHeight(44)
+        self._btn_start_stop.clicked.connect(self._on_start_stop)
+
+        # ── Theme toggle (dipindah dari panel kiri) ──────────────────────────
+        self._btn_theme = QPushButton("🌙  Dark")
+        self._btn_theme.setMinimumHeight(32)
+        self._btn_theme.clicked.connect(self._on_toggle_theme)
+
         vbox = QVBoxLayout()
         vbox.setContentsMargins(8, 12, 8, 8)
         vbox.setSpacing(6)
+        vbox.addWidget(csv_group)
+        vbox.addWidget(self._btn_start_stop)
         vbox.addLayout(fmt_row)
         vbox.addWidget(self._data_table)
         vbox.addLayout(folder_form)
         vbox.addWidget(self._btn_save_table)
         vbox.addWidget(self._btn_set_param)
         vbox.addStretch()
+        vbox.addWidget(self._btn_theme)
         group.setLayout(vbox)
         group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         return group
