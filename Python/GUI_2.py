@@ -730,6 +730,11 @@ class MainWindow(QMainWindow):
         root.addWidget(self._build_chart_panel(), stretch=1)
         root.addWidget(self._build_table_panel(), stretch=0)
 
+        # Load config.json setelah semua widget selesai dibuat
+        cfg = _load_config()
+        if cfg is not None:
+            self._apply_config(cfg)
+
         self._plot_timer = QTimer(self)
         self._plot_timer.setInterval(PLOT_REFRESH_MS)
         self._plot_timer.timeout.connect(self._refresh_plot)
@@ -782,11 +787,6 @@ class MainWindow(QMainWindow):
         group.setLayout(form)
         # Simpan referensi agar Qt tidak men-GC widget anak (inp_ch0, dll.)
         self._hidden_param_group = group
-
-        # Load config.json saat startup; fallback ke DEFAULT_* jika tidak ada
-        cfg = _load_config()
-        if cfg is not None:
-            self._apply_config(cfg)
 
     def _apply_config(self, cfg: dict) -> None:
         """Terapkan dict config ke hidden parameter widgets."""
