@@ -218,7 +218,7 @@ _THEMES: dict[str, dict] = {
 }
 
 
-DEFAULT_CSV_PREFIX = "Swimming"
+DEFAULT_CSV_PREFIX = "User_Swimming"
 DEFAULT_CSV_FOLDER = str(pathlib.Path(__file__).parent / "DataLog")
 DEFAULT_TABLE_FOLDER = str(pathlib.Path(__file__).parent / "DataTable")
 
