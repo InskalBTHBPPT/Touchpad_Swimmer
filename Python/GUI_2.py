@@ -734,7 +734,6 @@ class MainWindow(QMainWindow):
     # ── Table panel ──────────────────────────────────────────────────────────
     def _build_table_panel(self) -> QWidget:
         group = QGroupBox("Table")
-        group.setFixedWidth(360)
 
         NUM_DATA_ROWS = 10
         COLS = 4
@@ -953,24 +952,35 @@ class MainWindow(QMainWindow):
         self._btn_theme.setMinimumHeight(32)
         self._btn_theme.clicked.connect(self._on_toggle_theme)
 
-        vbox = QVBoxLayout()
-        vbox.setContentsMargins(8, 12, 8, 8)
-        vbox.setSpacing(6)
-        vbox.addWidget(csv_group)
-        vbox.addWidget(self._btn_start_stop)
-        vbox.addLayout(fmt_row)
-        vbox.addWidget(self._data_table)
-        vbox.addLayout(folder_form)
-        vbox.addWidget(self._btn_save_table)
-        vbox.addStretch()
+        # Layout dalam QGroupBox("Table") — hanya elemen tabel
+        table_vbox = QVBoxLayout()
+        table_vbox.setContentsMargins(8, 8, 8, 8)
+        table_vbox.setSpacing(6)
+        table_vbox.addLayout(fmt_row)
+        table_vbox.addWidget(self._data_table)
+        table_vbox.addLayout(folder_form)
+        table_vbox.addWidget(self._btn_save_table)
+        group.setLayout(table_vbox)
+
+        # Layout container luar — semua elemen berurutan
         btn_bottom_row = QHBoxLayout()
         btn_bottom_row.setSpacing(6)
         btn_bottom_row.addWidget(self._btn_set_param)
         btn_bottom_row.addWidget(self._btn_theme)
-        vbox.addLayout(btn_bottom_row)
-        group.setLayout(vbox)
-        group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        return group
+
+        outer_vbox = QVBoxLayout()
+        outer_vbox.setContentsMargins(0, 0, 0, 0)
+        outer_vbox.setSpacing(6)
+        outer_vbox.addWidget(csv_group)
+        outer_vbox.addWidget(self._btn_start_stop)
+        outer_vbox.addWidget(group, stretch=1)
+        outer_vbox.addLayout(btn_bottom_row)
+
+        container = QWidget()
+        container.setFixedWidth(360)
+        container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        container.setLayout(outer_vbox)
+        return container
 
     def _update_table_header_colors(self) -> None:
         """Sesuaikan warna background sel header dengan tema aktif."""
