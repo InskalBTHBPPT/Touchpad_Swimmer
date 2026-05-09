@@ -9,8 +9,8 @@ from typing import Literal
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QThread, Signal, QTimer
-from PySide6.QtGui import QFont, QPalette, QColor
+from PySide6.QtCore import QThread, Signal, QTimer, Qt
+from PySide6.QtGui import QFont, QPalette, QColor, QBrush
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -24,6 +24,8 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
     QSizePolicy,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -423,6 +425,101 @@ class MainWindow(QMainWindow):
         folder.mkdir(parents=True, exist_ok=True)
         return folder / f"{prefix}_{ts}.csv"
 
+    # ── Table panel ──────────────────────────────────────────────────────────
+    def _build_table_panel(self) -> QWidget:
+        group = QGroupBox("Table")
+        group.setFixedWidth(330)
+
+        NUM_DATA_ROWS = 10
+        COLS = 5
+        COL_W = 58
+
+        self._data_table = QTableWidget(2 + NUM_DATA_ROWS, COLS)
+        self._data_table.horizontalHeader().hide()
+        self._data_table.verticalHeader().hide()
+        self._data_table.setEditTriggers(
+            QTableWidget.EditTrigger.NoEditTriggers
+        )
+        self._data_table.setSelectionMode(
+            QTableWidget.SelectionMode.NoSelection
+        )
+        self._data_table.setShowGrid(True)
+
+        # "Pad 1" span 2 kolom, "Pad 2" span 2 kolom,
+        # "Delta Time" span 1 kolom tapi span 2 baris (row 0-1)
+        self._data_table.setSpan(0, 0, 1, 2)
+        self._data_table.setSpan(0, 2, 1, 2)
+        self._data_table.setSpan(0, 4, 2, 1)
+
+        row0_labels = {0: "Pad 1", 2: "Pad 2", 4: "Delta\nTime"}
+        row1_labels = {0: "Time", 1: "Pressure", 2: "Time", 3: "Pressure"}
+
+        bold = QFont()
+        bold.setBold(True)
+
+        for col, text in row0_labels.items():
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            item.setFont(bold)
+            self._data_table.setItem(0, col, item)
+
+        for col, text in row1_labels.items():
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            item.setFont(bold)
+            self._data_table.setItem(1, col, item)
+
+        for row in range(2, 2 + NUM_DATA_ROWS):
+            for col in range(COLS):
+                item = QTableWidgetItem("")
+                item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                self._data_table.setItem(row, col, item)
+
+        for col in range(COLS):
+            self._data_table.setColumnWidth(col, COL_W)
+        self._data_table.setRowHeight(0, 26)
+        self._data_table.setRowHeight(1, 22)
+        for row in range(2, 2 + NUM_DATA_ROWS):
+            self._data_table.setRowHeight(row, 22)
+
+        self._update_table_header_colors()
+
+        vbox = QVBoxLayout()
+        vbox.setContentsMargins(8, 12, 8, 8)
+        vbox.addWidget(self._data_table)
+        vbox.addStretch()
+        group.setLayout(vbox)
+
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.addWidget(group)
+        container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        return container
+
+    def _update_table_header_colors(self) -> None:
+        """Sesuaikan warna background sel header dengan tema aktif."""
+        if not hasattr(self, "_data_table"):
+            return
+        if self._current_theme == "Dark":
+            bg = QColor("#4a4d51")
+            fg = QColor("#dddddd")
+        else:
+            bg = QColor("#d6d9df")
+            fg = QColor("#1a1a1a")
+        header_cells = [(0, 0), (0, 2), (0, 4), (1, 0), (1, 1), (1, 2), (1, 3)]
+        for row, col in header_cells:
+            item = self._data_table.item(row, col)
+            if item:
+                item.setBackground(QBrush(bg))
+                item.setForeground(QBrush(fg))
+
     # ── Theme ─────────────────────────────────────────────────────────────────
     def _on_toggle_theme(self) -> None:
         next_theme = "Dark" if self._current_theme == "Light" else "Light"
@@ -454,6 +551,9 @@ class MainWindow(QMainWindow):
         # Warna kurva
         self._curve_ai0.setPen(pg.mkPen(color=theme["curve_ai0"], width=1))
         self._curve_ai1.setPen(pg.mkPen(color=theme["curve_ai1"], width=1))
+
+        # Warna header tabel
+        self._update_table_header_colors()
 
         # Label tombol
         if theme_name == "Dark":
