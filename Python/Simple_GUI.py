@@ -348,7 +348,7 @@ class MainWindow(QMainWindow):
         self._current_theme = "Light"
         self._detector0: ChannelDetector | None = None
         self._detector1: ChannelDetector | None = None
-        self._table_next_row = 2  # baris 0-1 adalah header
+        self._table_next_row = [2, 2]  # [pad0, pad1] – baris 0-1 adalah header
 
         max_pts = int(DEFAULT_RATE * PLOT_WINDOW_SEC)
         self._buf_x: collections.deque[float] = collections.deque(maxlen=max_pts)
@@ -804,7 +804,7 @@ class MainWindow(QMainWindow):
         )
 
         # Reset tabel: hapus isi baris data (baris 0-1 adalah header)
-        self._table_next_row = 2
+        self._table_next_row = [2, 2]
         for row in range(2, 2 + TABLE_ROWS):
             for col in range(self._data_table.columnCount()):
                 item = self._data_table.item(row, col)
@@ -934,12 +934,13 @@ class MainWindow(QMainWindow):
 
         channel=0 → kolom 0 (Time Pad1) & 1 (Pressure Pad1)
         channel=1 → kolom 2 (Time Pad2) & 3 (Pressure Pad2)
-        Saat semua baris penuh, geser ke atas (scroll up) dan kosongkan baris terakhir.
+        Setiap channel memiliki row counter sendiri agar baris masing-masing pad
+        tidak saling menggeser. Saat baris penuh, geser ke atas (scroll up).
         """
         col_time = channel * 2       # 0 atau 2
         col_press = channel * 2 + 1  # 1 atau 3
 
-        if self._table_next_row >= 2 + TABLE_ROWS:
+        if self._table_next_row[channel] >= 2 + TABLE_ROWS:
             # Geser semua baris ke atas satu langkah (text + UserRole)
             for row in range(2, 2 + TABLE_ROWS - 1):
                 src_t = self._data_table.item(row + 1, col_time)
@@ -952,9 +953,9 @@ class MainWindow(QMainWindow):
                                   src_t.data(Qt.ItemDataRole.UserRole))
                 if dst_p and src_p:
                     dst_p.setText(src_p.text())
-            self._table_next_row = 2 + TABLE_ROWS - 1
+            self._table_next_row[channel] = 2 + TABLE_ROWS - 1
 
-        row = self._table_next_row
+        row = self._table_next_row[channel]
         t_item = self._data_table.item(row, col_time)
         p_item = self._data_table.item(row, col_press)
         if t_item:
@@ -962,7 +963,7 @@ class MainWindow(QMainWindow):
             t_item.setText(self._fmt_time(t0))
         if p_item:
             p_item.setText(f"{pressure:.4f}")
-        self._table_next_row += 1
+        self._table_next_row[channel] += 1
 
     def _refresh_plot(self) -> None:
         if not self._buf_x:
