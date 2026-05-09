@@ -1025,7 +1025,7 @@ class MainWindow(QMainWindow):
         pi_delta.setLabel("left", "Δ Time", units="s")
         pi_delta.setLabel("bottom", "Sentuhan ke-")
         pi_delta.showGrid(x=True, y=True, alpha=0.3)
-        self._analisa_delta_legend = pi_delta.addLegend(offset=(10, 10))
+        self._analisa_delta_legend = pi_delta.addLegend(offset=(-10, -10))
 
         # Sumbu Y sekunder (kanan) untuk Pressure
         pi_delta.showAxis("right")
@@ -1516,6 +1516,7 @@ class MainWindow(QMainWindow):
         pi.getAxis("bottom").setTicks(
             [[(i, str(int(i))) for i in delta_x]]
         )
+        pi.setXRange(0.5, len(delta_x) + 0.5, padding=0)
 
     def _on_analisa_clear(self) -> None:
         """Hapus semua kurva overlay dan data tabel dari panel analisa."""
