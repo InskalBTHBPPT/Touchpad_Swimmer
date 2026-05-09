@@ -3,7 +3,7 @@ import sys
 from typing import Literal
 
 import nidaqmx
-from nidaqmx.constants import AcquisitionType
+from nidaqmx.constants import AcquisitionType, TerminalConfiguration
 from nidaqmx.errors import DaqFunctionNotSupportedError
 
 # USB-6008: total AI ~10 kS/s terbagi antar saluran (cek datasheet untuk limit pasti).
@@ -13,6 +13,7 @@ SAMPLES_PER_LOOP = int(RATE_HZ // 10)  # 1/10 rate → 50 sampel per iterasi
 
 # Urutan = kolom print: timestamp, ai0, ai1 (timing task sama untuk semua saluran).
 DEVICE_CHANNELS = ("Dev2/ai0", "Dev2/ai1")
+AI_TERMINAL_CONFIG = TerminalConfiguration.DIFF
 # None = loop tak terbatas (hentikan dengan Ctrl+C).
 NUM_LOOPS = None
 
@@ -72,7 +73,9 @@ def _as_float_list(samples) -> list[float]:
 
 with nidaqmx.Task() as task:
     for ch in DEVICE_CHANNELS:
-        task.ai_channels.add_ai_voltage_chan(ch)
+        task.ai_channels.add_ai_voltage_chan(
+            ch, terminal_config=AI_TERMINAL_CONFIG
+        )
     task.timing.cfg_samp_clk_timing(
         rate=RATE_HZ,
         sample_mode=AcquisitionType.CONTINUOUS,
