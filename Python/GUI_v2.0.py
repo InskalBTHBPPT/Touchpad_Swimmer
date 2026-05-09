@@ -1,3 +1,45 @@
+"""
+GUI_v2.0.py — NI DAQ Monitor for Touchpad Swimmer
+===================================================
+Aplikasi desktop real-time untuk akuisisi dan analisis data tekanan
+dari dua sensor touchpad (Pad 1 / Pad 2) menggunakan perangkat
+NI Data Acquisition (NI DAQ).
+
+Fitur Utama
+-----------
+* Akuisisi kontinu dua channel analog (AI0, AI1) via NI-DAQmx.
+* Visualisasi real-time dengan pyqtgraph (10 detik jendela tampil, ~10 FPS).
+* Deteksi sentuhan otomatis per channel menggunakan Schmitt trigger
+  (threshold + hysteresis) dengan anti-debounce hold-time.
+* Tabel hasil deteksi (10 baris per pad) dengan auto-scroll.
+* Export log mentah ke CSV (semua sampel) dan tabel ringkas ke CSV.
+* Konfigurasi parameter disimpan/dimuat dari config.json secara otomatis.
+* Tema Light/Dark yang dapat diubah kapan saja.
+
+Struktur Kelas
+--------------
+ChannelDetector  — State machine Schmitt trigger per channel.
+CsvWriter        — Penulis CSV asinkron berbasis queue/thread.
+DaqWorker        — Thread akuisisi NI-DAQmx (non-blocking terhadap GUI).
+ParameterDialog  — Dialog modal untuk konfigurasi parameter & detektor.
+MainWindow       — Jendela utama aplikasi (PySide6 QMainWindow).
+
+Dependensi
+----------
+Python  >= 3.11
+PySide6 >= 6.5
+pyqtgraph >= 0.13
+numpy
+nidaqmx  (NI-DAQmx Python driver)
+
+Cara Menjalankan
+----------------
+    python GUI_v2.0.py
+
+Penulis  : Tim Pengujian Touchpad Swimmer
+Versi    : 2.0
+"""
+
 import collections
 import csv
 import datetime as dt
@@ -608,7 +650,38 @@ class ParameterDialog(QDialog):
 
 # ─── DAQ Worker Thread ────────────────────────────────────────────────────────
 class DaqWorker(QThread):
-    """Menjalankan nidaqmx.read() di thread terpisah agar GUI tidak freeze."""
+    """Thread akuisisi data dari NI DAQ agar GUI tidak freeze.
+
+    Menjalankan loop pembacaan nidaqmx di QThread terpisah dan mengirim
+    data ke GUI melalui Qt signal ``data_ready``.
+
+    Signals
+    -------
+    data_ready(ai0, ai1, offset)
+        Dipancarkan setiap loop baca selesai.
+        ai0/ai1: list float (Volt), offset: indeks sampel awal.
+    error_occurred(msg)
+        Dipancarkan jika terjadi exception pada NI-DAQmx task.
+    warning_occurred(msg)
+        Dipancarkan jika read_waveform tidak didukung (fallback ke read()).
+
+    Parameters
+    ----------
+    ch0, ch1 : str
+        Nama channel NI DAQ, mis. "Dev2/ai0".
+    rate : float
+        Sample rate dalam Hz.
+    buffer_size : int
+        Ukuran buffer hardware (samples per channel).
+    samples_per_loop : int
+        Jumlah sampel yang dibaca per iterasi loop.
+    terminal_config : TerminalConfiguration
+        Konfigurasi terminal (DIFF / RSE / NRSE).
+    read_mode : "A" | "B"
+        "A" = task.read() manual, "B" = task.read_waveform() (butuh driver baru).
+    min_val, max_val : float
+        Rentang tegangan input (Volt).
+    """
 
     data_ready = Signal(list, list, int)   # ai0_chunk, ai1_chunk, sample_offset
     error_occurred = Signal(str)
