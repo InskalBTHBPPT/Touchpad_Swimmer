@@ -1,6 +1,6 @@
 """
-GUI_v2.0.py — NI DAQ Monitor for Touchpad Swimmer
-===================================================
+GUI_v3.py — NI DAQ Monitor for Touchpad Swimmer
+================================================
 Aplikasi desktop real-time untuk akuisisi dan analisis data tekanan
 dari dua sensor touchpad (Pad 1 / Pad 2) menggunakan perangkat
 NI Data Acquisition (NI DAQ).
@@ -13,13 +13,31 @@ Fitur Utama
   (threshold + hysteresis) dengan anti-debounce hold-time.
 * Tabel hasil deteksi (10 baris per pad) dengan auto-scroll.
 * Export log mentah ke CSV (semua sampel) dan tabel ringkas ke CSV.
+* Metadata perenang (Nama, Gaya, Jarak) ditulis sebagai header CSV
+  untuk traceability data.
+* Input Info Perenang (Nama, Gaya Renang, Jarak) yang otomatis
+  menjadi prefix nama file CSV dengan dropdown jarak dinamis per gaya.
 * Konfigurasi parameter disimpan/dimuat dari config.json secara otomatis.
 * Tema Light/Dark yang dapat diubah kapan saja.
+* Antarmuka bertab: "Live Data" (akuisisi real-time) dan
+  "Analisa Data" (analisis file CSV hasil rekaman).
+
+Tab Analisa Data
+----------------
+* Load dan overlay beberapa file CSV Log pada satu plot (multi-file overlay).
+* Load file CSV Table untuk menampilkan data dalam tabel dan plot analisis.
+* Plot "Split Time & Tekanan per Sentuhan":
+  - Sumbu kiri  : Δ Time (s) — delta waktu antar sentuhan berurutan.
+  - Sumbu kanan : Pressure (Kg) — tekanan per sentuhan (secondary Y axis).
+  - Label dua baris per titik: t (waktu kumulatif) dan dt (delta).
+  - Warna berbeda per arah: biru (→Pad2/outbound), merah (→Pad1/return).
+  - Marker pressure: kotak hijau neon (Pad1), kuning (Pad2).
+* Info Perenang otomatis terbaca dari metadata file CSV.
 
 Struktur Kelas
 --------------
 ChannelDetector  — State machine Schmitt trigger per channel.
-CsvWriter        — Penulis CSV asinkron berbasis queue/thread.
+CsvWriter        — Penulis CSV asinkron berbasis queue/thread (+ metadata header).
 DaqWorker        — Thread akuisisi NI-DAQmx (non-blocking terhadap GUI).
 ParameterDialog  — Dialog modal untuk konfigurasi parameter & detektor.
 MainWindow       — Jendela utama aplikasi (PySide6 QMainWindow).
@@ -34,10 +52,10 @@ nidaqmx  (NI-DAQmx Python driver)
 
 Cara Menjalankan
 ----------------
-    python GUI_v2.0.py
+    python GUI_v3.py
 
 Penulis  : Tim Pengujian Touchpad Swimmer
-Versi    : 2.0
+Versi    : 3.0
 """
 
 import collections
