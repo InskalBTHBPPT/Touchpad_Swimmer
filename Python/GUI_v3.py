@@ -1025,7 +1025,7 @@ class MainWindow(QMainWindow):
         pi_delta.setLabel("left", "Δ Time", units="s")
         pi_delta.setLabel("bottom", "Sentuhan ke-")
         pi_delta.showGrid(x=True, y=True, alpha=0.3)
-        self._analisa_delta_legend = pi_delta.addLegend(offset=(-10, -10))
+        self._analisa_delta_legend = pi_delta.addLegend(offset=(2, 2))
 
         # Sumbu Y sekunder (kanan) untuk Pressure
         pi_delta.showAxis("right")
@@ -1488,7 +1488,7 @@ class MainWindow(QMainWindow):
             )
             self._analisa_vb_press.addItem(sc_pr1)
             # Daftarkan manual ke legend (secondary ViewBox tidak otomatis masuk)
-            self._analisa_delta_legend.addItem(sc_pr1, "Press Pad1")
+            self._analisa_delta_legend.addItem(sc_pr1, "PressPad1")
             for x, y in zip(x_pr1, y_pr1):
                 txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, -0.3), color="#39ff14")
                 txt.setPos(x, y)
@@ -1502,7 +1502,7 @@ class MainWindow(QMainWindow):
             )
             self._analisa_vb_press.addItem(sc_pr2)
             # Daftarkan manual ke legend
-            self._analisa_delta_legend.addItem(sc_pr2, "Press Pad2")
+            self._analisa_delta_legend.addItem(sc_pr2, "PressPad2")
             for x, y in zip(x_pr2, y_pr2):
                 txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, 1.4), color="#ffe600")
                 txt.setPos(x, y)
