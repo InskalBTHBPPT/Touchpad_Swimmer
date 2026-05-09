@@ -222,37 +222,45 @@ class MainWindow(QMainWindow):
     def _build_chart_panel(self) -> QWidget:
         pg.setConfigOptions(antialias=False, useOpenGL=False, background="w", foreground="k")
 
-        self._pg_widget = pg.GraphicsLayoutWidget()
+        def _make_plot_widget(title: str) -> tuple[pg.PlotWidget, pg.PlotDataItem]:
+            pw = pg.PlotWidget(title=title)
+            pi: pg.PlotItem = pw.getPlotItem()
+            pi.setLabel("left", "Voltage", units="V")
+            pi.setLabel("bottom", "Time", units="s")
+            pi.showGrid(x=True, y=True, alpha=0.3)
+            pi.setDownsampling(auto=True, mode="peak")
+            pi.setClipToView(True)
+            return pw, pi.plot()
 
-        self._plot_ai0: pg.PlotItem = self._pg_widget.addPlot(row=0, col=0, title="AI 0")
-        self._plot_ai1: pg.PlotItem = self._pg_widget.addPlot(row=1, col=0, title="AI 1")
+        # Dua PlotWidget terpisah → masing-masing di QGroupBox → stretch sama
+        self._pw_ai0, self._curve_ai0 = _make_plot_widget("AI 0")
+        self._pw_ai1, self._curve_ai1 = _make_plot_widget("AI 1")
 
-        for p in (self._plot_ai0, self._plot_ai1):
-            p.setLabel("left", "Voltage", units="V")
-            p.setLabel("bottom", "Time", units="s")
-            p.showGrid(x=True, y=True, alpha=0.3)
-            p.setDownsampling(auto=True, mode="peak")
-            p.setClipToView(True)
+        self._curve_ai0.setPen(pg.mkPen(color=(30, 144, 255), width=1))
+        self._curve_ai1.setPen(pg.mkPen(color=(220, 80, 0), width=1))
 
-        # X-axis hanya di plot bawah
-        self._plot_ai0.hideAxis("bottom")
-        self._plot_ai0.setXLink(self._plot_ai1)
+        # Hubungkan sumbu X agar zoom/pan bergerak bersamaan
+        self._pw_ai0.setXLink(self._pw_ai1)
 
-        self._curve_ai0 = self._plot_ai0.plot(
-            pen=pg.mkPen(color=(30, 144, 255), width=1)
-        )
-        self._curve_ai1 = self._plot_ai1.plot(
-            pen=pg.mkPen(color=(220, 80, 0), width=1)
-        )
+        grp_ai0 = QGroupBox("Channel AI 0")
+        lay0 = QVBoxLayout(grp_ai0)
+        lay0.setContentsMargins(4, 4, 4, 4)
+        lay0.addWidget(self._pw_ai0)
+
+        grp_ai1 = QGroupBox("Channel AI 1")
+        lay1 = QVBoxLayout(grp_ai1)
+        lay1.setContentsMargins(4, 4, 4, 4)
+        lay1.addWidget(self._pw_ai1)
 
         self._status_label = QLabel("Status: Stopped")
         self._status_label.setStyleSheet("color: gray; padding: 2px 4px;")
 
         vbox = QVBoxLayout()
         vbox.setContentsMargins(0, 0, 0, 0)
-        vbox.setSpacing(4)
-        vbox.addWidget(self._pg_widget)
-        vbox.addWidget(self._status_label)
+        vbox.setSpacing(6)
+        vbox.addWidget(grp_ai0, stretch=1)
+        vbox.addWidget(grp_ai1, stretch=1)
+        vbox.addWidget(self._status_label, stretch=0)
 
         container = QWidget()
         container.setLayout(vbox)
