@@ -8,7 +8,8 @@ SAMPLES_PER_LOOP = int(RATE_HZ // 10)  # 1/10 rate → 50 sampel per iterasi
 
 DEVICE_CHANNEL = "Dev2/ai0"
 # None = loop tak terbatas (hentikan dengan Ctrl+C).
-NUM_LOOPS = 10
+# NUM_LOOPS = 10
+NUM_LOOPS = None
 
 with nidaqmx.Task() as task:
     task.ai_channels.add_ai_voltage_chan(DEVICE_CHANNEL)
@@ -23,6 +24,7 @@ with nidaqmx.Task() as task:
         while NUM_LOOPS is None or n < NUM_LOOPS:
             data = task.read(number_of_samples_per_channel=SAMPLES_PER_LOOP)
             n += 1
-            print(n, len(data), data)
+            for value in data:
+                print(value)
     except KeyboardInterrupt:
         print("\nBerhenti (Ctrl+C).")
