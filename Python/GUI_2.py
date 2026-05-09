@@ -1,6 +1,7 @@
 import collections
 import csv
 import datetime as dt
+import json
 import pathlib
 import queue
 import sys
@@ -153,6 +154,24 @@ DEFAULT_THRESHOLD  = "0.05"
 DEFAULT_HYSTERESIS = "0.005"
 DEFAULT_SCALE      = "1.00"
 
+CONFIG_PATH = pathlib.Path(__file__).parent / "config.json"
+
+
+# ─── Config persistence ───────────────────────────────────────────────────────
+def _load_config() -> dict | None:
+    """Baca config.json. Return None jika file tidak ada atau format salah."""
+    try:
+        with CONFIG_PATH.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _save_config(cfg: dict) -> None:
+    """Tulis dict parameter ke config.json."""
+    with CONFIG_PATH.open("w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+
 
 # ─── Channel Detector (Schmitt Trigger) ──────────────────────────────────────
 class ChannelDetector:
@@ -276,9 +295,11 @@ class ParameterDialog(QDialog):
     """Modal dialog untuk mengubah parameter akuisisi dan detektor.
 
     Behaviour:
-      Apply       → tulis nilai ke MainWindow, dialog tetap terbuka
-      Set Default → reset ke default lalu tulis ke MainWindow, dialog tetap terbuka
-      Cancel / X  → tutup tanpa mengubah apapun di MainWindow
+      Set As Default   → simpan nilai dialog ke config.json + apply ke MainWindow
+      Reset to Saved   → isi dialog dari config.json (tidak auto-apply)
+      Reset to Factory → isi dialog dari DEFAULT_* hardcoded (tidak auto-apply)
+      Apply            → terapkan nilai dialog ke MainWindow, dialog tetap terbuka
+      Cancel / X       → tutup tanpa mengubah apapun di MainWindow
     """
 
     def __init__(self, main_window: "MainWindow", parent: QWidget | None = None) -> None:
@@ -401,9 +422,18 @@ class ParameterDialog(QDialog):
         row = QHBoxLayout()
         row.setSpacing(8)
 
-        btn_default = QPushButton("↺  Set Default")
-        btn_default.setMinimumHeight(32)
-        btn_default.clicked.connect(self._on_set_default)
+        self._btn_set_as_default = QPushButton("💾  Set As Default")
+        self._btn_set_as_default.setMinimumHeight(32)
+        self._btn_set_as_default.clicked.connect(self._on_set_as_default)
+
+        self._btn_reset_saved = QPushButton("↩  Reset to Saved")
+        self._btn_reset_saved.setMinimumHeight(32)
+        self._btn_reset_saved.setEnabled(CONFIG_PATH.exists())
+        self._btn_reset_saved.clicked.connect(self._on_reset_to_saved)
+
+        btn_reset_factory = QPushButton("↺  Reset to Factory")
+        btn_reset_factory.setMinimumHeight(32)
+        btn_reset_factory.clicked.connect(self._on_reset_to_factory)
 
         btn_cancel = QPushButton("Cancel")
         btn_cancel.setMinimumHeight(32)
@@ -416,7 +446,9 @@ class ParameterDialog(QDialog):
         btn_apply.setFont(bold)
         btn_apply.clicked.connect(self._on_apply)
 
-        row.addWidget(btn_default)
+        row.addWidget(self._btn_set_as_default)
+        row.addWidget(self._btn_reset_saved)
+        row.addWidget(btn_reset_factory)
         row.addStretch()
         row.addWidget(btn_cancel)
         row.addWidget(btn_apply)
@@ -463,27 +495,56 @@ class ParameterDialog(QDialog):
         self._d_scale[1].setText(mw._inp_scale1.text())
         self._d_hold[1].setText(mw._inp_hold1.text())
 
-    def _reset_to_defaults(self) -> None:
-        self._d_ch0.setText(DEFAULT_CH0)
-        self._d_ch1.setText(DEFAULT_CH1)
-        self._d_rate.setText(str(DEFAULT_RATE))
-        self._d_buffer.setText(str(DEFAULT_BUFFER))
-        self._d_spl.setText(str(DEFAULT_SAMPLES_PER_LOOP))
+    def _build_config_dict(self) -> dict:
+        """Bangun dict dari nilai-nilai dialog saat ini."""
+        return {
+            "ch0":        self._d_ch0.text(),
+            "ch1":        self._d_ch1.text(),
+            "rate":       self._d_rate.text(),
+            "buffer":     self._d_buffer.text(),
+            "spl":        self._d_spl.text(),
+            "terminal":   self._d_terminal.currentText(),
+            "vrange":     self._d_vrange.currentText(),
+            "ts_set":     self._d_ts_set.currentText(),
+            "ts_display": self._d_ts_display.currentText(),
+            "dev0": {
+                "threshold":  self._d_thresh[0].text(),
+                "hysteresis": self._d_hyst[0].text(),
+                "scale":      self._d_scale[0].text(),
+                "hold":       self._d_hold[0].text(),
+            },
+            "dev1": {
+                "threshold":  self._d_thresh[1].text(),
+                "hysteresis": self._d_hyst[1].text(),
+                "scale":      self._d_scale[1].text(),
+                "hold":       self._d_hold[1].text(),
+            },
+        }
+
+    def _fill_dialog_from_config(self, cfg: dict) -> None:
+        """Isi semua field dialog dari dict config."""
+        self._d_ch0.setText(cfg.get("ch0", DEFAULT_CH0))
+        self._d_ch1.setText(cfg.get("ch1", DEFAULT_CH1))
+        self._d_rate.setText(cfg.get("rate", str(DEFAULT_RATE)))
+        self._d_buffer.setText(cfg.get("buffer", str(DEFAULT_BUFFER)))
+        self._d_spl.setText(cfg.get("spl", str(DEFAULT_SAMPLES_PER_LOOP)))
         self._d_terminal.blockSignals(True)
-        self._d_terminal.setCurrentText(DEFAULT_TERMINAL)
+        self._d_terminal.setCurrentText(cfg.get("terminal", DEFAULT_TERMINAL))
         self._d_terminal.blockSignals(False)
-        self._on_terminal_changed(DEFAULT_TERMINAL)
-        self._d_vrange.setCurrentText(DEFAULT_VOLTAGE_RANGE_DIFF)
-        self._d_ts_set.setCurrentText(DEFAULT_TS_SET)
-        self._d_ts_display.setCurrentText(DEFAULT_TS_DISPLAY)
-        self._d_thresh[0].setText(DEFAULT_THRESHOLD)
-        self._d_hyst[0].setText(DEFAULT_HYSTERESIS)
-        self._d_scale[0].setText(DEFAULT_SCALE)
-        self._d_hold[0].setText(str(DEFAULT_HOLD_TIME))
-        self._d_thresh[1].setText(DEFAULT_THRESHOLD)
-        self._d_hyst[1].setText(DEFAULT_HYSTERESIS)
-        self._d_scale[1].setText(DEFAULT_SCALE)
-        self._d_hold[1].setText(str(DEFAULT_HOLD_TIME))
+        self._on_terminal_changed(cfg.get("terminal", DEFAULT_TERMINAL))
+        self._d_vrange.setCurrentText(cfg.get("vrange", DEFAULT_VOLTAGE_RANGE_DIFF))
+        self._d_ts_set.setCurrentText(cfg.get("ts_set", DEFAULT_TS_SET))
+        self._d_ts_display.setCurrentText(cfg.get("ts_display", DEFAULT_TS_DISPLAY))
+        d0 = cfg.get("dev0", {})
+        self._d_thresh[0].setText(d0.get("threshold",  DEFAULT_THRESHOLD))
+        self._d_hyst[0].setText(d0.get("hysteresis",   DEFAULT_HYSTERESIS))
+        self._d_scale[0].setText(d0.get("scale",       DEFAULT_SCALE))
+        self._d_hold[0].setText(d0.get("hold",         str(DEFAULT_HOLD_TIME)))
+        d1 = cfg.get("dev1", {})
+        self._d_thresh[1].setText(d1.get("threshold",  DEFAULT_THRESHOLD))
+        self._d_hyst[1].setText(d1.get("hysteresis",   DEFAULT_HYSTERESIS))
+        self._d_scale[1].setText(d1.get("scale",       DEFAULT_SCALE))
+        self._d_hold[1].setText(d1.get("hold",         str(DEFAULT_HOLD_TIME)))
 
     def _apply_to_main(self) -> None:
         mw = self._mw
@@ -506,9 +567,40 @@ class ParameterDialog(QDialog):
         mw._inp_scale1.setText(self._d_scale[1].text())
         mw._inp_hold1.setText(self._d_hold[1].text())
 
-    def _on_set_default(self) -> None:
-        self._reset_to_defaults()
+    def _on_set_as_default(self) -> None:
+        """Simpan nilai dialog ke config.json lalu apply ke MainWindow."""
+        cfg = self._build_config_dict()
+        try:
+            _save_config(cfg)
+        except OSError as exc:
+            QMessageBox.critical(self, "Error", f"Gagal menyimpan config:\n{exc}")
+            return
         self._apply_to_main()
+        self._btn_reset_saved.setEnabled(True)
+        QMessageBox.information(self, "Tersimpan", "Parameter berhasil disimpan sebagai default.")
+
+    def _on_reset_to_saved(self) -> None:
+        """Isi dialog dari config.json (tidak auto-apply ke MainWindow)."""
+        cfg = _load_config()
+        if cfg is None:
+            QMessageBox.warning(self, "Tidak Ada", "File config.json belum tersedia.")
+            return
+        self._fill_dialog_from_config(cfg)
+
+    def _on_reset_to_factory(self) -> None:
+        """Isi dialog dari nilai DEFAULT_* hardcoded (tidak auto-apply ke MainWindow)."""
+        factory: dict = {
+            "ch0": DEFAULT_CH0, "ch1": DEFAULT_CH1,
+            "rate": str(DEFAULT_RATE), "buffer": str(DEFAULT_BUFFER),
+            "spl": str(DEFAULT_SAMPLES_PER_LOOP),
+            "terminal": DEFAULT_TERMINAL, "vrange": DEFAULT_VOLTAGE_RANGE_DIFF,
+            "ts_set": DEFAULT_TS_SET, "ts_display": DEFAULT_TS_DISPLAY,
+            "dev0": {"threshold": DEFAULT_THRESHOLD, "hysteresis": DEFAULT_HYSTERESIS,
+                     "scale": DEFAULT_SCALE, "hold": str(DEFAULT_HOLD_TIME)},
+            "dev1": {"threshold": DEFAULT_THRESHOLD, "hysteresis": DEFAULT_HYSTERESIS,
+                     "scale": DEFAULT_SCALE, "hold": str(DEFAULT_HOLD_TIME)},
+        }
+        self._fill_dialog_from_config(factory)
 
     def _on_apply(self) -> None:
         self._apply_to_main()
@@ -690,6 +782,33 @@ class MainWindow(QMainWindow):
         group.setLayout(form)
         # Simpan referensi agar Qt tidak men-GC widget anak (inp_ch0, dll.)
         self._hidden_param_group = group
+
+        # Load config.json saat startup; fallback ke DEFAULT_* jika tidak ada
+        cfg = _load_config()
+        if cfg is not None:
+            self._apply_config(cfg)
+
+    def _apply_config(self, cfg: dict) -> None:
+        """Terapkan dict config ke hidden parameter widgets."""
+        self._inp_ch0.setText(cfg.get("ch0", DEFAULT_CH0))
+        self._inp_ch1.setText(cfg.get("ch1", DEFAULT_CH1))
+        self._inp_rate.setText(cfg.get("rate", str(DEFAULT_RATE)))
+        self._inp_buffer.setText(cfg.get("buffer", str(DEFAULT_BUFFER)))
+        self._inp_spl.setText(cfg.get("spl", str(DEFAULT_SAMPLES_PER_LOOP)))
+        self._dd_terminal.setCurrentText(cfg.get("terminal", DEFAULT_TERMINAL))
+        self._dd_vrange.setCurrentText(cfg.get("vrange", DEFAULT_VOLTAGE_RANGE_DIFF))
+        self._dd_ts_set.setCurrentText(cfg.get("ts_set", DEFAULT_TS_SET))
+        self._dd_ts_display.setCurrentText(cfg.get("ts_display", DEFAULT_TS_DISPLAY))
+        d0 = cfg.get("dev0", {})
+        self._inp_thresh0.setText(d0.get("threshold",  DEFAULT_THRESHOLD))
+        self._inp_hyst0.setText(d0.get("hysteresis",   DEFAULT_HYSTERESIS))
+        self._inp_scale0.setText(d0.get("scale",       DEFAULT_SCALE))
+        self._inp_hold0.setText(d0.get("hold",         str(DEFAULT_HOLD_TIME)))
+        d1 = cfg.get("dev1", {})
+        self._inp_thresh1.setText(d1.get("threshold",  DEFAULT_THRESHOLD))
+        self._inp_hyst1.setText(d1.get("hysteresis",   DEFAULT_HYSTERESIS))
+        self._inp_scale1.setText(d1.get("scale",       DEFAULT_SCALE))
+        self._inp_hold1.setText(d1.get("hold",         str(DEFAULT_HOLD_TIME)))
 
     # ── Chart panel ──────────────────────────────────────────────────────────
     def _build_chart_panel(self) -> QWidget:
