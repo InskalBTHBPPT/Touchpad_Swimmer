@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QButtonGroup,
@@ -118,6 +119,7 @@ _THEMES: dict[str, dict] = {
 
 DEFAULT_CSV_PREFIX = "Swimming"
 DEFAULT_CSV_FOLDER = str(pathlib.Path(__file__).parent / "DataLog")
+DEFAULT_TABLE_FOLDER = str(pathlib.Path(__file__).parent / "DataTable")
 
 N_COLLECT = 50          # jumlah sampel yang dirata-rata setelah trigger
 TABLE_ROWS = 10         # baris data pada tabel
@@ -566,7 +568,7 @@ class MainWindow(QMainWindow):
         self._data_table.setSpan(0, 2, 1, 2)
 
         row0_labels = {0: "Pad 1", 2: "Pad 2"}
-        row1_labels = {0: "Time", 1: "Pressure (Kg)", 2: "Time", 3: "Pressure (Kg)"}
+        row1_labels = {0: "Time", 1: "Press (Kg)", 2: "Time", 3: "Press (Kg)"}
 
         bold = QFont()
         bold.setBold(True)
@@ -686,12 +688,38 @@ class MainWindow(QMainWindow):
         fmt_row.addWidget(self._rb_mmss)
         fmt_row.addStretch()
 
+        # ── Save table to CSV ────────────────────────────────────────────────
+        table_folder_row = QWidget()
+        table_folder_lay = QHBoxLayout(table_folder_row)
+        table_folder_lay.setContentsMargins(0, 0, 0, 0)
+        table_folder_lay.setSpacing(4)
+
+        self._inp_table_folder = QLineEdit(DEFAULT_TABLE_FOLDER)
+        self._inp_table_folder.setReadOnly(True)
+        btn_browse_table = QPushButton("…")
+        btn_browse_table.setFixedWidth(28)
+        btn_browse_table.clicked.connect(self._on_browse_table_folder)
+        table_folder_lay.addWidget(self._inp_table_folder)
+        table_folder_lay.addWidget(btn_browse_table)
+
+        folder_form = QHBoxLayout()
+        folder_lbl = QLabel("Folder:")
+        folder_lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        folder_form.addWidget(folder_lbl)
+        folder_form.addWidget(table_folder_row)
+
+        self._btn_save_table = QPushButton("💾  Save Table to CSV")
+        self._btn_save_table.setMinimumHeight(32)
+        self._btn_save_table.clicked.connect(self._on_save_table_csv)
+
         vbox = QVBoxLayout()
         vbox.setContentsMargins(8, 12, 8, 8)
         vbox.setSpacing(6)
         vbox.addLayout(param_grid)
         vbox.addLayout(fmt_row)
         vbox.addWidget(self._data_table)
+        vbox.addLayout(folder_form)
+        vbox.addWidget(self._btn_save_table)
         vbox.addStretch()
         group.setLayout(vbox)
         group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
@@ -713,6 +741,51 @@ class MainWindow(QMainWindow):
             if item:
                 item.setBackground(QBrush(bg))
                 item.setForeground(QBrush(fg))
+
+    # ── Save table ────────────────────────────────────────────────────────────
+    def _on_browse_table_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self, "Pilih Folder Simpan Table CSV", self._inp_table_folder.text()
+        )
+        if folder:
+            self._inp_table_folder.setText(folder)
+
+    def _on_save_table_csv(self) -> None:
+        """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV."""
+        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
+        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        folder = pathlib.Path(self._inp_table_folder.text())
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            QMessageBox.critical(self, "Error", f"Gagal membuat folder:\n{exc}")
+            return
+
+        filepath = folder / f"{prefix}_table_{ts}.csv"
+        try:
+            with filepath.open("w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(
+                    ["No", "Time_Pad1", "Pressure_Pad1(Kg)", "Time_Pad2", "Pressure_Pad2(Kg)"]
+                )
+                for idx, row in enumerate(range(2, 2 + TABLE_ROWS), start=1):
+                    t1 = self._data_table.item(row, 0)
+                    p1 = self._data_table.item(row, 1)
+                    t2 = self._data_table.item(row, 2)
+                    p2 = self._data_table.item(row, 3)
+                    t1_val = t1.text() if t1 else ""
+                    p1_val = p1.text() if p1 else ""
+                    t2_val = t2.text() if t2 else ""
+                    p2_val = p2.text() if p2 else ""
+                    if t1_val or p1_val or t2_val or p2_val:
+                        writer.writerow([idx, t1_val, p1_val, t2_val, p2_val])
+        except OSError as exc:
+            QMessageBox.critical(self, "Error", f"Gagal menyimpan file:\n{exc}")
+            return
+
+        QMessageBox.information(
+            self, "Tersimpan", f"Tabel berhasil disimpan ke:\n{filepath}"
+        )
 
     # ── Theme ─────────────────────────────────────────────────────────────────
     def _on_toggle_theme(self) -> None:
