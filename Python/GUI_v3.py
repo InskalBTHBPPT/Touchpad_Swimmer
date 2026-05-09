@@ -1041,6 +1041,15 @@ class MainWindow(QMainWindow):
             )
         )
 
+        # Legend terpisah untuk Pressure — pojok kanan atas
+        self._analisa_press_legend_box = pg.LegendItem()
+        self._analisa_press_legend_box.setParentItem(pi_delta.vb)
+        self._analisa_press_legend_box.anchor(
+            itemPos=(1, 0),
+            parentPos=(1, 0),
+            offset=(-10, 10),
+        )
+
         bottom_hbox = QHBoxLayout()
         bottom_hbox.setContentsMargins(4, 4, 4, 4)
         bottom_hbox.addWidget(self._analisa_pw_delta, stretch=1)
@@ -1438,6 +1447,7 @@ class MainWindow(QMainWindow):
         self._analisa_vb_press.clear()
         try:
             self._analisa_delta_legend.clear()
+            self._analisa_press_legend_box.clear()
         except Exception:
             pass
 
@@ -1487,8 +1497,8 @@ class MainWindow(QMainWindow):
                 brush=pg.mkBrush("#39ff14"),  # neon green — Pad1
             )
             self._analisa_vb_press.addItem(sc_pr1)
-            # Daftarkan manual ke legend (secondary ViewBox tidak otomatis masuk)
-            self._analisa_delta_legend.addItem(sc_pr1, "PressPad1")
+            # Daftarkan ke legend pressure terpisah (kanan atas)
+            self._analisa_press_legend_box.addItem(sc_pr1, "Press Pad1")
             for x, y in zip(x_pr1, y_pr1):
                 txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, -0.3), color="#39ff14")
                 txt.setPos(x, y)
@@ -1501,8 +1511,8 @@ class MainWindow(QMainWindow):
                 brush=pg.mkBrush("#ffe600"),  # yellow — Pad2
             )
             self._analisa_vb_press.addItem(sc_pr2)
-            # Daftarkan manual ke legend
-            self._analisa_delta_legend.addItem(sc_pr2, "PressPad2")
+            # Daftarkan ke legend pressure terpisah (kanan atas)
+            self._analisa_press_legend_box.addItem(sc_pr2, "Press Pad2")
             for x, y in zip(x_pr2, y_pr2):
                 txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, 1.4), color="#ffe600")
                 txt.setPos(x, y)
@@ -1532,9 +1542,13 @@ class MainWindow(QMainWindow):
             pi_log.removeItem(c1)
         self._analisa_log_curves.clear()
 
-        # Bersihkan CSV Table: delta scatter, secondary vb, tabel
+        # Bersihkan CSV Table: delta scatter, secondary vb, legend, tabel
         self._analisa_pw_delta.getPlotItem().clear()
         self._analisa_vb_press.clear()
+        try:
+            self._analisa_press_legend_box.clear()
+        except Exception:
+            pass
         self._analisa_tbl_data.setRowCount(0)
 
         # Reset label CSV Log
