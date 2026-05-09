@@ -121,16 +121,21 @@ DEFAULT_CSV_FOLDER = str(pathlib.Path(__file__).parent / "DataLog")
 
 N_COLLECT = 20          # jumlah sampel yang dirata-rata setelah trigger
 TABLE_ROWS = 10         # baris data pada tabel
+DEFAULT_HOLD_TIME = 10.0  # detik minimum di state HOLD sebelum bisa re-arm
 
 
 # ─── Channel Detector (Schmitt Trigger) ──────────────────────────────────────
 class ChannelDetector:
-    """Deteksi rising-edge dengan hysteresis (Schmitt trigger).
+    """Deteksi rising-edge dengan hysteresis (Schmitt trigger) + hold time.
 
     State machine:
-        ARMED      → sinyal naik ke >= lower_trip → COLLECTING
-        COLLECTING → kumpulkan N_COLLECT sampel   → HOLD
-        HOLD       → sinyal turun ke < lower_trip  → ARMED
+        ARMED      → sinyal naik ke >= lower_trip               → COLLECTING
+        COLLECTING → kumpulkan n_collect sampel                 → HOLD
+        HOLD       → hold_time selesai AND sinyal < lower_trip  → ARMED
+
+    Hold time berfungsi sebagai anti-debounce: meskipun sinyal
+    sesaat turun/noise selama hold_time, sistem tidak re-arm
+    hingga hold_time habis DAN sinyal benar-benar turun.
     """
 
     def __init__(
@@ -139,14 +144,17 @@ class ChannelDetector:
         hysteresis: float,
         scale: float,
         n_collect: int = N_COLLECT,
+        hold_time: float = DEFAULT_HOLD_TIME,
     ) -> None:
         self.threshold = threshold
         self.hysteresis = hysteresis
         self.scale = scale
         self.n_collect = n_collect
+        self.hold_time = hold_time
         self._state = "ARMED"
         self._buf: list[float] = []
         self._t0 = 0.0
+        self._t_hold_start = 0.0  # timestamp saat masuk HOLD
 
     @property
     def lower_trip(self) -> float:
@@ -156,6 +164,7 @@ class ChannelDetector:
         self._state = "ARMED"
         self._buf = []
         self._t0 = 0.0
+        self._t_hold_start = 0.0
 
     def process(self, value: float, timestamp: float) -> tuple[float, float] | None:
         """Proses satu sampel.
@@ -172,12 +181,14 @@ class ChannelDetector:
             self._buf.append(value)
             if len(self._buf) >= self.n_collect:
                 pressure = (sum(self._buf) / self.n_collect) * self.scale
+                self._t_hold_start = timestamp
                 self._state = "HOLD"
                 self._buf = []
                 return (self._t0, pressure)
 
         elif self._state == "HOLD":
-            if value < self.lower_trip:
+            hold_elapsed = timestamp - self._t_hold_start
+            if hold_elapsed >= self.hold_time and value < self.lower_trip:
                 self._state = "ARMED"
 
         return None
@@ -611,7 +622,8 @@ class MainWindow(QMainWindow):
         param_grid.setContentsMargins(0, 0, 0, 6)
 
         col_headers = [
-            "Threshold (Volt)", "Hysteresis (Volt)", "Scale (Kg/Volt)"
+            "Threshold\n(Volt)", "Hysteresis\n(Volt)",
+            "Scale\n(Kg/Volt)", "Hold Time\n(s)"
         ]
         for col, text in enumerate(col_headers):
             lbl = QLabel(text)
@@ -632,21 +644,25 @@ class MainWindow(QMainWindow):
             inp_thresh = _make_param_input("0.05")
             inp_hyst   = _make_param_input("0.005")
             inp_scale  = _make_param_input("1.00")
+            inp_hold   = _make_param_input(str(DEFAULT_HOLD_TIME))
             param_grid.addWidget(inp_thresh, row_base, 1)
             param_grid.addWidget(inp_hyst,   row_base, 2)
             param_grid.addWidget(inp_scale,  row_base, 3)
+            param_grid.addWidget(inp_hold,   row_base, 4)
 
             if dev_idx == 0:
                 self._inp_thresh0 = inp_thresh
                 self._inp_hyst0   = inp_hyst
                 self._inp_scale0  = inp_scale
+                self._inp_hold0   = inp_hold
             else:
                 self._inp_thresh1 = inp_thresh
                 self._inp_hyst1   = inp_hyst
                 self._inp_scale1  = inp_scale
+                self._inp_hold1   = inp_hold
 
         param_grid.setColumnStretch(0, 0)
-        for c in range(1, 4):
+        for c in range(1, 5):
             param_grid.setColumnStretch(c, 1)
 
         # ── Time format radio buttons ────────────────────────────────────────
@@ -778,11 +794,13 @@ class MainWindow(QMainWindow):
             threshold=_safe_float(self._inp_thresh0.text(), 0.05),
             hysteresis=_safe_float(self._inp_hyst0.text(),  0.005),
             scale=_safe_float(self._inp_scale0.text(),      1.0),
+            hold_time=_safe_float(self._inp_hold0.text(),   DEFAULT_HOLD_TIME),
         )
         self._detector1 = ChannelDetector(
             threshold=_safe_float(self._inp_thresh1.text(), 0.05),
             hysteresis=_safe_float(self._inp_hyst1.text(),  0.005),
             scale=_safe_float(self._inp_scale1.text(),      1.0),
+            hold_time=_safe_float(self._inp_hold1.text(),   DEFAULT_HOLD_TIME),
         )
 
         # Reset tabel: hapus isi baris data (baris 0-1 adalah header)
@@ -1012,6 +1030,8 @@ class MainWindow(QMainWindow):
             self._dd_terminal,
             self._dd_vrange,
             self._dd_ts_set,
+            self._inp_thresh0, self._inp_hyst0, self._inp_scale0, self._inp_hold0,
+            self._inp_thresh1, self._inp_hyst1, self._inp_scale1, self._inp_hold1,
         ):
             widget.setEnabled(enabled)
 
