@@ -1127,13 +1127,14 @@ class MainWindow(QMainWindow):
         grp_tbl_data = QGroupBox("Data Table")
         lay_grp_tbl = QVBoxLayout(grp_tbl_data)
         lay_grp_tbl.setContentsMargins(4, 4, 4, 4)
-        lay_grp_tbl.addWidget(self._analisa_tbl_data, stretch=2)
+        # Rasio tinggi: pad = ½ × split time → stretch 1 : 2
+        lay_grp_tbl.addWidget(self._analisa_tbl_data, stretch=1)
 
         grp_split_view = QGroupBox("Split Time (urutan sentuhan)")
         lay_split_v = QVBoxLayout(grp_split_view)
         lay_split_v.setContentsMargins(4, 4, 4, 4)
         lay_split_v.addWidget(self._analisa_tbl_split)
-        lay_grp_tbl.addWidget(grp_split_view, stretch=1)
+        lay_grp_tbl.addWidget(grp_split_view, stretch=2)
 
         grp_tbl_load = QGroupBox("CSV Table")
         lay_tl = QVBoxLayout(grp_tbl_load)
