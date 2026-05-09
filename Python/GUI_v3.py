@@ -1013,12 +1013,39 @@ class MainWindow(QMainWindow):
         lay_lp.setContentsMargins(4, 4, 4, 4)
         lay_lp.addWidget(self._analisa_pw_log)
 
-        grp_table_plot = QGroupBox("CSV Table Plot")
-        lay_tp = QVBoxLayout(grp_table_plot)
-        placeholder = QLabel("— Akan diimplementasikan pada versi berikutnya —")
-        placeholder.setAlignment(Qt.AlignCenter)
-        placeholder.setStyleSheet("color: gray; font-style: italic; padding: 20px;")
-        lay_tp.addWidget(placeholder)
+        # ── Bottom: tabel data + scatter delta time ────────────────────────
+        # Tabel untuk menampilkan isi CSV Table yang di-load
+        self._analisa_tbl_data = QTableWidget(0, 5)
+        self._analisa_tbl_data.setHorizontalHeaderLabels(
+            ["No", "Time Pad1 (s)", "Press Pad1 (Kg)", "Time Pad2 (s)", "Press Pad2 (Kg)"]
+        )
+        self._analisa_tbl_data.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._analisa_tbl_data.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self._analisa_tbl_data.setAlternatingRowColors(True)
+        self._analisa_tbl_data.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self._analisa_tbl_data.verticalHeader().hide()
+
+        # Scatter plot delta time
+        self._analisa_pw_delta = pg.PlotWidget()
+        pi_delta: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
+        pi_delta.setTitle("Delta Time Antar Touchpad")
+        pi_delta.setLabel("left", "Δ Time", units="s")
+        pi_delta.setLabel("bottom", "Titik ke-")
+        pi_delta.showGrid(x=True, y=True, alpha=0.3)
+        self._analisa_delta_legend = pi_delta.addLegend(offset=(10, 10))
+
+        bottom_hbox = QHBoxLayout()
+        bottom_hbox.setContentsMargins(4, 4, 4, 4)
+        bottom_hbox.setSpacing(8)
+        bottom_hbox.addWidget(self._analisa_tbl_data, stretch=2)
+        bottom_hbox.addWidget(self._analisa_pw_delta, stretch=3)
+
+        grp_table_plot = QGroupBox("CSV Table Analysis")
+        grp_table_plot.setLayout(bottom_hbox)
 
         chart_vbox = QVBoxLayout()
         chart_vbox.setContentsMargins(0, 0, 0, 0)
@@ -1192,15 +1219,185 @@ class MainWindow(QMainWindow):
         self._analisa_files_label.setText("<br>".join(lines))
 
     def _on_analisa_load_table(self) -> None:
-        """Stub — load CSV Table akan diimplementasikan pada versi berikutnya."""
-        QMessageBox.information(
-            self,
-            "Belum Tersedia",
-            "Fitur Load CSV Table akan diimplementasikan pada versi berikutnya.",
+        """Buka dialog pilih satu CSV Table, lalu tampilkan dan hitung delta time."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Pilih CSV Table", "", "CSV Files (*.csv);;All Files (*)"
+        )
+        if path:
+            self._analisa_load_table_file(pathlib.Path(path))
+
+    def _analisa_load_table_file(self, filepath: pathlib.Path) -> None:
+        """Baca CSV Table, populate tabel analisa, dan plot delta time."""
+        meta: dict[str, str] = {}
+        rows: list[list[str]] = []
+
+        try:
+            with filepath.open("r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    if not row:
+                        continue
+                    if row[0].startswith("#"):
+                        key = row[0][1:].strip()
+                        val = row[1].strip() if len(row) > 1 else ""
+                        meta[key] = val
+                    elif row[0].strip().lower() == "no":
+                        continue  # baris header kolom
+                    else:
+                        rows.append(row)
+        except OSError as exc:
+            QMessageBox.critical(self, "Error", f"Gagal membuka file:\n{exc}")
+            return
+
+        if not rows:
+            QMessageBox.warning(
+                self, "Data Kosong", f"Tidak ada data di:\n{filepath.name}"
+            )
+            return
+
+        # Update info perenang dari metadata
+        self._analisa_lbl_nama.setText(meta.get("Nama Perenang", "-"))
+        self._analisa_lbl_gaya.setText(meta.get("Gaya", "-"))
+        self._analisa_lbl_jarak.setText(meta.get("Jarak", "-"))
+        self._analisa_lbl_tanggal.setText(meta.get("Tanggal", "-"))
+
+        # Populate QTableWidget
+        self._analisa_tbl_data.setRowCount(len(rows))
+        t1_list: list[float] = []
+        t2_list: list[float] = []
+
+        for i, row in enumerate(rows):
+            for j in range(5):
+                val = row[j].strip() if j < len(row) else ""
+                item = QTableWidgetItem(val)
+                item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+                )
+                self._analisa_tbl_data.setItem(i, j, item)
+
+            t1 = self._analisa_parse_time_s(row[1] if len(row) > 1 else "")
+            t2 = self._analisa_parse_time_s(row[3] if len(row) > 3 else "")
+            if t1 is not None:
+                t1_list.append(t1)
+            if t2 is not None:
+                t2_list.append(t2)
+
+        self._analisa_compute_and_plot_deltas(t1_list, t2_list)
+
+    @staticmethod
+    def _analisa_parse_time_s(val: str) -> float | None:
+        """Parse string waktu (MM:SS.mmm atau detik float) menjadi float detik.
+
+        Mengembalikan None jika string kosong atau tidak dapat di-parse.
+        """
+        val = val.strip()
+        if not val:
+            return None
+        if ":" in val:
+            parts = val.split(":")
+            try:
+                return int(parts[0]) * 60 + float(parts[1])
+            except (ValueError, IndexError):
+                return None
+        try:
+            return float(val)
+        except ValueError:
+            return None
+
+    def _analisa_compute_and_plot_deltas(
+        self, t1_list: list[float], t2_list: list[float]
+    ) -> None:
+        """Hitung dan plot scatter delta time antar sentuhan touchpad.
+
+        Algoritma:
+        - Gabungkan semua event (t1 = Pad1, t2 = Pad2) lalu urutkan berdasarkan waktu.
+        - Point pertama: waktu absolut event pertama (dari detik 0).
+        - Point berikutnya: selisih antara event berurutan.
+        - Warna biru  (⬤) = menuju Pad2 (outbound ke dinding jauh)
+        - Warna merah (⬤) = menuju Pad1 (return ke dinding start)
+        """
+        events: list[tuple[float, str]] = (
+            [(t, "Pad1") for t in t1_list]
+            + [(t, "Pad2") for t in t2_list]
+        )
+        events.sort(key=lambda x: x[0])
+
+        if not events:
+            return
+
+        # Hitung delta times
+        delta_x: list[float] = []
+        delta_y: list[float] = []
+        delta_dest: list[str] = []  # "Pad1" atau "Pad2"
+
+        delta_x.append(1.0)
+        delta_y.append(events[0][0])
+        delta_dest.append(events[0][1])
+
+        for i in range(1, len(events)):
+            delta_x.append(float(i + 1))
+            delta_y.append(events[i][0] - events[i - 1][0])
+            delta_dest.append(events[i][1])
+
+        # Pisahkan outbound (→Pad2) dan return (→Pad1)
+        x_out, y_out, x_ret, y_ret = [], [], [], []
+        for x, y, dest in zip(delta_x, delta_y, delta_dest):
+            if dest == "Pad2":
+                x_out.append(x)
+                y_out.append(y)
+            else:
+                x_ret.append(x)
+                y_ret.append(y)
+
+        pi: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
+        pi.clear()
+        try:
+            self._analisa_delta_legend.clear()
+        except Exception:
+            pass
+
+        # Garis penghubung semua titik
+        pi.plot(
+            np.array(delta_x), np.array(delta_y),
+            pen=pg.mkPen("#888888", width=1, style=Qt.PenStyle.DashLine),
+        )
+
+        # Scatter outbound (→ Pad2)
+        if x_out:
+            scatter_out = pg.ScatterPlotItem(
+                x=x_out, y=y_out,
+                symbol="o", size=12,
+                pen=pg.mkPen(None),
+                brush=pg.mkBrush("#4fc3f7"),
+                name="→ Pad2 (outbound)",
+            )
+            pi.addItem(scatter_out)
+
+        # Scatter return (→ Pad1)
+        if x_ret:
+            scatter_ret = pg.ScatterPlotItem(
+                x=x_ret, y=y_ret,
+                symbol="o", size=12,
+                pen=pg.mkPen(None),
+                brush=pg.mkBrush("#ef5350"),
+                name="→ Pad1 (return)",
+            )
+            pi.addItem(scatter_ret)
+
+        # Label nilai delta di atas setiap titik
+        for x, y in zip(delta_x, delta_y):
+            txt = pg.TextItem(f"{y:.3f}s", anchor=(0.5, 1.2), color="#cccccc")
+            txt.setPos(x, y)
+            pi.addItem(txt)
+
+        # Pastikan sumbu X integer dari 1
+        pi.getAxis("bottom").setTicks(
+            [[(i, str(int(i))) for i in delta_x]]
         )
 
     def _on_analisa_clear(self) -> None:
-        """Hapus semua kurva overlay dari plot analisa dan reset tampilan."""
+        """Hapus semua kurva overlay dan data tabel dari panel analisa."""
+        # Bersihkan CSV Log overlay
         pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
         for _stem, c0, c1 in self._analisa_log_curves:
             try:
@@ -1211,6 +1408,12 @@ class MainWindow(QMainWindow):
             pi_log.removeItem(c0)
             pi_log.removeItem(c1)
         self._analisa_log_curves.clear()
+
+        # Bersihkan CSV Table scatter + tabel
+        self._analisa_pw_delta.getPlotItem().clear()
+        self._analisa_tbl_data.setRowCount(0)
+
+        # Reset info labels
         for lbl in (
             self._analisa_lbl_nama, self._analisa_lbl_gaya,
             self._analisa_lbl_jarak, self._analisa_lbl_tanggal,
