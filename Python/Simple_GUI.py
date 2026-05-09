@@ -1,6 +1,10 @@
 import collections
+import csv
 import datetime as dt
+import pathlib
+import queue
 import sys
+import threading
 from typing import Literal
 
 import numpy as np
@@ -9,7 +13,9 @@ from PySide6.QtCore import QThread, Signal, QTimer
 from PySide6.QtGui import QFont, QPalette, QColor
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -81,6 +87,57 @@ _THEMES: dict[str, dict] = {
         """,
     },
 }
+
+
+DEFAULT_CSV_PREFIX = "Swimming"
+DEFAULT_CSV_FOLDER = str(pathlib.Path.home() / "Documents")
+
+
+# ─── CSV Writer ───────────────────────────────────────────────────────────────
+class CsvWriter:
+    """Menulis data ke CSV di background thread menggunakan queue.
+
+    Alur:
+      write_chunk() → queue.put() (non-blocking, O(1) di GUI/DAQ thread)
+      _worker_loop() → queue.get() → tulis baris CSV (di thread sendiri)
+    """
+
+    _SENTINEL = None  # sinyal untuk menghentikan worker loop
+
+    def __init__(self, filepath: pathlib.Path, dt_sample: float) -> None:
+        self._filepath = filepath
+        self._dt_sample = dt_sample
+        self._queue: queue.Queue = queue.Queue()
+        self._thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self._thread.start()
+
+    def _worker_loop(self) -> None:
+        with self._filepath.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["timestamp_s", "ai0_V", "ai1_V"])
+            while True:
+                item = self._queue.get()
+                if item is self._SENTINEL:
+                    break
+                ai0_chunk, ai1_chunk, offset = item
+                for i in range(len(ai0_chunk)):
+                    ts = (offset + i) * self._dt_sample
+                    writer.writerow([f"{ts:.6f}", ai0_chunk[i], ai1_chunk[i]])
+                f.flush()
+
+    def write_chunk(
+        self, ai0: list, ai1: list, offset: int
+    ) -> None:
+        self._queue.put((ai0, ai1, offset))
+
+    def close(self) -> None:
+        """Flush semua data yang tersisa lalu tutup file."""
+        self._queue.put(self._SENTINEL)
+        self._thread.join(timeout=10)
+
+    @property
+    def filepath(self) -> pathlib.Path:
+        return self._filepath
 
 
 # ─── DAQ Worker Thread ────────────────────────────────────────────────────────
@@ -175,6 +232,7 @@ class MainWindow(QMainWindow):
         self.resize(1280, 640)
 
         self._worker: DaqWorker | None = None
+        self._csv_writer: CsvWriter | None = None
         self._is_running = False
         self._rate = DEFAULT_RATE
         self._dt_sample = 1.0 / DEFAULT_RATE
@@ -239,6 +297,43 @@ class MainWindow(QMainWindow):
 
         group.setLayout(form)
 
+        # ── CSV export group ──────────────────────────────────────────────
+        csv_group = QGroupBox("Export CSV")
+        csv_group.setFixedWidth(270)
+        csv_form = QFormLayout()
+        csv_form.setSpacing(6)
+        csv_form.setContentsMargins(10, 12, 10, 10)
+
+        self._chk_csv = QCheckBox("Record CSV saat Start")
+        self._chk_csv.setChecked(False)
+
+        self._inp_csv_prefix = QLineEdit(DEFAULT_CSV_PREFIX)
+
+        folder_row = QWidget()
+        folder_lay = QHBoxLayout(folder_row)
+        folder_lay.setContentsMargins(0, 0, 0, 0)
+        folder_lay.setSpacing(4)
+        self._inp_csv_folder = QLineEdit(DEFAULT_CSV_FOLDER)
+        self._inp_csv_folder.setReadOnly(True)
+        btn_browse = QPushButton("…")
+        btn_browse.setFixedWidth(28)
+        btn_browse.clicked.connect(self._on_browse_csv_folder)
+        folder_lay.addWidget(self._inp_csv_folder)
+        folder_lay.addWidget(btn_browse)
+
+        self._lbl_csv_preview = QLabel("")
+        self._lbl_csv_preview.setWordWrap(True)
+        self._lbl_csv_preview.setStyleSheet("font-size: 10px; color: gray;")
+
+        csv_form.addRow(self._chk_csv)
+        csv_form.addRow("Prefix:", self._inp_csv_prefix)
+        csv_form.addRow("Folder:", folder_row)
+        csv_form.addRow("File:", self._lbl_csv_preview)
+        csv_group.setLayout(csv_form)
+
+        self._inp_csv_prefix.textChanged.connect(self._update_csv_preview)
+        self._update_csv_preview()
+
         self._btn_start_stop = QPushButton("▶  Start")
         self._btn_start_stop.setCheckable(True)
         bold = QFont()
@@ -254,6 +349,7 @@ class MainWindow(QMainWindow):
         vbox = QVBoxLayout()
         vbox.setSpacing(8)
         vbox.addWidget(group)
+        vbox.addWidget(csv_group)
         vbox.addWidget(self._btn_start_stop)
         vbox.addWidget(self._btn_theme)
         vbox.addStretch()
@@ -304,6 +400,27 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(vbox)
         return container
+
+    # ── CSV helpers ───────────────────────────────────────────────────────────
+    def _on_browse_csv_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self, "Pilih Folder Simpan CSV", self._inp_csv_folder.text()
+        )
+        if folder:
+            self._inp_csv_folder.setText(folder)
+            self._update_csv_preview()
+
+    def _update_csv_preview(self) -> None:
+        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
+        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self._lbl_csv_preview.setText(f"{prefix}_{ts}.csv")
+
+    def _build_csv_filepath(self, start_time: dt.datetime) -> pathlib.Path:
+        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
+        ts = start_time.strftime("%Y%m%d_%H%M%S")
+        folder = pathlib.Path(self._inp_csv_folder.text())
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f"{prefix}_{ts}.csv"
 
     # ── Theme ─────────────────────────────────────────────────────────────────
     def _on_toggle_theme(self) -> None:
@@ -371,6 +488,12 @@ class MainWindow(QMainWindow):
         self._dt_sample = 1.0 / rate
         self._t0_nominal = dt.datetime.now().astimezone()
 
+        # Buka CSV writer jika checkbox aktif
+        self._csv_writer = None
+        if self._chk_csv.isChecked():
+            csv_path = self._build_csv_filepath(self._t0_nominal)
+            self._csv_writer = CsvWriter(csv_path, self._dt_sample)
+
         max_pts = int(rate * PLOT_WINDOW_SEC)
         self._buf_x = collections.deque(maxlen=max_pts)
         self._buf_ai0 = collections.deque(maxlen=max_pts)
@@ -391,10 +514,18 @@ class MainWindow(QMainWindow):
         self._worker.finished.connect(self._on_worker_finished)
 
         self._set_param_inputs_enabled(False)
+        self._chk_csv.setEnabled(False)
+        self._inp_csv_prefix.setEnabled(False)
         self._worker.start()
         self._plot_timer.start()
         self._btn_start_stop.setText("■  Stop")
-        self._set_status("Status: Running", running=True)
+        if self._csv_writer:
+            self._set_status(
+                f"Status: Running  |  Rec → {self._csv_writer.filepath.name}",
+                running=True,
+            )
+        else:
+            self._set_status("Status: Running", running=True)
         self._is_running = True
 
     def _stop_daq(self) -> None:
@@ -402,9 +533,16 @@ class MainWindow(QMainWindow):
         if self._worker:
             self._worker.stop()
             self._worker.wait(3000)
+        saved_msg = ""
+        if self._csv_writer:
+            self._csv_writer.close()
+            saved_msg = f"  |  Saved: {self._csv_writer.filepath.name}"
+            self._csv_writer = None
         self._set_param_inputs_enabled(True)
+        self._chk_csv.setEnabled(True)
+        self._inp_csv_prefix.setEnabled(True)
         self._btn_start_stop.setText("▶  Start")
-        self._set_status("Status: Stopped")
+        self._set_status(f"Status: Stopped{saved_msg}")
         self._is_running = False
 
     # ── Slots ─────────────────────────────────────────────────────────────────
@@ -414,6 +552,9 @@ class MainWindow(QMainWindow):
             self._buf_x.append(x_val)
             self._buf_ai0.append(ai0[i])
             self._buf_ai1.append(ai1[i])
+
+        if self._csv_writer is not None:
+            self._csv_writer.write_chunk(ai0, ai1, offset)
 
         # ── Print ke terminal (dicomment secara default) ───────────────────
         # ts_display = self._dd_ts_display.currentText()
@@ -484,6 +625,9 @@ class MainWindow(QMainWindow):
         if self._worker and self._worker.isRunning():
             self._worker.stop()
             self._worker.wait(3000)
+        if self._csv_writer:
+            self._csv_writer.close()
+            self._csv_writer = None
         event.accept()
 
 
