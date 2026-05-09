@@ -1469,20 +1469,30 @@ class MainWindow(QMainWindow):
         if x_pr1:
             self._analisa_vb_press.addItem(pg.ScatterPlotItem(
                 x=x_pr1, y=y_pr1, symbol="s", size=9,
-                pen=pg.mkPen("#4fc3f7", width=1),
-                brush=pg.mkBrush(0, 0, 0, 0),  # transparan agar tidak nabrak delta
+                pen=pg.mkPen(None),
+                brush=pg.mkBrush("#39ff14"),  # neon green — Pad1
                 name="Press Pad1",
             ))
+            for x, y in zip(x_pr1, y_pr1):
+                txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, -0.3), color="#39ff14")
+                txt.setPos(x, y)
+                self._analisa_vb_press.addItem(txt)
+
         if x_pr2:
             self._analisa_vb_press.addItem(pg.ScatterPlotItem(
                 x=x_pr2, y=y_pr2, symbol="s", size=9,
-                pen=pg.mkPen("#ef5350", width=1),
-                brush=pg.mkBrush(0, 0, 0, 0),
+                pen=pg.mkPen(None),
+                brush=pg.mkBrush("#ffe600"),  # yellow — Pad2
                 name="Press Pad2",
             ))
+            for x, y in zip(x_pr2, y_pr2):
+                txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, 1.4), color="#ffe600")
+                txt.setPos(x, y)
+                self._analisa_vb_press.addItem(txt)
 
-        # Sinkronkan geometri ViewBox sekunder
+        # Sinkronkan geometri ViewBox sekunder + set range Y tetap 0–7
         self._analisa_vb_press.setGeometry(pi.vb.sceneBoundingRect())
+        self._analisa_vb_press.setYRange(0, 7, padding=0)
 
         # Pastikan sumbu X bertick integer
         pi.getAxis("bottom").setTicks(
