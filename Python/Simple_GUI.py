@@ -26,7 +26,9 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QPushButton,
     QSizePolicy,
+    QButtonGroup,
     QHeaderView,
+    QRadioButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -500,7 +502,7 @@ class MainWindow(QMainWindow):
         group.setFixedWidth(360)
 
         NUM_DATA_ROWS = 10
-        COLS = 5
+        COLS = 4
 
         self._data_table = QTableWidget(2 + NUM_DATA_ROWS, COLS)
         self._data_table.horizontalHeader().hide()
@@ -513,13 +515,11 @@ class MainWindow(QMainWindow):
         )
         self._data_table.setShowGrid(True)
 
-        # "Pad 1" span 2 kolom, "Pad 2" span 2 kolom,
-        # "Delta Time" span 1 kolom tapi span 2 baris (row 0-1)
+        # "Pad 1" span 2 kolom, "Pad 2" span 2 kolom
         self._data_table.setSpan(0, 0, 1, 2)
         self._data_table.setSpan(0, 2, 1, 2)
-        self._data_table.setSpan(0, 4, 2, 1)
 
-        row0_labels = {0: "Pad 1", 2: "Pad 2", 4: "Delta\nTime"}
+        row0_labels = {0: "Pad 1", 2: "Pad 2"}
         row1_labels = {0: "Time", 1: "Pressure", 2: "Time", 3: "Pressure"}
 
         bold = QFont()
@@ -614,10 +614,32 @@ class MainWindow(QMainWindow):
         for c in range(1, 4):
             param_grid.setColumnStretch(c, 1)
 
+        # ── Time format radio buttons ────────────────────────────────────────
+        self._rb_seconds = QRadioButton("Seconds")
+        self._rb_mmss    = QRadioButton("MM:SS.sss")
+        self._rb_seconds.setChecked(True)
+
+        self._rb_group = QButtonGroup(self)
+        self._rb_group.addButton(self._rb_seconds)
+        self._rb_group.addButton(self._rb_mmss)
+        self._rb_group.buttonClicked.connect(
+            lambda _: self._reformat_table_times()
+        )
+
+        fmt_row = QHBoxLayout()
+        fmt_row.setSpacing(10)
+        fmt_lbl = QLabel("Time Format:")
+        fmt_lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        fmt_row.addWidget(fmt_lbl)
+        fmt_row.addWidget(self._rb_seconds)
+        fmt_row.addWidget(self._rb_mmss)
+        fmt_row.addStretch()
+
         vbox = QVBoxLayout()
         vbox.setContentsMargins(8, 12, 8, 8)
         vbox.setSpacing(6)
         vbox.addLayout(param_grid)
+        vbox.addLayout(fmt_row)
         vbox.addWidget(self._data_table)
         vbox.addStretch()
         group.setLayout(vbox)
@@ -634,7 +656,7 @@ class MainWindow(QMainWindow):
         else:
             bg = QColor("#d6d9df")
             fg = QColor("#1a1a1a")
-        header_cells = [(0, 0), (0, 2), (0, 4), (1, 0), (1, 1), (1, 2), (1, 3)]
+        header_cells = [(0, 0), (0, 2), (1, 0), (1, 1), (1, 2), (1, 3)]
         for row, col in header_cells:
             item = self._data_table.item(row, col)
             if item:
@@ -829,6 +851,25 @@ class MainWindow(QMainWindow):
         #         ts_str = f"{rel_s:g}"
         #     print(ts_str, float(ai0[i]), float(ai1[i]))
 
+    def _fmt_time(self, seconds: float) -> str:
+        """Format waktu sesuai pilihan radio button."""
+        if self._rb_mmss.isChecked():
+            total_ms = int(round(seconds * 1000))
+            mins, rem_ms = divmod(total_ms, 60_000)
+            secs, ms = divmod(rem_ms, 1000)
+            return f"{mins:02d}:{secs:02d}.{ms:03d}"
+        return f"{seconds:.3f}"
+
+    def _reformat_table_times(self) -> None:
+        """Reformat semua sel Time di tabel tanpa mengubah data."""
+        for row in range(2, 2 + TABLE_ROWS):
+            for col in (0, 2):
+                item = self._data_table.item(row, col)
+                if item:
+                    val = item.data(Qt.ItemDataRole.UserRole)
+                    if val is not None:
+                        item.setText(self._fmt_time(val))
+
     def _append_table_row(self, t0: float, pressure: float, channel: int) -> None:
         """Tulis satu hasil deteksi ke tabel.
 
@@ -840,20 +881,26 @@ class MainWindow(QMainWindow):
         col_press = channel * 2 + 1  # 1 atau 3
 
         if self._table_next_row >= 2 + TABLE_ROWS:
-            # Geser semua baris ke atas satu langkah
+            # Geser semua baris ke atas satu langkah (text + UserRole)
             for row in range(2, 2 + TABLE_ROWS - 1):
-                for col in (col_time, col_press):
-                    src = self._data_table.item(row + 1, col)
-                    dst = self._data_table.item(row, col)
-                    if dst and src:
-                        dst.setText(src.text())
+                src_t = self._data_table.item(row + 1, col_time)
+                dst_t = self._data_table.item(row, col_time)
+                src_p = self._data_table.item(row + 1, col_press)
+                dst_p = self._data_table.item(row, col_press)
+                if dst_t and src_t:
+                    dst_t.setText(src_t.text())
+                    dst_t.setData(Qt.ItemDataRole.UserRole,
+                                  src_t.data(Qt.ItemDataRole.UserRole))
+                if dst_p and src_p:
+                    dst_p.setText(src_p.text())
             self._table_next_row = 2 + TABLE_ROWS - 1
 
         row = self._table_next_row
         t_item = self._data_table.item(row, col_time)
         p_item = self._data_table.item(row, col_press)
         if t_item:
-            t_item.setText(f"{t0:.3f}")
+            t_item.setData(Qt.ItemDataRole.UserRole, t0)   # simpan float asli
+            t_item.setText(self._fmt_time(t0))
         if p_item:
             p_item.setText(f"{pressure:.4f}")
         self._table_next_row += 1
