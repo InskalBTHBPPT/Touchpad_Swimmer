@@ -1381,7 +1381,12 @@ class MainWindow(QMainWindow):
         t1: list[float], p1: list[float],
         t2: list[float], p2: list[float],
     ) -> None:
-        """Plot Pressure vs Time untuk Pad1 (biru) dan Pad2 (merah)."""
+        """Plot Pressure vs Time — semua event digabung satu garis berurutan waktu.
+
+        Garis abu-abu menghubungkan seluruh event (Pad1 + Pad2) yang sudah
+        diurutkan berdasarkan waktu. Titik Pad1 berwarna biru, Pad2 merah,
+        sehingga tetap bisa dibedakan meski terhubung satu garis.
+        """
         pi: pg.PlotItem = self._analisa_pw_pressure.getPlotItem()
         pi.clear()
         try:
@@ -1389,24 +1394,48 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        if t1 and p1:
-            pi.plot(
-                np.array(t1), np.array(p1),
-                pen=pg.mkPen("#4fc3f7", width=2),
-                symbol="o", symbolSize=9,
-                symbolPen=pg.mkPen(None),
-                symbolBrush=pg.mkBrush("#4fc3f7"),
+        all_events: list[tuple[float, float, str]] = (
+            [(t, p, "Pad1") for t, p in zip(t1, p1)]
+            + [(t, p, "Pad2") for t, p in zip(t2, p2)]
+        )
+        if not all_events:
+            return
+
+        all_events.sort(key=lambda e: e[0])
+        t_all = np.array([e[0] for e in all_events])
+        p_all = np.array([e[1] for e in all_events])
+
+        # Garis penghubung semua titik (satu garis kontinyu)
+        pi.plot(
+            t_all, p_all,
+            pen=pg.mkPen("#888888", width=1.5),
+        )
+
+        # Scatter Pad1 (biru) dan Pad2 (merah) — ditambah ke legend
+        t1_arr = np.array([e[0] for e in all_events if e[2] == "Pad1"])
+        p1_arr = np.array([e[1] for e in all_events if e[2] == "Pad1"])
+        t2_arr = np.array([e[0] for e in all_events if e[2] == "Pad2"])
+        p2_arr = np.array([e[1] for e in all_events if e[2] == "Pad2"])
+
+        if len(t1_arr):
+            sc1 = pg.ScatterPlotItem(
+                x=t1_arr, y=p1_arr,
+                symbol="o", size=11,
+                pen=pg.mkPen(None),
+                brush=pg.mkBrush("#4fc3f7"),
                 name="Pad1",
             )
-        if t2 and p2:
-            pi.plot(
-                np.array(t2), np.array(p2),
-                pen=pg.mkPen("#ef5350", width=2),
-                symbol="o", symbolSize=9,
-                symbolPen=pg.mkPen(None),
-                symbolBrush=pg.mkBrush("#ef5350"),
+            pi.addItem(sc1)
+
+        if len(t2_arr):
+            sc2 = pg.ScatterPlotItem(
+                x=t2_arr, y=p2_arr,
+                symbol="o", size=11,
+                pen=pg.mkPen(None),
+                brush=pg.mkBrush("#ef5350"),
                 name="Pad2",
             )
+            pi.addItem(sc2)
 
     def _analisa_compute_and_plot_deltas(
         self, t1_list: list[float], t2_list: list[float]
