@@ -161,6 +161,9 @@ _THEMES: dict[str, dict] = {
             QTabBar::tab:selected { background: #ffffff; color: #000000;
                                     font-weight: bold; }
             QTabBar::tab:hover { background: #eeeeee; }
+            QHeaderView::section { background-color: #d0d3d8; color: #1a1a1a;
+                                    border: 1px solid #bbb; padding: 3px 6px;
+                                    font-weight: bold; }
         """,
         "btn_styles": {
             "start":      _btn_ss("#388e3c", "#43a047", "#b71c1c"),
@@ -199,6 +202,9 @@ _THEMES: dict[str, dict] = {
             QTabBar::tab:selected { background: #2b2b2b; color: #ffffff;
                                     font-weight: bold; border-bottom: 1px solid #2b2b2b; }
             QTabBar::tab:hover { background: #4c5052; }
+            QHeaderView::section { background-color: #4a4d51; color: #dddddd;
+                                    border: 1px solid #555; padding: 3px 6px;
+                                    font-weight: bold; }
         """,
         "btn_styles": {
             "start":      _btn_ss("#2e7d32", "#388e3c", "#b71c1c"),
