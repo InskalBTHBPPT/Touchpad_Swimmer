@@ -252,6 +252,7 @@ class MainWindow(QMainWindow):
 
         root.addWidget(self._build_param_panel(), stretch=0)
         root.addWidget(self._build_chart_panel(), stretch=1)
+        root.addWidget(self._build_table_panel(), stretch=0)
 
         self._plot_timer = QTimer(self)
         self._plot_timer.setInterval(PLOT_REFRESH_MS)
