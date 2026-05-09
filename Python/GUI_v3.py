@@ -155,10 +155,12 @@ _THEMES: dict[str, dict] = {
             QTabBar::tab:hover { background: #eeeeee; }
         """,
         "btn_styles": {
-            "start":     _btn_ss("#388e3c", "#43a047", "#b71c1c"),
-            "save":      _btn_ss("#1976d2", "#1e88e5"),
-            "set_param": _btn_ss("#455a64", "#546e7a"),
-            "theme":     _btn_ss("#512da8", "#5e35b1"),
+            "start":      _btn_ss("#388e3c", "#43a047", "#b71c1c"),
+            "save":       _btn_ss("#1976d2", "#1e88e5"),
+            "set_param":  _btn_ss("#455a64", "#546e7a"),
+            "theme":      _btn_ss("#512da8", "#5e35b1"),
+            "load_log":   _btn_ss("#00838f", "#0097a7"),
+            "load_table": _btn_ss("#e64a19", "#f4511e"),
         },
     },
     "Dark": {
@@ -191,10 +193,12 @@ _THEMES: dict[str, dict] = {
             QTabBar::tab:hover { background: #4c5052; }
         """,
         "btn_styles": {
-            "start":     _btn_ss("#2e7d32", "#388e3c", "#b71c1c"),
-            "save":      _btn_ss("#1565c0", "#1976d2"),
-            "set_param": _btn_ss("#37474f", "#455a64"),
-            "theme":     _btn_ss("#4527a0", "#512da8"),
+            "start":      _btn_ss("#2e7d32", "#388e3c", "#b71c1c"),
+            "save":       _btn_ss("#1565c0", "#1976d2"),
+            "set_param":  _btn_ss("#37474f", "#455a64"),
+            "theme":      _btn_ss("#4527a0", "#512da8"),
+            "load_log":   _btn_ss("#006064", "#00838f"),
+            "load_table": _btn_ss("#bf360c", "#e64a19"),
         },
     },
 }
@@ -1065,65 +1069,102 @@ class MainWindow(QMainWindow):
         chart_container.setLayout(chart_vbox)
 
         # ── Load panel (kanan) ─────────────────────────────────────────────
-        btn_load_log = QPushButton("📂  Load CSV Log")
-        btn_load_log.setToolTip("Muat satu atau beberapa file CSV Log untuk di-overlay")
-        btn_load_log.clicked.connect(self._on_analisa_load_log)
+        def _info_form(
+            lbl_nama: QLabel, lbl_gaya: QLabel,
+            lbl_jarak: QLabel, lbl_tanggal: QLabel,
+        ) -> QFormLayout:
+            form = QFormLayout()
+            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+            form.setContentsMargins(0, 0, 0, 0)
+            form.setSpacing(3)
+            form.addRow("Nama:", lbl_nama)
+            form.addRow("Gaya:", lbl_gaya)
+            form.addRow("Jarak:", lbl_jarak)
+            form.addRow("Tanggal:", lbl_tanggal)
+            return form
 
-        btn_load_table = QPushButton("📂  Load CSV Table")
-        btn_load_table.setToolTip("Muat file CSV Table (akan diimplementasikan)")
-        btn_load_table.clicked.connect(self._on_analisa_load_table)
+        # ── Bagian CSV Log ────────────────────────────────────────────────
+        self._btn_load_log = QPushButton("📂  Load CSV Log")
+        self._btn_load_log.setToolTip("Muat satu atau beberapa file CSV Log untuk di-overlay")
+        self._btn_load_log.clicked.connect(self._on_analisa_load_log)
+        btn_load_log = self._btn_load_log
 
-        btn_clear = QPushButton("🗑  Clear All")
-        btn_clear.setToolTip("Hapus semua plot yang sudah dimuat")
-        btn_clear.clicked.connect(self._on_analisa_clear)
+        self._analisa_lbl_log_file = QLabel("(belum ada file)")
+        self._analisa_lbl_log_file.setWordWrap(True)
+        self._analisa_lbl_log_file.setTextFormat(Qt.TextFormat.RichText)
+        self._analisa_lbl_log_file.setStyleSheet("font-style: italic; font-size: 10px;")
 
-        grp_load = QGroupBox("Load File")
-        lay_load = QVBoxLayout(grp_load)
-        lay_load.setSpacing(6)
-        lay_load.addWidget(btn_load_log)
-        lay_load.addWidget(btn_load_table)
-        lay_load.addWidget(btn_clear)
-
-        # Info perenang dari metadata file terakhir yang dimuat
-        self._analisa_lbl_nama = QLabel("-")
-        self._analisa_lbl_gaya = QLabel("-")
-        self._analisa_lbl_jarak = QLabel("-")
-        self._analisa_lbl_tanggal = QLabel("-")
+        self._analisa_lbl_log_nama = QLabel("-")
+        self._analisa_lbl_log_gaya = QLabel("-")
+        self._analisa_lbl_log_jarak = QLabel("-")
+        self._analisa_lbl_log_tanggal = QLabel("-")
         for lbl in (
-            self._analisa_lbl_nama, self._analisa_lbl_gaya,
-            self._analisa_lbl_jarak, self._analisa_lbl_tanggal,
+            self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
+            self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
         ):
             lbl.setWordWrap(True)
 
-        grp_info = QGroupBox("Info Perenang (file terakhir)")
-        form_info = QFormLayout(grp_info)
-        form_info.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-        form_info.addRow("Nama:", self._analisa_lbl_nama)
-        form_info.addRow("Gaya:", self._analisa_lbl_gaya)
-        form_info.addRow("Jarak:", self._analisa_lbl_jarak)
-        form_info.addRow("Tanggal:", self._analisa_lbl_tanggal)
+        grp_log_load = QGroupBox("CSV Log")
+        lay_ll = QVBoxLayout(grp_log_load)
+        lay_ll.setSpacing(4)
+        lay_ll.addWidget(btn_load_log)
+        lay_ll.addWidget(self._analisa_lbl_log_file)
+        lay_ll.addLayout(
+            _info_form(
+                self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
+                self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
+            )
+        )
 
-        # Daftar file yang sudah dimuat (sebagai colored legend list)
-        self._analisa_files_label = QLabel("(belum ada file)")
-        self._analisa_files_label.setWordWrap(True)
-        self._analisa_files_label.setTextFormat(Qt.TextFormat.RichText)
+        # ── Bagian CSV Table ──────────────────────────────────────────────
+        self._btn_load_table = QPushButton("📂  Load CSV Table")
+        self._btn_load_table.setToolTip("Muat satu file CSV Table")
+        self._btn_load_table.clicked.connect(self._on_analisa_load_table)
+        btn_load_table = self._btn_load_table
 
-        grp_files = QGroupBox("File Dimuat")
-        lay_files = QVBoxLayout(grp_files)
-        lay_files.addWidget(self._analisa_files_label)
+        self._analisa_lbl_tbl_file = QLabel("(belum ada file)")
+        self._analisa_lbl_tbl_file.setWordWrap(True)
+        self._analisa_lbl_tbl_file.setStyleSheet("font-style: italic; font-size: 10px;")
 
-        grp_tbl = QGroupBox("Data Table")
-        lay_grp_tbl = QVBoxLayout(grp_tbl)
+        self._analisa_lbl_tbl_nama = QLabel("-")
+        self._analisa_lbl_tbl_gaya = QLabel("-")
+        self._analisa_lbl_tbl_jarak = QLabel("-")
+        self._analisa_lbl_tbl_tanggal = QLabel("-")
+        for lbl in (
+            self._analisa_lbl_tbl_nama, self._analisa_lbl_tbl_gaya,
+            self._analisa_lbl_tbl_jarak, self._analisa_lbl_tbl_tanggal,
+        ):
+            lbl.setWordWrap(True)
+
+        grp_tbl_data = QGroupBox("Data Table")
+        lay_grp_tbl = QVBoxLayout(grp_tbl_data)
         lay_grp_tbl.setContentsMargins(4, 4, 4, 4)
         lay_grp_tbl.addWidget(self._analisa_tbl_data)
+
+        grp_tbl_load = QGroupBox("CSV Table")
+        lay_tl = QVBoxLayout(grp_tbl_load)
+        lay_tl.setSpacing(4)
+        lay_tl.addWidget(btn_load_table)
+        lay_tl.addWidget(self._analisa_lbl_tbl_file)
+        lay_tl.addLayout(
+            _info_form(
+                self._analisa_lbl_tbl_nama, self._analisa_lbl_tbl_gaya,
+                self._analisa_lbl_tbl_jarak, self._analisa_lbl_tbl_tanggal,
+            )
+        )
+        lay_tl.addWidget(grp_tbl_data, stretch=1)
+
+        # ── Clear All ─────────────────────────────────────────────────────
+        btn_clear = QPushButton("🗑  Clear All")
+        btn_clear.setToolTip("Hapus semua plot dan data yang sudah dimuat")
+        btn_clear.clicked.connect(self._on_analisa_clear)
 
         load_vbox = QVBoxLayout()
         load_vbox.setContentsMargins(0, 0, 0, 0)
         load_vbox.setSpacing(8)
-        load_vbox.addWidget(grp_load)
-        load_vbox.addWidget(grp_info)
-        load_vbox.addWidget(grp_tbl, stretch=1)
-        load_vbox.addWidget(grp_files)
+        load_vbox.addWidget(grp_log_load)
+        load_vbox.addWidget(grp_tbl_load, stretch=1)
+        load_vbox.addWidget(btn_clear)
 
         load_container = QWidget()
         load_container.setFixedWidth(380)
@@ -1189,11 +1230,11 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Tampilkan info perenang dari metadata
-        self._analisa_lbl_nama.setText(meta.get("Nama Perenang", "-"))
-        self._analisa_lbl_gaya.setText(meta.get("Gaya", "-"))
-        self._analisa_lbl_jarak.setText(meta.get("Jarak", "-"))
-        self._analisa_lbl_tanggal.setText(meta.get("Tanggal", "-"))
+        # Tampilkan info perenang dari metadata (log section)
+        self._analisa_lbl_log_nama.setText(meta.get("Nama Perenang", "-"))
+        self._analisa_lbl_log_gaya.setText(meta.get("Gaya", "-"))
+        self._analisa_lbl_log_jarak.setText(meta.get("Jarak", "-"))
+        self._analisa_lbl_log_tanggal.setText(meta.get("Tanggal", "-"))
 
         # Pilih pasangan warna (AI0, AI1) berdasarkan urutan file
         color_ai0, color_ai1 = self._ANALISA_COLOR_PAIRS[
@@ -1219,9 +1260,9 @@ class MainWindow(QMainWindow):
         self._update_analisa_files_label()
 
     def _update_analisa_files_label(self) -> None:
-        """Perbarui daftar file yang dimuat sebagai HTML colored list."""
+        """Perbarui label daftar file CSV Log yang dimuat (colored HTML list)."""
         if not self._analisa_log_curves:
-            self._analisa_files_label.setText("(belum ada file)")
+            self._analisa_lbl_log_file.setText("(belum ada file)")
             return
         lines: list[str] = []
         for i, (stem, _, _) in enumerate(self._analisa_log_curves):
@@ -1230,7 +1271,7 @@ class MainWindow(QMainWindow):
                 f'<span style="color:{c0};">&#9632;</span>'
                 f'<span style="color:{c1};">&#9632;</span> {stem}'
             )
-        self._analisa_files_label.setText("<br>".join(lines))
+        self._analisa_lbl_log_file.setText("<br>".join(lines))
 
     def _on_analisa_load_table(self) -> None:
         """Buka dialog pilih satu CSV Table, lalu tampilkan dan hitung delta time."""
@@ -1269,11 +1310,12 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Update info perenang dari metadata
-        self._analisa_lbl_nama.setText(meta.get("Nama Perenang", "-"))
-        self._analisa_lbl_gaya.setText(meta.get("Gaya", "-"))
-        self._analisa_lbl_jarak.setText(meta.get("Jarak", "-"))
-        self._analisa_lbl_tanggal.setText(meta.get("Tanggal", "-"))
+        # Update info perenang dari metadata (table section)
+        self._analisa_lbl_tbl_file.setText(filepath.name)
+        self._analisa_lbl_tbl_nama.setText(meta.get("Nama Perenang", "-"))
+        self._analisa_lbl_tbl_gaya.setText(meta.get("Gaya", "-"))
+        self._analisa_lbl_tbl_jarak.setText(meta.get("Jarak", "-"))
+        self._analisa_lbl_tbl_tanggal.setText(meta.get("Tanggal", "-"))
 
         # Populate QTableWidget dan kumpulkan data untuk plot
         self._analisa_tbl_data.setRowCount(len(rows))
@@ -1476,13 +1518,21 @@ class MainWindow(QMainWindow):
         self._analisa_pw_delta.getPlotItem().clear()
         self._analisa_tbl_data.setRowCount(0)
 
-        # Reset info labels
+        # Reset label CSV Log
         for lbl in (
-            self._analisa_lbl_nama, self._analisa_lbl_gaya,
-            self._analisa_lbl_jarak, self._analisa_lbl_tanggal,
+            self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
+            self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
         ):
             lbl.setText("-")
         self._update_analisa_files_label()
+
+        # Reset label CSV Table
+        self._analisa_lbl_tbl_file.setText("(belum ada file)")
+        for lbl in (
+            self._analisa_lbl_tbl_nama, self._analisa_lbl_tbl_gaya,
+            self._analisa_lbl_tbl_jarak, self._analisa_lbl_tbl_tanggal,
+        ):
+            lbl.setText("-")
 
     # ── CSV helpers ───────────────────────────────────────────────────────────
     def _on_browse_csv_folder(self) -> None:
@@ -1927,6 +1977,8 @@ class MainWindow(QMainWindow):
         self._btn_save_table.setStyleSheet(bs["save"])
         self._btn_set_param.setStyleSheet(bs["set_param"])
         self._btn_theme.setStyleSheet(bs["theme"])
+        self._btn_load_log.setStyleSheet(bs["load_log"])
+        self._btn_load_table.setStyleSheet(bs["load_table"])
 
         # Label tombol tema
         if theme_name == "Dark":
