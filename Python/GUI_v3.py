@@ -1013,21 +1013,15 @@ class MainWindow(QMainWindow):
         lay_lp.setContentsMargins(4, 4, 4, 4)
         lay_lp.addWidget(self._analisa_pw_log)
 
-        # ── Bottom: tabel data + scatter delta time ────────────────────────
-        # Tabel untuk menampilkan isi CSV Table yang di-load
-        self._analisa_tbl_data = QTableWidget(0, 5)
-        self._analisa_tbl_data.setHorizontalHeaderLabels(
-            ["No", "Time Pad1 (s)", "Press Pad1 (Kg)", "Time Pad2 (s)", "Press Pad2 (Kg)"]
-        )
-        self._analisa_tbl_data.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._analisa_tbl_data.setSelectionBehavior(
-            QTableWidget.SelectionBehavior.SelectRows
-        )
-        self._analisa_tbl_data.setAlternatingRowColors(True)
-        self._analisa_tbl_data.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
-        self._analisa_tbl_data.verticalHeader().hide()
+        # ── Bottom: pressure plot (kiri) + scatter delta time (kanan) ──────
+        # Plot Pressure vs Time — dua kurva: Pad1 dan Pad2
+        self._analisa_pw_pressure = pg.PlotWidget()
+        pi_press: pg.PlotItem = self._analisa_pw_pressure.getPlotItem()
+        pi_press.setTitle("Pressure vs Time")
+        pi_press.setLabel("left", "Pressure", units="Kg")
+        pi_press.setLabel("bottom", "Time", units="s")
+        pi_press.showGrid(x=True, y=True, alpha=0.3)
+        self._analisa_press_legend = pi_press.addLegend(offset=(10, 10))
 
         # Scatter plot delta time
         self._analisa_pw_delta = pg.PlotWidget()
@@ -1041,11 +1035,26 @@ class MainWindow(QMainWindow):
         bottom_hbox = QHBoxLayout()
         bottom_hbox.setContentsMargins(4, 4, 4, 4)
         bottom_hbox.setSpacing(8)
-        bottom_hbox.addWidget(self._analisa_tbl_data, stretch=2)
-        bottom_hbox.addWidget(self._analisa_pw_delta, stretch=3)
+        bottom_hbox.addWidget(self._analisa_pw_pressure, stretch=1)
+        bottom_hbox.addWidget(self._analisa_pw_delta, stretch=1)
 
         grp_table_plot = QGroupBox("CSV Table Analysis")
         grp_table_plot.setLayout(bottom_hbox)
+
+        # Tabel data — dipindah ke load_container (lihat di bawah)
+        self._analisa_tbl_data = QTableWidget(0, 5)
+        self._analisa_tbl_data.setHorizontalHeaderLabels(
+            ["No", "Time Pad1 (s)", "Press Pad1 (Kg)", "Time Pad2 (s)", "Press Pad2 (Kg)"]
+        )
+        self._analisa_tbl_data.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._analisa_tbl_data.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self._analisa_tbl_data.setAlternatingRowColors(True)
+        self._analisa_tbl_data.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self._analisa_tbl_data.verticalHeader().hide()
 
         chart_vbox = QVBoxLayout()
         chart_vbox.setContentsMargins(0, 0, 0, 0)
@@ -1103,16 +1112,21 @@ class MainWindow(QMainWindow):
         lay_files = QVBoxLayout(grp_files)
         lay_files.addWidget(self._analisa_files_label)
 
+        grp_tbl = QGroupBox("Data Table")
+        lay_grp_tbl = QVBoxLayout(grp_tbl)
+        lay_grp_tbl.setContentsMargins(4, 4, 4, 4)
+        lay_grp_tbl.addWidget(self._analisa_tbl_data)
+
         load_vbox = QVBoxLayout()
         load_vbox.setContentsMargins(0, 0, 0, 0)
         load_vbox.setSpacing(8)
         load_vbox.addWidget(grp_load)
         load_vbox.addWidget(grp_info)
+        load_vbox.addWidget(grp_tbl, stretch=1)
         load_vbox.addWidget(grp_files)
-        load_vbox.addStretch()
 
         load_container = QWidget()
-        load_container.setFixedWidth(300)
+        load_container.setFixedWidth(380)
         load_container.setLayout(load_vbox)
 
         # ── Root layout ────────────────────────────────────────────────────
@@ -1261,10 +1275,12 @@ class MainWindow(QMainWindow):
         self._analisa_lbl_jarak.setText(meta.get("Jarak", "-"))
         self._analisa_lbl_tanggal.setText(meta.get("Tanggal", "-"))
 
-        # Populate QTableWidget
+        # Populate QTableWidget dan kumpulkan data untuk plot
         self._analisa_tbl_data.setRowCount(len(rows))
-        t1_list: list[float] = []
-        t2_list: list[float] = []
+        t1_list:  list[float] = []
+        p1_list:  list[float] = []
+        t2_list:  list[float] = []
+        p2_list:  list[float] = []
 
         for i, row in enumerate(rows):
             for j in range(5):
@@ -1277,11 +1293,25 @@ class MainWindow(QMainWindow):
 
             t1 = self._analisa_parse_time_s(row[1] if len(row) > 1 else "")
             t2 = self._analisa_parse_time_s(row[3] if len(row) > 3 else "")
-            if t1 is not None:
-                t1_list.append(t1)
-            if t2 is not None:
-                t2_list.append(t2)
 
+            # Pressure (kolom index 2 = Pad1, 4 = Pad2)
+            try:
+                p1_val = float(row[2]) if len(row) > 2 and row[2].strip() else None
+            except ValueError:
+                p1_val = None
+            try:
+                p2_val = float(row[4]) if len(row) > 4 and row[4].strip() else None
+            except ValueError:
+                p2_val = None
+
+            if t1 is not None and p1_val is not None:
+                t1_list.append(t1)
+                p1_list.append(p1_val)
+            if t2 is not None and p2_val is not None:
+                t2_list.append(t2)
+                p2_list.append(p2_val)
+
+        self._analisa_plot_pressure(t1_list, p1_list, t2_list, p2_list)
         self._analisa_compute_and_plot_deltas(t1_list, t2_list)
 
     @staticmethod
@@ -1303,6 +1333,38 @@ class MainWindow(QMainWindow):
             return float(val)
         except ValueError:
             return None
+
+    def _analisa_plot_pressure(
+        self,
+        t1: list[float], p1: list[float],
+        t2: list[float], p2: list[float],
+    ) -> None:
+        """Plot Pressure vs Time untuk Pad1 (biru) dan Pad2 (merah)."""
+        pi: pg.PlotItem = self._analisa_pw_pressure.getPlotItem()
+        pi.clear()
+        try:
+            self._analisa_press_legend.clear()
+        except Exception:
+            pass
+
+        if t1 and p1:
+            pi.plot(
+                np.array(t1), np.array(p1),
+                pen=pg.mkPen("#4fc3f7", width=2),
+                symbol="o", symbolSize=9,
+                symbolPen=pg.mkPen(None),
+                symbolBrush=pg.mkBrush("#4fc3f7"),
+                name="Pad1",
+            )
+        if t2 and p2:
+            pi.plot(
+                np.array(t2), np.array(p2),
+                pen=pg.mkPen("#ef5350", width=2),
+                symbol="o", symbolSize=9,
+                symbolPen=pg.mkPen(None),
+                symbolBrush=pg.mkBrush("#ef5350"),
+                name="Pad2",
+            )
 
     def _analisa_compute_and_plot_deltas(
         self, t1_list: list[float], t2_list: list[float]
@@ -1409,7 +1471,8 @@ class MainWindow(QMainWindow):
             pi_log.removeItem(c1)
         self._analisa_log_curves.clear()
 
-        # Bersihkan CSV Table scatter + tabel
+        # Bersihkan CSV Table: pressure plot, delta scatter, tabel
+        self._analisa_pw_pressure.getPlotItem().clear()
         self._analisa_pw_delta.getPlotItem().clear()
         self._analisa_tbl_data.setRowCount(0)
 
