@@ -6,7 +6,7 @@ from typing import Literal
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QThread, Signal, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPalette, QColor
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -43,6 +43,43 @@ TERMINAL_MAP: dict[str, TerminalConfiguration] = {
     "DIFF": TerminalConfiguration.DIFF,
     "RSE": TerminalConfiguration.RSE,
     "NRSE": TerminalConfiguration.NRSE,
+}
+
+# ─── Theme definitions ────────────────────────────────────────────────────────
+# Setiap theme menyimpan: warna plot background, warna foreground (axis/text),
+# warna kurva AI0 & AI1, stylesheet Qt untuk widget.
+_THEMES: dict[str, dict] = {
+    "Light": {
+        "pg_bg": "w",
+        "pg_fg": "k",
+        "curve_ai0": (30, 144, 255),
+        "curve_ai1": (220, 80, 0),
+        "qt_stylesheet": "",
+    },
+    "Dark": {
+        "pg_bg": "#1e1e1e",
+        "pg_fg": "#cccccc",
+        "curve_ai0": (100, 180, 255),
+        "curve_ai1": (255, 140, 60),
+        "qt_stylesheet": """
+            QWidget          { background-color: #2b2b2b; color: #dddddd; }
+            QGroupBox        { border: 1px solid #555; border-radius: 4px;
+                               margin-top: 6px; color: #cccccc; }
+            QGroupBox::title { subcontrol-origin: margin; left: 8px;
+                               padding: 0 4px; }
+            QLineEdit        { background: #3c3c3c; border: 1px solid #555;
+                               border-radius: 3px; color: #dddddd; padding: 2px 4px; }
+            QComboBox        { background: #3c3c3c; border: 1px solid #555;
+                               border-radius: 3px; color: #dddddd; padding: 2px 4px; }
+            QComboBox QAbstractItemView { background: #3c3c3c; color: #dddddd;
+                                          selection-background-color: #555; }
+            QPushButton      { background: #3c3f41; border: 1px solid #666;
+                               border-radius: 4px; color: #dddddd; padding: 4px 8px; }
+            QPushButton:hover   { background: #4c5052; }
+            QPushButton:checked { background: #8b1a1a; color: #ffffff; }
+            QLabel           { color: #cccccc; }
+        """,
+    },
 }
 
 
@@ -142,6 +179,7 @@ class MainWindow(QMainWindow):
         self._rate = DEFAULT_RATE
         self._dt_sample = 1.0 / DEFAULT_RATE
         self._t0_nominal: dt.datetime | None = None
+        self._current_theme = "Light"
 
         max_pts = int(DEFAULT_RATE * PLOT_WINDOW_SEC)
         self._buf_x: collections.deque[float] = collections.deque(maxlen=max_pts)
@@ -160,6 +198,8 @@ class MainWindow(QMainWindow):
         self._plot_timer = QTimer(self)
         self._plot_timer.setInterval(PLOT_REFRESH_MS)
         self._plot_timer.timeout.connect(self._refresh_plot)
+
+        self._apply_theme("Light")
 
     # ── Parameter panel ──────────────────────────────────────────────────────
     def _build_param_panel(self) -> QWidget:
@@ -207,10 +247,15 @@ class MainWindow(QMainWindow):
         self._btn_start_stop.setMinimumHeight(44)
         self._btn_start_stop.clicked.connect(self._on_start_stop)
 
+        self._btn_theme = QPushButton("🌙  Dark")
+        self._btn_theme.setMinimumHeight(32)
+        self._btn_theme.clicked.connect(self._on_toggle_theme)
+
         vbox = QVBoxLayout()
-        vbox.setSpacing(10)
+        vbox.setSpacing(8)
         vbox.addWidget(group)
         vbox.addWidget(self._btn_start_stop)
+        vbox.addWidget(self._btn_theme)
         vbox.addStretch()
 
         container = QWidget()
@@ -220,8 +265,6 @@ class MainWindow(QMainWindow):
 
     # ── Chart panel ──────────────────────────────────────────────────────────
     def _build_chart_panel(self) -> QWidget:
-        pg.setConfigOptions(antialias=False, useOpenGL=False, background="w", foreground="k")
-
         def _make_plot_widget(title: str) -> tuple[pg.PlotWidget, pg.PlotDataItem]:
             pw = pg.PlotWidget(title=title)
             pi: pg.PlotItem = pw.getPlotItem()
@@ -232,12 +275,8 @@ class MainWindow(QMainWindow):
             pi.setClipToView(True)
             return pw, pi.plot()
 
-        # Dua PlotWidget terpisah → masing-masing di QGroupBox → stretch sama
         self._pw_ai0, self._curve_ai0 = _make_plot_widget("AI 0")
         self._pw_ai1, self._curve_ai1 = _make_plot_widget("AI 1")
-
-        self._curve_ai0.setPen(pg.mkPen(color=(30, 144, 255), width=1))
-        self._curve_ai1.setPen(pg.mkPen(color=(220, 80, 0), width=1))
 
         # Hubungkan sumbu X agar zoom/pan bergerak bersamaan
         self._pw_ai0.setXLink(self._pw_ai1)
@@ -265,6 +304,44 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(vbox)
         return container
+
+    # ── Theme ─────────────────────────────────────────────────────────────────
+    def _on_toggle_theme(self) -> None:
+        next_theme = "Dark" if self._current_theme == "Light" else "Light"
+        self._apply_theme(next_theme)
+
+    def _apply_theme(self, theme_name: str) -> None:
+        theme = _THEMES[theme_name]
+        self._current_theme = theme_name
+
+        # Qt stylesheet untuk semua widget
+        QApplication.instance().setStyleSheet(theme["qt_stylesheet"])
+
+        # pyqtgraph: background & foreground
+        for pw in (self._pw_ai0, self._pw_ai1):
+            pw.setBackground(theme["pg_bg"])
+            pi: pg.PlotItem = pw.getPlotItem()
+            for axis_name in ("left", "bottom", "top", "right"):
+                axis = pi.getAxis(axis_name)
+                if axis is not None:
+                    axis.setPen(pg.mkPen(color=theme["pg_fg"]))
+                    axis.setTextPen(pg.mkPen(color=theme["pg_fg"]))
+            title_item = pi.titleLabel
+            if title_item is not None:
+                title_item.setText(
+                    title_item.text,
+                    color=theme["pg_fg"],
+                )
+
+        # Warna kurva
+        self._curve_ai0.setPen(pg.mkPen(color=theme["curve_ai0"], width=1))
+        self._curve_ai1.setPen(pg.mkPen(color=theme["curve_ai1"], width=1))
+
+        # Label tombol
+        if theme_name == "Dark":
+            self._btn_theme.setText("☀️  Light")
+        else:
+            self._btn_theme.setText("🌙  Dark")
 
     # ── Start / Stop ─────────────────────────────────────────────────────────
     def _on_start_stop(self, checked: bool) -> None:
@@ -386,7 +463,7 @@ class MainWindow(QMainWindow):
         if error:
             color = "red"
         elif running:
-            color = "green"
+            color = "#4caf50"
         else:
             color = "gray"
         self._status_label.setStyleSheet(f"color: {color}; padding: 2px 4px;")
