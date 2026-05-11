@@ -55,7 +55,7 @@ Aplikasi dirancang untuk pengujian gaya dorong perenang (*swimmer touchpad testi
 |---|---|
 | OS | Windows 10 64-bit atau lebih baru |
 | Python | 3.11 atau lebih baru |
-| NI-DAQmx Driver | 21.0 atau lebih baru |
+| NI-DAQmx Driver | Direkomendasikan driver yang kompatibel dengan perangkat Anda (rilis NI yang didukung). **Sudah diuji dengan driver versi 20.0.** |
 | RAM | 4 GB |
 | Perangkat DAQ | NI DAQ (mis. NI USB-6009, NI USB-6210, dsb.) |
 
