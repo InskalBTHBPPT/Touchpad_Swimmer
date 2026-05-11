@@ -1714,6 +1714,15 @@ class MainWindow(QMainWindow):
         prefix = self._inp_csv_prefix.text().strip() or "DAQ"
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         self._lbl_csv_preview.setText(f"{prefix}_{ts}.csv")
+        self._update_table_preview()
+
+    def _update_table_preview(self, at_time: dt.datetime | None = None) -> None:
+        """Perbarui preview nama file Table CSV pada panel Live."""
+        if not hasattr(self, "_lbl_table_preview"):
+            return
+        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
+        ts = (at_time or dt.datetime.now()).strftime("%Y%m%d_%H%M%S")
+        self._lbl_table_preview.setText(f"{prefix}_table_{ts}_session.csv")
 
     def _build_csv_filepath(self, start_time: dt.datetime) -> pathlib.Path:
         prefix = self._inp_csv_prefix.text().strip() or "DAQ"
@@ -1885,6 +1894,10 @@ class MainWindow(QMainWindow):
         folder_form.addWidget(folder_lbl)
         folder_form.addWidget(table_folder_row)
 
+        self._lbl_table_preview = QLabel("")
+        self._lbl_table_preview.setWordWrap(True)
+        self._lbl_table_preview.setStyleSheet("font-size: 10px; color: gray;")
+
         self._btn_save_table = QPushButton("💾  Save Table to CSV")
         self._btn_save_table.setMinimumHeight(32)
         self._btn_save_table.clicked.connect(self._on_save_table_csv)
@@ -1921,7 +1934,7 @@ class MainWindow(QMainWindow):
         self._dd_distance.currentTextChanged.connect(self._update_prefix_from_swimmer)
 
         # ── Export CSV (dipindah dari panel kiri) ────────────────────────────
-        csv_group = QGroupBox("")
+        csv_group = QGroupBox("Export Log to CSV")
         csv_form = QFormLayout()
         csv_form.setSpacing(6)
         csv_form.setContentsMargins(10, 12, 10, 10)
@@ -1955,6 +1968,7 @@ class MainWindow(QMainWindow):
 
         self._inp_csv_prefix.textChanged.connect(self._update_csv_preview)
         self._update_csv_preview()
+        self._update_table_preview()
 
         # ── Start/Stop (dipindah dari panel kiri) ───────────────────────────
         self._btn_start_stop = QPushButton("▶  Start")
@@ -1990,6 +2004,7 @@ class MainWindow(QMainWindow):
         table_vbox.addLayout(fmt_row)
         table_vbox.addWidget(self._data_table)
         table_vbox.addLayout(folder_form)
+        table_vbox.addWidget(self._lbl_table_preview)
         table_vbox.addWidget(self._btn_save_table)
         group.setLayout(table_vbox)
 
@@ -2058,6 +2073,7 @@ class MainWindow(QMainWindow):
         )
         if folder:
             self._inp_table_folder.setText(folder)
+            self._update_table_preview()
 
     def _on_open_param_dialog(self) -> None:
         dlg = ParameterDialog(self, parent=self)
@@ -2316,6 +2332,7 @@ class MainWindow(QMainWindow):
             pathlib.Path(self._inp_table_folder.text())
             / f"{prefix}_table_{ts_sess}_session.csv"
         )
+        self._update_table_preview(self._t0_nominal)
 
         # Buat detector dari nilai parameter saat ini
         def _safe_float(text: str, default: float) -> float:
