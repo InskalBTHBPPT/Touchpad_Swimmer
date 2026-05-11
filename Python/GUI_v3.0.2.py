@@ -1,45 +1,39 @@
 """
-GUI_v3.py — NI DAQ Monitor for Touchpad Swimmer
-================================================
-Aplikasi desktop real-time untuk akuisisi dan analisis data tekanan
-dari dua sensor touchpad (Pad 1 / Pad 2) menggunakan perangkat
-NI Data Acquisition (NI DAQ).
+GUI_v3.0.2.py — NI DAQ Monitor for Touchpad Swimmer
+====================================================
+Aplikasi desktop real-time untuk akuisisi dan analisis data dua sensor
+touchpad (Pad 1 / Pad 2) menggunakan perangkat NI Data Acquisition (NI DAQ).
 
 Fitur Utama
 -----------
 * Akuisisi kontinu dua channel analog (AI0, AI1) via NI-DAQmx.
-* Visualisasi real-time dengan pyqtgraph (10 detik jendela tampil, ~10 FPS).
-* Deteksi sentuhan otomatis per channel menggunakan Schmitt trigger
-  (threshold + hysteresis) dengan anti-debounce hold-time.
-* Tabel hasil deteksi (10 baris per pad) dengan auto-scroll.
-* Export log mentah ke CSV (semua sampel) dan tabel ringkas ke CSV.
-* Metadata perenang (Nama, Gaya, Jarak) ditulis sebagai header CSV
-  untuk traceability data.
-* Input Info Perenang (Nama, Gaya Renang, Jarak) yang otomatis
-  menjadi prefix nama file CSV dengan dropdown jarak dinamis per gaya.
-* Konfigurasi parameter disimpan/dimuat dari config.json secara otomatis.
-* Tema Light/Dark yang dapat diubah kapan saja.
-* Antarmuka bertab: "Live Data" (akuisisi real-time) dan
-  "Analisa Data" (analisis file CSV hasil rekaman).
+* Visualisasi real-time dengan pyqtgraph (jendela 10 detik, refresh ~10 FPS).
+* Deteksi sentuhan otomatis per channel (Schmitt trigger + hold-time).
+* Tabel deteksi Live (10 baris per pad, auto-scroll saat penuh).
+* Rekaman Log CSV opsional via checkbox "Record CSV Log saat Start".
+* Autosave CSV tabel per sesi saat ada data sentuhan baru
+  (`*_table_*_session.csv`) untuk mitigasi lupa simpan/crash.
+* Dialog ringkasan selesai pengukuran saat Stop (lokasi file log + tabel).
+* Info Perenang (Nama, Gaya, Jarak) sebagai metadata header CSV.
+* Tombol Help (buka PDF/MD manual) dan About (ringkasan aplikasi).
+* Antarmuka bertab: "Live Data" dan "Analisa Data".
 
 Tab Analisa Data
 ----------------
-* Load dan overlay beberapa file CSV Log pada satu plot (multi-file overlay).
-* Load file CSV Table untuk menampilkan data dalam tabel dan plot analisis.
-* Plot "Split Time & Tekanan per Sentuhan":
-  - Sumbu kiri  : Δ Time (s) — delta waktu antar sentuhan berurutan.
-  - Sumbu kanan : Pressure (Kg) — tekanan per sentuhan (secondary Y axis).
-  - Label dua baris per titik: t (waktu kumulatif) dan dt (delta).
-  - Warna berbeda per arah: biru (→Pad2/outbound), merah (→Pad1/return).
-  - Marker pressure: kotak hijau neon (Pad1), kuning (Pad2).
-* Info Perenang otomatis terbaca dari metadata file CSV.
+* Overlay multi-file CSV Log dalam satu plot.
+* Load CSV Table ke Data Table + plot analisis split time/tekanan.
+* Plot "Split Time & Tekanan per Sentuhan" (dual Y axis):
+  - Y kiri: Δ Time (s)
+  - Y kanan: Pressure (Kg)
+  - Warna arah lintasan: biru (→Pad2/outbound), merah (→Pad1/return)
+  - Marker tekanan: hijau (Pad1), kuning (Pad2)
 
 Struktur Kelas
 --------------
 ChannelDetector  — State machine Schmitt trigger per channel.
-CsvWriter        — Penulis CSV asinkron berbasis queue/thread (+ metadata header).
+CsvWriter        — Penulis CSV asinkron berbasis queue/thread.
 DaqWorker        — Thread akuisisi NI-DAQmx (non-blocking terhadap GUI).
-ParameterDialog  — Dialog modal untuk konfigurasi parameter & detektor.
+ParameterDialog  — Dialog konfigurasi parameter.
 MainWindow       — Jendela utama aplikasi (PySide6 QMainWindow).
 
 Dependensi
@@ -52,10 +46,10 @@ nidaqmx  (NI-DAQmx Python driver)
 
 Cara Menjalankan
 ----------------
-    python GUI_v3.py
+    python GUI_v3.0.2.py
 
 Penulis  : Tim Pengujian Touchpad Swimmer
-Versi    : 3.0
+Versi    : 3.0.2
 """
 
 import collections

@@ -1,6 +1,6 @@
 # User Manual — NI DAQ Monitor (Touchpad Swimmer)
-**Versi:** 3.0  
-**File Aplikasi:** `GUI_v3.py`  
+**Versi:** 3.0.2  
+**File Aplikasi:** `GUI_v3.0.2.py`  
 **Platform:** Windows 10/11  
 **Terakhir diperbarui:** Mei 2026
 
@@ -18,7 +18,7 @@
 8. [Memulai Akuisisi Data](#8-memulai-akuisisi-data)
 9. [Rekaman Log CSV](#9-rekaman-log-csv)
 10. [Tabel Hasil Deteksi](#10-tabel-hasil-deteksi)
-11. [Menyimpan Tabel ke CSV](#11-menyimpan-tabel-ke-csv)
+11. [Penyimpanan Tabel ke CSV (Otomatis)](#11-penyimpanan-tabel-ke-csv-otomatis)
 12. [Format File Output (dengan Metadata)](#12-format-file-output-dengan-metadata)
 13. [Manajemen Default Parameter](#13-manajemen-default-parameter)
 14. [Tema Tampilan](#14-tema-tampilan)
@@ -90,7 +90,7 @@ Struktur folder:
 ```
 Touchpad_Swimmer/
 ├── Python/
-│   ├── GUI_v3.py              ← File aplikasi utama
+│   ├── GUI_v3.0.2.py          ← File aplikasi utama
 │   ├── config.json            ← Konfigurasi tersimpan (dibuat otomatis)
 │   ├── UserManual_v3.md       ← Dokumen ini
 │   ├── UserManual_v3.pdf      ← Versi PDF dokumen ini
@@ -105,10 +105,10 @@ Touchpad_Swimmer/
 Buka terminal / command prompt, arahkan ke folder `Python/`, lalu jalankan:
 
 ```bash
-python GUI_v3.py
+python GUI_v3.0.2.py
 ```
 
-Atau klik dua kali file `GUI_v3.py` jika Python sudah terkait dengan ekstensi `.py`.
+Atau klik dua kali file `GUI_v3.0.2.py` jika Python sudah terkait dengan ekstensi `.py`.
 
 ---
 
@@ -127,18 +127,18 @@ Tampilan aplikasi terdiri dari dua tab utama. Tab **Live Data** berisi:
 │  └─────────────────────┘  │  │ Jarak:[50m ▼]                   │ │
 │                           │  └─────────────────────────────────┘ │
 │  ┌─ Channel AI 1 ──────┐  │  ┌─ Export Log to CSV ─────────────┐ │
-│  │  [Graf real-time]   │  │  │ ☑ Record CSV saat Start         │ │
+│  │  [Graf real-time]   │  │  │ ☑ Record CSV Log saat Start     │ │
 │  └─────────────────────┘  │  │ Prefix: [Ahmad_Bebas_50m]       │ │
 │                           │  │ Folder: [DataLog/]  […]         │ │
 │  Status: Stopped          │  │ File:   Ahmad_Bebas_50m_xxx.csv │ │
 │                           │  └─────────────────────────────────┘ │
-│                           │  [▶▶▶▶▶▶▶▶  Start  ▶▶▶▶▶▶▶▶▶▶▶] │
 │                           │  ┌─ Table ─────────────────────────┐ │
-│                           │  │ Time Format: ○ Seconds ○ MM:SS  │ │
+│                           │  │ Time Format: ● MM:SS.ss ○ Seconds│ │
 │                           │  │ [Tabel Pad1      | Tabel Pad2]  │ │
 │                           │  │ Folder: [DataTable/]  […]       │ │
-│                           │  │ [💾 Save Table to CSV]          │ │
+│                           │  │ File: [prefix_table_..._session]│ │
 │                           │  └─────────────────────────────────┘ │
+│                           │  [▶▶▶▶▶▶▶▶  Start  ▶▶▶▶▶▶▶▶▶▶▶] │
 │                           │  [⚙️ Set Parameter]  [🌙 Dark]     │
 └───────────────────────────┴──────────────────────────────────────┘
 ```
@@ -224,7 +224,7 @@ Tekan tombol **⚙️ Set Parameter** untuk membuka jendela konfigurasi.
 1. Isi **Info Perenang** (Nama, Gaya, Jarak)
 2. Pastikan perangkat NI DAQ terhubung
 3. Konfigurasi parameter via **⚙️ Set Parameter**
-4. Pastikan **☑ Record CSV saat Start** tercentang (default: aktif)
+4. Pastikan **☑ Record CSV Log saat Start** tercentang (default: aktif)
 5. Tekan **▶ Start** (berwarna hijau)
 6. Grafik menampilkan data real-time, status bar: `Status: Running`
 7. Tekan **■ Stop** untuk menghentikan akuisisi
@@ -237,7 +237,7 @@ Tekan tombol **⚙️ Set Parameter** untuk membuka jendela konfigurasi.
 
 ### Mengaktifkan Rekaman
 
-1. Centang **☑ Record CSV saat Start**
+1. Centang **☑ Record CSV Log saat Start**
 2. Prefix nama file diisi otomatis dari Info Perenang
 3. Pilih folder tujuan dengan tombol **[…]**
 4. Nama file pratinjau ditampilkan di baris **File:**
@@ -274,16 +274,21 @@ Tabel menampung **10 baris** per pad. Jika penuh, baris lama digeser ke atas.
 
 ### Format Waktu
 
+- **MM:SS.ss** *(default)* — `00:12.34`
 - **Seconds** — `12.345`
-- **MM:SS.sss** — `00:12.345`
 
 ---
 
-## 11. Menyimpan Tabel ke CSV
+## 11. Penyimpanan Tabel ke CSV (Otomatis)
 
-1. Pilih folder tujuan di baris **Folder:** dalam group Table
-2. Tekan **💾 Save Table to CSV**
-3. File disimpan: `[Prefix]_table_[timestamp].csv`
+1. Pilih folder tujuan di baris **Folder:** pada group Table.
+2. Aplikasi akan membuat file tabel sesi otomatis saat ada penambahan data sentuhan.
+3. Nama file mengikuti pola: `[Prefix]_table_[timestamp]_session.csv`.
+4. Saat tombol **■ Stop** ditekan, file tabel sesi ditulis ulang (final snapshot) lalu
+   dialog ringkasan ditampilkan.
+
+> **Catatan UI:** Tombol **💾 Save Table to CSV** saat ini disembunyikan dari antarmuka,
+> namun fungsi internalnya tetap ada untuk kebutuhan aktivasi ulang di masa depan.
 
 ### Format File Tabel CSV (dengan Metadata)
 
@@ -313,7 +318,7 @@ timestamp_s,ai0_V,ai1_V
 0.000000,0.0124,0.0089
 ```
 
-### Tabel CSV (`DataTable/[Prefix]_table_YYYYMMDD_HHMMSS.csv`)
+### Tabel CSV Sesi (`DataTable/[Prefix]_table_YYYYMMDD_HHMMSS_session.csv`)
 
 ```csv
 # Nama Perenang,Ahmad Syafii
@@ -333,7 +338,7 @@ import pandas as pd
 df_log = pd.read_csv("Ahmad_Bebas_100m_20260509.csv", comment="#")
 
 # Table CSV
-df_table = pd.read_csv("Ahmad_Bebas_100m_table_20260509.csv", comment="#")
+df_table = pd.read_csv("Ahmad_Bebas_100m_table_20260509_183200_session.csv", comment="#")
 ```
 
 ---
@@ -555,4 +560,4 @@ Hapus file `config.json` dan jalankan ulang. Sistem akan menggunakan nilai defau
 
 ---
 
-*Dokumen ini dibuat untuk GUI_v3.py — NI DAQ Monitor Touchpad Swimmer v3.0*
+*Dokumen ini dibuat untuk GUI_v3.0.2.py — NI DAQ Monitor Touchpad Swimmer v3.0.2*
