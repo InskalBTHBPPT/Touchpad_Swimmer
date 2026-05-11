@@ -878,6 +878,7 @@ class MainWindow(QMainWindow):
 
         self._worker: DaqWorker | None = None
         self._csv_writer: CsvWriter | None = None
+        self._session_table_autosave_path: pathlib.Path | None = None
         self._is_running = False
         self._rate = DEFAULT_RATE
         self._dt_sample = 1.0 / DEFAULT_RATE
@@ -2115,18 +2116,27 @@ class MainWindow(QMainWindow):
 
         dlg.exec()
 
-    def _on_save_table_csv(self) -> None:
-        """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV."""
-        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
-        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        folder = pathlib.Path(self._inp_table_folder.text())
+    def _data_table_has_touch_rows(self) -> bool:
+        """True jika ada sel data (baris 2+) yang tidak kosong di tabel Live."""
+        for row in range(2, 2 + TABLE_ROWS):
+            for col in range(self._data_table.columnCount()):
+                item = self._data_table.item(row, col)
+                if item and item.text().strip():
+                    return True
+        return False
+
+    def _write_table_csv_to_path(
+        self, filepath: pathlib.Path, *, show_message: bool
+    ) -> bool:
+        """Tulis isi tabel deteksi ke filepath. Metadata = Info Perenang saat ini."""
+        folder = filepath.parent
         try:
             folder.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            QMessageBox.critical(self, "Error", f"Gagal membuat folder:\n{exc}")
-            return
+            if show_message:
+                QMessageBox.critical(self, "Error", f"Gagal membuat folder:\n{exc}")
+            return False
 
-        filepath = folder / f"{prefix}_table_{ts}.csv"
         try:
             with filepath.open("w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
@@ -2147,12 +2157,65 @@ class MainWindow(QMainWindow):
                     if t1_val or p1_val or t2_val or p2_val:
                         writer.writerow([idx, t1_val, p1_val, t2_val, p2_val])
         except OSError as exc:
-            QMessageBox.critical(self, "Error", f"Gagal menyimpan file:\n{exc}")
-            return
+            if show_message:
+                QMessageBox.critical(self, "Error", f"Gagal menyimpan file:\n{exc}")
+            return False
 
-        QMessageBox.information(
-            self, "Tersimpan", f"Tabel berhasil disimpan ke:\n{filepath}"
+        if show_message:
+            QMessageBox.information(
+                self, "Tersimpan", f"Tabel berhasil disimpan ke:\n{filepath}"
+            )
+        return True
+
+    def _autosave_session_table_csv(self) -> None:
+        """Snapshot tabel ke file sesi saat ada pembaruan (ringan; dipanggil dari GUI thread)."""
+        if not self._is_running or self._session_table_autosave_path is None:
+            return
+        if not self._data_table_has_touch_rows():
+            return
+        self._write_table_csv_to_path(
+            self._session_table_autosave_path, show_message=False
         )
+
+    def _show_measurement_complete_dialog(
+        self,
+        log_path: pathlib.Path | None,
+        table_path: pathlib.Path | None,
+        table_saved: bool,
+        had_table_attempt: bool,
+    ) -> None:
+        """Ringkas lokasi file setelah Stop (log + tabel sesi)."""
+        lines = ["Proses pengukuran selesai.", ""]
+        if log_path is not None:
+            lines.append("File CSV log disimpan di:")
+            lines.append(str(log_path.resolve()))
+        else:
+            lines.append(
+                "File CSV log tidak direkam (opsi «Record CSV saat Start» nonaktif)."
+            )
+        lines.append("")
+        if table_saved and table_path is not None:
+            lines.append("File CSV tabel disimpan di:")
+            lines.append(str(table_path.resolve()))
+        elif had_table_attempt:
+            lines.append(
+                "File CSV tabel: ada data tetapi gagal disimpan "
+                "(cek folder tabel / izin disk)."
+            )
+        else:
+            lines.append(
+                "File CSV tabel: tidak ada data deteksi pada sesi ini "
+                "(tidak dibuat / tidak diperbarui)."
+            )
+        QMessageBox.information(self, "Pengukuran selesai", "\n".join(lines))
+
+    def _on_save_table_csv(self) -> None:
+        """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV — nama file baru (timestamp sekarang)."""
+        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
+        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        folder = pathlib.Path(self._inp_table_folder.text())
+        filepath = folder / f"{prefix}_table_{ts}.csv"
+        self._write_table_csv_to_path(filepath, show_message=True)
 
     # ── Theme ─────────────────────────────────────────────────────────────────
     def _on_toggle_theme(self) -> None:
@@ -2222,6 +2285,7 @@ class MainWindow(QMainWindow):
 
     def _start_daq(self) -> None:
         """Mulai akuisisi: validasi input, buat DaqWorker & ChannelDetector, mulai timer plot."""
+        self._session_table_autosave_path = None
         try:
             rate = float(self._inp_rate.text())
             buffer_size = int(self._inp_buffer.text())
@@ -2241,6 +2305,14 @@ class MainWindow(QMainWindow):
         self._rate = rate
         self._dt_sample = 1.0 / rate
         self._t0_nominal = dt.datetime.now().astimezone()
+
+        # Path autosave tabel per sesi (timestamp selaras dengan pola file log)
+        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
+        ts_sess = self._t0_nominal.strftime("%Y%m%d_%H%M%S")
+        self._session_table_autosave_path = (
+            pathlib.Path(self._inp_table_folder.text())
+            / f"{prefix}_table_{ts_sess}_session.csv"
+        )
 
         # Buat detector dari nilai parameter saat ini
         def _safe_float(text: str, default: float) -> float:
@@ -2324,11 +2396,22 @@ class MainWindow(QMainWindow):
         if self._worker:
             self._worker.stop()
             self._worker.wait(3000)
+        log_path = self._csv_writer.filepath if self._csv_writer else None
         saved_msg = ""
         if self._csv_writer:
             self._csv_writer.close()
-            saved_msg = f"  |  Saved: {self._csv_writer.filepath.name}"
+            saved_msg = f"  |  Saved: {log_path.name}" if log_path else ""
             self._csv_writer = None
+
+        table_path = self._session_table_autosave_path
+        had_table_attempt = self._data_table_has_touch_rows()
+        table_saved = False
+        if table_path is not None and had_table_attempt:
+            table_saved = self._write_table_csv_to_path(
+                table_path, show_message=False
+            )
+        self._session_table_autosave_path = None
+
         self._detector0 = None
         self._detector1 = None
         self._set_param_inputs_enabled(True)
@@ -2337,6 +2420,10 @@ class MainWindow(QMainWindow):
         self._btn_start_stop.setText("▶  Start")
         self._set_status(f"Status: Stopped{saved_msg}")
         self._is_running = False
+
+        self._show_measurement_complete_dialog(
+            log_path, table_path, table_saved, had_table_attempt
+        )
 
     # ── Slots ─────────────────────────────────────────────────────────────────
     def _on_data_ready(self, ai0: list, ai1: list, offset: int) -> None:
@@ -2438,6 +2525,7 @@ class MainWindow(QMainWindow):
         if p_item:
             p_item.setText(f"{pressure:.4f}")
         self._table_next_row[channel] += 1
+        self._autosave_session_table_csv()
 
     def _refresh_plot(self) -> None:
         """Update kurva pyqtgraph dari buffer deque. Dipanggil tiap 100 ms oleh QTimer."""
