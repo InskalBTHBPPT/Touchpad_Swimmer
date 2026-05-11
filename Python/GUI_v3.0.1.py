@@ -255,7 +255,9 @@ _ABOUT_APP_BLURB = (
     "sentuhan dalam kilogram (kg). Tekanan diperoleh dari tegangan saat sentuhan "
     "dikalikan faktor skala (Kg/Volt) yang dapat diatur per perangkat, bersama parameter "
     "deteksi lainnya.\n\n"
-    "Dirancang untuk pengujian gaya dorong perenang (swimmer touchpad testing)."
+    "Aplikasi mendukung pengujian touchpad perenang: tekanan/gaya sentuhan sekaligus "
+    "metrik waktu lintasan (waktu antar-pad / split time) untuk analisis timing race "
+    "dan tempo putaran, tidak hanya fase dorong di satu titik."
 )
 
 # Jarak valid per gaya renang (sesuai standar kompetisi)

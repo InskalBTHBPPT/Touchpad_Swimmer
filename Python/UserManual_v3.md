@@ -35,7 +35,7 @@
 
 Selain perekaman **tegangan keluaran** touchpad secara **real-time**, aplikasi mencatat **waktu** saat perenang **menyentuh atau menekan** setiap pad, serta **besar tekanan** sentuhan dalam **kilogram (kg)**. Nilai tekanan diperoleh dari tegangan saat sentuhan dikalikan **faktor skala (Kg/Volt)** beserta parameter deteksi lainnya yang dapat diatur per perangkat.
 
-Aplikasi dirancang untuk pengujian **gaya dorong perenang** (*swimmer touchpad testing*). Fitur utama meliputi:
+Aplikasi mendukung **pengujian touchpad perenang** (*swimmer touchpad testing*) dengan menggabungkan **kualitas sentuhan dan gaya dorong** (tekanan) serta **metrik waktu di lintasan**—misalnya **waktu antar-pad** (*split time*) dan analisis pasca-rekaman—sehingga relevan untuk evaluasi **timing race**, tempo putaran, dan latihan berulang, tidak hanya untuk mendeskripsikan fase dorong di satu titik. Fitur utama meliputi:
 
 - Visualisasi tegangan real-time dua channel analog (AI0 & AI1)
 - Deteksi sentuhan otomatis menggunakan algoritma Schmitt trigger
