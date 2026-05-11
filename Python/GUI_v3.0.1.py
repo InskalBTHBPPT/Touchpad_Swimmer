@@ -979,8 +979,8 @@ class MainWindow(QMainWindow):
             pi.setClipToView(True)
             return pw, pi.plot()
 
-        self._pw_ai0, self._curve_ai0 = _make_plot_widget("AI 0")
-        self._pw_ai1, self._curve_ai1 = _make_plot_widget("AI 1")
+        self._pw_ai0, self._curve_ai0 = _make_plot_widget("AI 0 - Pad 0")
+        self._pw_ai1, self._curve_ai1 = _make_plot_widget("AI 1 - Pad 1")
 
         # Hubungkan sumbu X agar zoom/pan bergerak bersamaan
         self._pw_ai0.setXLink(self._pw_ai1)
