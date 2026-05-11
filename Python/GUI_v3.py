@@ -1921,21 +1921,37 @@ class MainWindow(QMainWindow):
         return container
 
     def _update_table_header_colors(self) -> None:
-        """Sesuaikan warna background sel header dengan tema aktif."""
-        if not hasattr(self, "_data_table"):
-            return
+        """Sesuaikan warna header tabel Live dan Analisa dengan tema aktif (sama)."""
         if self._current_theme == "Dark":
             bg = QColor("#4a4d51")
             fg = QColor("#dddddd")
+            border = "#5c5f63"
         else:
             bg = QColor("#d6d9df")
             fg = QColor("#1a1a1a")
-        header_cells = [(0, 0), (0, 2), (1, 0), (1, 1), (1, 2), (1, 3)]
-        for row, col in header_cells:
-            item = self._data_table.item(row, col)
-            if item:
-                item.setBackground(QBrush(bg))
-                item.setForeground(QBrush(fg))
+            border = "#b8bcc4"
+        bg_hex = bg.name(QColor.NameFormat.HexRgb)
+        fg_hex = fg.name(QColor.NameFormat.HexRgb)
+
+        if hasattr(self, "_data_table"):
+            header_cells = [(0, 0), (0, 2), (1, 0), (1, 1), (1, 2), (1, 3)]
+            for row, col in header_cells:
+                item = self._data_table.item(row, col)
+                if item:
+                    item.setBackground(QBrush(bg))
+                    item.setForeground(QBrush(fg))
+
+        if hasattr(self, "_analisa_tbl_data"):
+            hdr = self._analisa_tbl_data.horizontalHeader()
+            hdr.setStyleSheet(
+                "QHeaderView::section {"
+                f"background-color: {bg_hex};"
+                f"color: {fg_hex};"
+                "font-weight: bold;"
+                "padding: 4px;"
+                f"border: 1px solid {border};"
+                "}"
+            )
 
     # ── Save table ────────────────────────────────────────────────────────────
     def _on_browse_table_folder(self) -> None:
