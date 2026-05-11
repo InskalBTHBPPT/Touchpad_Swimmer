@@ -2021,8 +2021,8 @@ class MainWindow(QMainWindow):
         outer_vbox.setSpacing(6)
         outer_vbox.addWidget(swimmer_group)
         outer_vbox.addWidget(csv_group)
-        outer_vbox.addWidget(self._btn_start_stop)
         outer_vbox.addWidget(group, stretch=1)
+        outer_vbox.addWidget(self._btn_start_stop)
         outer_vbox.addLayout(btn_bottom_row)
 
         container = QWidget()
