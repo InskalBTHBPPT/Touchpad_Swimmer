@@ -1918,7 +1918,7 @@ class MainWindow(QMainWindow):
         self._dd_distance.currentTextChanged.connect(self._update_prefix_from_swimmer)
 
         # ── Export CSV (dipindah dari panel kiri) ────────────────────────────
-        csv_group = QGroupBox("Export Log to CSV")
+        csv_group = QGroupBox("Export Data Log & Table to CSV")
         csv_form = QFormLayout()
         csv_form.setSpacing(6)
         csv_form.setContentsMargins(10, 12, 10, 10)
