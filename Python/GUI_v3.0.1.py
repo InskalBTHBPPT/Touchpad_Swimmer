@@ -178,7 +178,9 @@ _THEMES: dict[str, dict] = {
             "set_param":  _btn_ss("#455a64", "#546e7a"),
             "theme":      _btn_ss("#512da8", "#5e35b1"),
             "load_log":   _btn_ss("#00838f", "#0097a7"),
-            "load_table": _btn_ss("#e64a19", "#f4511e"),
+            # Load CSV Table — sama warna dengan Save Table to CSV (biru)
+            "load_table": _btn_ss("#1976d2", "#1e88e5"),
+            "clear_analisa": _btn_ss("#c62828", "#e53935"),
         },
     },
     "Dark": {
@@ -216,7 +218,8 @@ _THEMES: dict[str, dict] = {
             "set_param":  _btn_ss("#37474f", "#455a64"),
             "theme":      _btn_ss("#4527a0", "#512da8"),
             "load_log":   _btn_ss("#006064", "#00838f"),
-            "load_table": _btn_ss("#bf360c", "#e64a19"),
+            "load_table": _btn_ss("#1565c0", "#1976d2"),
+            "clear_analisa": _btn_ss("#b71c1c", "#d32f2f"),
         },
     },
 }
@@ -1236,16 +1239,18 @@ class MainWindow(QMainWindow):
         lay_tl.addWidget(grp_tbl_data, stretch=1)
 
         # ── Clear All ─────────────────────────────────────────────────────
-        btn_clear = QPushButton("🗑  Clear All")
-        btn_clear.setToolTip("Hapus semua plot dan data yang sudah dimuat")
-        btn_clear.clicked.connect(self._on_analisa_clear)
+        self._btn_analisa_clear = QPushButton("🗑  Clear All")
+        self._btn_analisa_clear.setToolTip(
+            "Hapus semua plot dan data yang sudah dimuat"
+        )
+        self._btn_analisa_clear.clicked.connect(self._on_analisa_clear)
 
         load_vbox = QVBoxLayout()
         load_vbox.setContentsMargins(0, 0, 0, 0)
         load_vbox.setSpacing(8)
         load_vbox.addWidget(grp_log_load)
         load_vbox.addWidget(grp_tbl_load, stretch=1)
-        load_vbox.addWidget(btn_clear)
+        load_vbox.addWidget(self._btn_analisa_clear)
 
         load_container = QWidget()
         load_container.setFixedWidth(380)
@@ -2107,6 +2112,7 @@ class MainWindow(QMainWindow):
         self._btn_theme.setStyleSheet(bs["theme"])
         self._btn_load_log.setStyleSheet(bs["load_log"])
         self._btn_load_table.setStyleSheet(bs["load_table"])
+        self._btn_analisa_clear.setStyleSheet(bs["clear_analisa"])
 
         # Label tombol tema
         if theme_name == "Dark":
