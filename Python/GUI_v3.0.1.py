@@ -1946,6 +1946,15 @@ class MainWindow(QMainWindow):
         self._btn_theme.setMinimumHeight(32)
         self._btn_theme.clicked.connect(self._on_toggle_theme)
 
+        # Help / About — UI saja (handler ditambahkan nanti)
+        self._btn_help = QPushButton("❓  Help")
+        self._btn_help.setMinimumHeight(32)
+        self._btn_help.setToolTip("Bantuan penggunaan aplikasi")
+
+        self._btn_about = QPushButton("ℹ️  About")
+        self._btn_about.setMinimumHeight(32)
+        self._btn_about.setToolTip("Informasi aplikasi")
+
         # Layout dalam QGroupBox("Table") — hanya elemen tabel
         table_vbox = QVBoxLayout()
         table_vbox.setContentsMargins(8, 8, 8, 8)
@@ -1961,6 +1970,8 @@ class MainWindow(QMainWindow):
         btn_bottom_row.setSpacing(6)
         btn_bottom_row.addWidget(self._btn_set_param)
         btn_bottom_row.addWidget(self._btn_theme)
+        btn_bottom_row.addWidget(self._btn_help)
+        btn_bottom_row.addWidget(self._btn_about)
 
         outer_vbox = QVBoxLayout()
         outer_vbox.setContentsMargins(0, 0, 0, 0)
@@ -2110,6 +2121,8 @@ class MainWindow(QMainWindow):
         self._btn_save_table.setStyleSheet(bs["save"])
         self._btn_set_param.setStyleSheet(bs["set_param"])
         self._btn_theme.setStyleSheet(bs["theme"])
+        self._btn_help.setStyleSheet(bs["set_param"])
+        self._btn_about.setStyleSheet(bs["set_param"])
         self._btn_load_log.setStyleSheet(bs["load_log"])
         self._btn_load_table.setStyleSheet(bs["load_table"])
         self._btn_analisa_clear.setStyleSheet(bs["clear_analisa"])
