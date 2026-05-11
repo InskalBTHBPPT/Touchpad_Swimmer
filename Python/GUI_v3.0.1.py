@@ -1888,6 +1888,9 @@ class MainWindow(QMainWindow):
         self._btn_save_table = QPushButton("💾  Save Table to CSV")
         self._btn_save_table.setMinimumHeight(32)
         self._btn_save_table.clicked.connect(self._on_save_table_csv)
+        # Tombol disembunyikan dari UI saat ini, tapi fungsi tetap dipertahankan
+        # agar mudah diaktifkan kembali di masa depan.
+        self._btn_save_table.setVisible(False)
 
         self._btn_set_param = QPushButton("⚙️  Set Parameter")
         self._btn_set_param.setMinimumHeight(32)
@@ -1923,7 +1926,7 @@ class MainWindow(QMainWindow):
         csv_form.setSpacing(6)
         csv_form.setContentsMargins(10, 12, 10, 10)
 
-        self._chk_csv = QCheckBox("Record CSV saat Start")
+        self._chk_csv = QCheckBox("Record CSV Log saat Start")
         self._chk_csv.setChecked(True)
 
         self._inp_csv_prefix = QLineEdit(DEFAULT_CSV_PREFIX)
