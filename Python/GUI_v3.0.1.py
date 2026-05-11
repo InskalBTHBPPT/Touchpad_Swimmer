@@ -1854,13 +1854,13 @@ class MainWindow(QMainWindow):
             param_grid.setColumnStretch(c, 1)
 
         # ── Time format radio buttons ────────────────────────────────────────
+        self._rb_mmss    = QRadioButton("MM:SS.ss")
         self._rb_seconds = QRadioButton("Seconds")
-        self._rb_mmss    = QRadioButton("MM:SS.sss")
-        self._rb_seconds.setChecked(True)
+        self._rb_mmss.setChecked(True)
 
         self._rb_group = QButtonGroup(self)
-        self._rb_group.addButton(self._rb_seconds)
         self._rb_group.addButton(self._rb_mmss)
+        self._rb_group.addButton(self._rb_seconds)
         self._rb_group.buttonClicked.connect(
             lambda _: self._reformat_table_times()
         )
@@ -1870,8 +1870,8 @@ class MainWindow(QMainWindow):
         fmt_lbl = QLabel("Time Format:")
         fmt_lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         fmt_row.addWidget(fmt_lbl)
-        fmt_row.addWidget(self._rb_seconds)
         fmt_row.addWidget(self._rb_mmss)
+        fmt_row.addWidget(self._rb_seconds)
         fmt_row.addStretch()
 
         # ── Save table to CSV ────────────────────────────────────────────────
