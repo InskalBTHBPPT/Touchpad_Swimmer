@@ -31,7 +31,7 @@
 
 ## 1. Pendahuluan
 
-**NI DAQ Monitor v3** adalah aplikasi desktop untuk **akuisisi dan analisis data** dari dua sensor touchpad (**Pad 1** / **Pad 2**) yang terhubung ke perangkat **NI Data Acquisition (NI-DAQ)**. Masing-masing touchpad dipasang pada **garis lintasan** kolam renang: satu di sisi **dekat blok start** dan satu di sisi **jauh** (ujung berlawanan pada lintasan yang sama), sehingga data merekam interaksi perenang di kedua titik tersebut.
+**NI DAQ Monitor Swimmer Touchpad Monitor v3** adalah aplikasi desktop untuk **akuisisi dan analisis data** dari dua sensor touchpad (**Pad 1** / **Pad 2**) yang terhubung ke perangkat **NI Data Acquisition (NI-DAQ)**. Masing-masing touchpad dipasang pada **garis lintasan** kolam renang: satu di sisi **dekat blok start** dan satu di sisi **jauh** (ujung berlawanan pada lintasan yang sama), sehingga data merekam interaksi perenang di kedua titik tersebut.
 
 Selain perekaman **tegangan keluaran** touchpad secara **real-time**, aplikasi mencatat **waktu** saat perenang **menyentuh atau menekan** setiap pad, serta **besar tekanan** sentuhan dalam **kilogram (kg)**. Nilai tekanan diperoleh dari tegangan saat sentuhan dikalikan **faktor skala (Kg/Volt)** beserta parameter deteksi lainnya yang dapat diatur per perangkat.
 

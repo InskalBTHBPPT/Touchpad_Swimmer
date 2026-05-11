@@ -245,7 +245,7 @@ USER_MANUAL_MD = pathlib.Path(__file__).parent / "UserManual_v3.md"
 
 # Ringkasan aplikasi (selaras dengan UserManual_v3.md — bagian Pendahuluan)
 _ABOUT_APP_BLURB = (
-    "NI DAQ Monitor v3 adalah aplikasi desktop untuk akuisisi dan analisis data dari "
+    "NI DAQ Monitor Swimmer Touchpad Monitor v3 adalah aplikasi desktop untuk akuisisi dan analisis data dari "
     "dua sensor touchpad (Pad 1 / Pad 2) yang terhubung ke NI Data Acquisition (NI-DAQ).\n\n"
     "Kedua touchpad dipasang pada garis lintasan kolam renang: satu di sisi dekat blok "
     "start dan satu di sisi jauh (ujung berlawanan pada lintasan yang sama), sehingga "
