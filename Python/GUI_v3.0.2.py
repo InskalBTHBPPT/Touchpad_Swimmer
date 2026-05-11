@@ -1,45 +1,39 @@
 """
-GUI_v3.py — NI DAQ Monitor for Touchpad Swimmer
-================================================
-Aplikasi desktop real-time untuk akuisisi dan analisis data tekanan
-dari dua sensor touchpad (Pad 1 / Pad 2) menggunakan perangkat
-NI Data Acquisition (NI DAQ).
+GUI_v3.0.2.py — NI DAQ Monitor for Touchpad Swimmer
+====================================================
+Aplikasi desktop real-time untuk akuisisi dan analisis data dua sensor
+touchpad (Pad 1 / Pad 2) menggunakan perangkat NI Data Acquisition (NI DAQ).
 
 Fitur Utama
 -----------
 * Akuisisi kontinu dua channel analog (AI0, AI1) via NI-DAQmx.
-* Visualisasi real-time dengan pyqtgraph (10 detik jendela tampil, ~10 FPS).
-* Deteksi sentuhan otomatis per channel menggunakan Schmitt trigger
-  (threshold + hysteresis) dengan anti-debounce hold-time.
-* Tabel hasil deteksi (10 baris per pad) dengan auto-scroll.
-* Export log mentah ke CSV (semua sampel) dan tabel ringkas ke CSV.
-* Metadata perenang (Nama, Gaya, Jarak) ditulis sebagai header CSV
-  untuk traceability data.
-* Input Info Perenang (Nama, Gaya Renang, Jarak) yang otomatis
-  menjadi prefix nama file CSV dengan dropdown jarak dinamis per gaya.
-* Konfigurasi parameter disimpan/dimuat dari config.json secara otomatis.
-* Tema Light/Dark yang dapat diubah kapan saja.
-* Antarmuka bertab: "Live Data" (akuisisi real-time) dan
-  "Analisa Data" (analisis file CSV hasil rekaman).
+* Visualisasi real-time dengan pyqtgraph (jendela 10 detik, refresh ~10 FPS).
+* Deteksi sentuhan otomatis per channel (Schmitt trigger + hold-time).
+* Tabel deteksi Live (10 baris per pad, auto-scroll saat penuh).
+* Rekaman Log CSV opsional via checkbox "Record CSV Log saat Start".
+* Autosave CSV tabel per sesi saat ada data sentuhan baru
+  (`*_table_*_session.csv`) untuk mitigasi lupa simpan/crash.
+* Dialog ringkasan selesai pengukuran saat Stop (lokasi file log + tabel).
+* Info Perenang (Nama, Gaya, Jarak) sebagai metadata header CSV.
+* Tombol Help (buka PDF/MD manual) dan About (ringkasan aplikasi).
+* Antarmuka bertab: "Live Data" dan "Analisa Data".
 
 Tab Analisa Data
 ----------------
-* Load dan overlay beberapa file CSV Log pada satu plot (multi-file overlay).
-* Load file CSV Table untuk menampilkan data dalam tabel dan plot analisis.
-* Plot "Split Time & Tekanan per Sentuhan":
-  - Sumbu kiri  : Δ Time (s) — delta waktu antar sentuhan berurutan.
-  - Sumbu kanan : Pressure (Kg) — tekanan per sentuhan (secondary Y axis).
-  - Label dua baris per titik: t (waktu kumulatif) dan dt (delta).
-  - Warna berbeda per arah: biru (→Pad2/outbound), merah (→Pad1/return).
-  - Marker pressure: kotak hijau neon (Pad1), kuning (Pad2).
-* Info Perenang otomatis terbaca dari metadata file CSV.
+* Overlay multi-file CSV Log dalam satu plot.
+* Load CSV Table ke Data Table + plot analisis split time/tekanan.
+* Plot "Split Time & Tekanan per Sentuhan" (dual Y axis):
+  - Y kiri: Δ Time (s)
+  - Y kanan: Pressure (Kg)
+  - Warna arah lintasan: biru (→Pad2/outbound), merah (→Pad1/return)
+  - Marker tekanan: hijau (Pad1), kuning (Pad2)
 
 Struktur Kelas
 --------------
 ChannelDetector  — State machine Schmitt trigger per channel.
-CsvWriter        — Penulis CSV asinkron berbasis queue/thread (+ metadata header).
+CsvWriter        — Penulis CSV asinkron berbasis queue/thread.
 DaqWorker        — Thread akuisisi NI-DAQmx (non-blocking terhadap GUI).
-ParameterDialog  — Dialog modal untuk konfigurasi parameter & detektor.
+ParameterDialog  — Dialog konfigurasi parameter.
 MainWindow       — Jendela utama aplikasi (PySide6 QMainWindow).
 
 Dependensi
@@ -52,10 +46,10 @@ nidaqmx  (NI-DAQmx Python driver)
 
 Cara Menjalankan
 ----------------
-    python GUI_v3.py
+    python GUI_v3.0.2.py
 
 Penulis  : Tim Pengujian Touchpad Swimmer
-Versi    : 3.0
+Versi    : 3.0.2
 """
 
 import collections
@@ -878,6 +872,7 @@ class MainWindow(QMainWindow):
 
         self._worker: DaqWorker | None = None
         self._csv_writer: CsvWriter | None = None
+        self._session_table_autosave_path: pathlib.Path | None = None
         self._is_running = False
         self._rate = DEFAULT_RATE
         self._dt_sample = 1.0 / DEFAULT_RATE
@@ -1002,8 +997,8 @@ class MainWindow(QMainWindow):
             pi.setClipToView(True)
             return pw, pi.plot()
 
-        self._pw_ai0, self._curve_ai0 = _make_plot_widget("AI 0 - Pad 0")
-        self._pw_ai1, self._curve_ai1 = _make_plot_widget("AI 1 - Pad 1")
+        self._pw_ai0, self._curve_ai0 = _make_plot_widget("AI 0 - Pad 1 - Start Pad")
+        self._pw_ai1, self._curve_ai1 = _make_plot_widget("AI 1 - Pad 2 - End Pad")
 
         # Hubungkan sumbu X agar zoom/pan bergerak bersamaan
         self._pw_ai0.setXLink(self._pw_ai1)
@@ -1713,6 +1708,15 @@ class MainWindow(QMainWindow):
         prefix = self._inp_csv_prefix.text().strip() or "DAQ"
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         self._lbl_csv_preview.setText(f"{prefix}_{ts}.csv")
+        self._update_table_preview()
+
+    def _update_table_preview(self, at_time: dt.datetime | None = None) -> None:
+        """Perbarui preview nama file Table CSV pada panel Live."""
+        if not hasattr(self, "_lbl_table_preview"):
+            return
+        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
+        ts = (at_time or dt.datetime.now()).strftime("%Y%m%d_%H%M%S")
+        self._lbl_table_preview.setText(f"{prefix}_table_{ts}_session.csv")
 
     def _build_csv_filepath(self, start_time: dt.datetime) -> pathlib.Path:
         prefix = self._inp_csv_prefix.text().strip() or "DAQ"
@@ -1844,13 +1848,13 @@ class MainWindow(QMainWindow):
             param_grid.setColumnStretch(c, 1)
 
         # ── Time format radio buttons ────────────────────────────────────────
+        self._rb_mmss    = QRadioButton("MM:SS.ss")
         self._rb_seconds = QRadioButton("Seconds")
-        self._rb_mmss    = QRadioButton("MM:SS.sss")
-        self._rb_seconds.setChecked(True)
+        self._rb_mmss.setChecked(True)
 
         self._rb_group = QButtonGroup(self)
-        self._rb_group.addButton(self._rb_seconds)
         self._rb_group.addButton(self._rb_mmss)
+        self._rb_group.addButton(self._rb_seconds)
         self._rb_group.buttonClicked.connect(
             lambda _: self._reformat_table_times()
         )
@@ -1860,8 +1864,8 @@ class MainWindow(QMainWindow):
         fmt_lbl = QLabel("Time Format:")
         fmt_lbl.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         fmt_row.addWidget(fmt_lbl)
-        fmt_row.addWidget(self._rb_seconds)
         fmt_row.addWidget(self._rb_mmss)
+        fmt_row.addWidget(self._rb_seconds)
         fmt_row.addStretch()
 
         # ── Save table to CSV ────────────────────────────────────────────────
@@ -1884,9 +1888,16 @@ class MainWindow(QMainWindow):
         folder_form.addWidget(folder_lbl)
         folder_form.addWidget(table_folder_row)
 
+        self._lbl_table_preview = QLabel("")
+        self._lbl_table_preview.setWordWrap(True)
+        self._lbl_table_preview.setStyleSheet("font-size: 10px; color: gray;")
+
         self._btn_save_table = QPushButton("💾  Save Table to CSV")
         self._btn_save_table.setMinimumHeight(32)
         self._btn_save_table.clicked.connect(self._on_save_table_csv)
+        # Tombol disembunyikan dari UI saat ini, tapi fungsi tetap dipertahankan
+        # agar mudah diaktifkan kembali di masa depan.
+        self._btn_save_table.setVisible(False)
 
         self._btn_set_param = QPushButton("⚙️  Set Parameter")
         self._btn_set_param.setMinimumHeight(32)
@@ -1922,7 +1933,7 @@ class MainWindow(QMainWindow):
         csv_form.setSpacing(6)
         csv_form.setContentsMargins(10, 12, 10, 10)
 
-        self._chk_csv = QCheckBox("Record CSV saat Start")
+        self._chk_csv = QCheckBox("Record CSV Log saat Start")
         self._chk_csv.setChecked(True)
 
         self._inp_csv_prefix = QLineEdit(DEFAULT_CSV_PREFIX)
@@ -1951,6 +1962,7 @@ class MainWindow(QMainWindow):
 
         self._inp_csv_prefix.textChanged.connect(self._update_csv_preview)
         self._update_csv_preview()
+        self._update_table_preview()
 
         # ── Start/Stop (dipindah dari panel kiri) ───────────────────────────
         self._btn_start_stop = QPushButton("▶  Start")
@@ -1986,6 +1998,7 @@ class MainWindow(QMainWindow):
         table_vbox.addLayout(fmt_row)
         table_vbox.addWidget(self._data_table)
         table_vbox.addLayout(folder_form)
+        table_vbox.addWidget(self._lbl_table_preview)
         table_vbox.addWidget(self._btn_save_table)
         group.setLayout(table_vbox)
 
@@ -2002,8 +2015,8 @@ class MainWindow(QMainWindow):
         outer_vbox.setSpacing(6)
         outer_vbox.addWidget(swimmer_group)
         outer_vbox.addWidget(csv_group)
-        outer_vbox.addWidget(self._btn_start_stop)
         outer_vbox.addWidget(group, stretch=1)
+        outer_vbox.addWidget(self._btn_start_stop)
         outer_vbox.addLayout(btn_bottom_row)
 
         container = QWidget()
@@ -2054,6 +2067,7 @@ class MainWindow(QMainWindow):
         )
         if folder:
             self._inp_table_folder.setText(folder)
+            self._update_table_preview()
 
     def _on_open_param_dialog(self) -> None:
         dlg = ParameterDialog(self, parent=self)
@@ -2115,18 +2129,27 @@ class MainWindow(QMainWindow):
 
         dlg.exec()
 
-    def _on_save_table_csv(self) -> None:
-        """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV."""
-        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
-        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        folder = pathlib.Path(self._inp_table_folder.text())
+    def _data_table_has_touch_rows(self) -> bool:
+        """True jika ada sel data (baris 2+) yang tidak kosong di tabel Live."""
+        for row in range(2, 2 + TABLE_ROWS):
+            for col in range(self._data_table.columnCount()):
+                item = self._data_table.item(row, col)
+                if item and item.text().strip():
+                    return True
+        return False
+
+    def _write_table_csv_to_path(
+        self, filepath: pathlib.Path, *, show_message: bool
+    ) -> bool:
+        """Tulis isi tabel deteksi ke filepath. Metadata = Info Perenang saat ini."""
+        folder = filepath.parent
         try:
             folder.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            QMessageBox.critical(self, "Error", f"Gagal membuat folder:\n{exc}")
-            return
+            if show_message:
+                QMessageBox.critical(self, "Error", f"Gagal membuat folder:\n{exc}")
+            return False
 
-        filepath = folder / f"{prefix}_table_{ts}.csv"
         try:
             with filepath.open("w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
@@ -2147,12 +2170,65 @@ class MainWindow(QMainWindow):
                     if t1_val or p1_val or t2_val or p2_val:
                         writer.writerow([idx, t1_val, p1_val, t2_val, p2_val])
         except OSError as exc:
-            QMessageBox.critical(self, "Error", f"Gagal menyimpan file:\n{exc}")
-            return
+            if show_message:
+                QMessageBox.critical(self, "Error", f"Gagal menyimpan file:\n{exc}")
+            return False
 
-        QMessageBox.information(
-            self, "Tersimpan", f"Tabel berhasil disimpan ke:\n{filepath}"
+        if show_message:
+            QMessageBox.information(
+                self, "Tersimpan", f"Tabel berhasil disimpan ke:\n{filepath}"
+            )
+        return True
+
+    def _autosave_session_table_csv(self) -> None:
+        """Snapshot tabel ke file sesi saat ada pembaruan (ringan; dipanggil dari GUI thread)."""
+        if not self._is_running or self._session_table_autosave_path is None:
+            return
+        if not self._data_table_has_touch_rows():
+            return
+        self._write_table_csv_to_path(
+            self._session_table_autosave_path, show_message=False
         )
+
+    def _show_measurement_complete_dialog(
+        self,
+        log_path: pathlib.Path | None,
+        table_path: pathlib.Path | None,
+        table_saved: bool,
+        had_table_attempt: bool,
+    ) -> None:
+        """Ringkas lokasi file setelah Stop (log + tabel sesi)."""
+        lines = ["Proses pengukuran selesai.", ""]
+        if log_path is not None:
+            lines.append("File CSV log disimpan di:")
+            lines.append(str(log_path.resolve()))
+        else:
+            lines.append(
+                "File CSV log tidak direkam (opsi «Record CSV saat Start» nonaktif)."
+            )
+        lines.append("")
+        if table_saved and table_path is not None:
+            lines.append("File CSV tabel disimpan di:")
+            lines.append(str(table_path.resolve()))
+        elif had_table_attempt:
+            lines.append(
+                "File CSV tabel: ada data tetapi gagal disimpan "
+                "(cek folder tabel / izin disk)."
+            )
+        else:
+            lines.append(
+                "File CSV tabel: tidak ada data deteksi pada sesi ini "
+                "(tidak dibuat / tidak diperbarui)."
+            )
+        QMessageBox.information(self, "Pengukuran selesai", "\n".join(lines))
+
+    def _on_save_table_csv(self) -> None:
+        """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV — nama file baru (timestamp sekarang)."""
+        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
+        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        folder = pathlib.Path(self._inp_table_folder.text())
+        filepath = folder / f"{prefix}_table_{ts}.csv"
+        self._write_table_csv_to_path(filepath, show_message=True)
 
     # ── Theme ─────────────────────────────────────────────────────────────────
     def _on_toggle_theme(self) -> None:
@@ -2222,6 +2298,7 @@ class MainWindow(QMainWindow):
 
     def _start_daq(self) -> None:
         """Mulai akuisisi: validasi input, buat DaqWorker & ChannelDetector, mulai timer plot."""
+        self._session_table_autosave_path = None
         try:
             rate = float(self._inp_rate.text())
             buffer_size = int(self._inp_buffer.text())
@@ -2241,6 +2318,15 @@ class MainWindow(QMainWindow):
         self._rate = rate
         self._dt_sample = 1.0 / rate
         self._t0_nominal = dt.datetime.now().astimezone()
+
+        # Path autosave tabel per sesi (timestamp selaras dengan pola file log)
+        prefix = self._inp_csv_prefix.text().strip() or "DAQ"
+        ts_sess = self._t0_nominal.strftime("%Y%m%d_%H%M%S")
+        self._session_table_autosave_path = (
+            pathlib.Path(self._inp_table_folder.text())
+            / f"{prefix}_table_{ts_sess}_session.csv"
+        )
+        self._update_table_preview(self._t0_nominal)
 
         # Buat detector dari nilai parameter saat ini
         def _safe_float(text: str, default: float) -> float:
@@ -2324,11 +2410,22 @@ class MainWindow(QMainWindow):
         if self._worker:
             self._worker.stop()
             self._worker.wait(3000)
+        log_path = self._csv_writer.filepath if self._csv_writer else None
         saved_msg = ""
         if self._csv_writer:
             self._csv_writer.close()
-            saved_msg = f"  |  Saved: {self._csv_writer.filepath.name}"
+            saved_msg = f"  |  Saved: {log_path.name}" if log_path else ""
             self._csv_writer = None
+
+        table_path = self._session_table_autosave_path
+        had_table_attempt = self._data_table_has_touch_rows()
+        table_saved = False
+        if table_path is not None and had_table_attempt:
+            table_saved = self._write_table_csv_to_path(
+                table_path, show_message=False
+            )
+        self._session_table_autosave_path = None
+
         self._detector0 = None
         self._detector1 = None
         self._set_param_inputs_enabled(True)
@@ -2337,6 +2434,10 @@ class MainWindow(QMainWindow):
         self._btn_start_stop.setText("▶  Start")
         self._set_status(f"Status: Stopped{saved_msg}")
         self._is_running = False
+
+        self._show_measurement_complete_dialog(
+            log_path, table_path, table_saved, had_table_attempt
+        )
 
     # ── Slots ─────────────────────────────────────────────────────────────────
     def _on_data_ready(self, ai0: list, ai1: list, offset: int) -> None:
@@ -2438,6 +2539,7 @@ class MainWindow(QMainWindow):
         if p_item:
             p_item.setText(f"{pressure:.4f}")
         self._table_next_row[channel] += 1
+        self._autosave_session_table_csv()
 
     def _refresh_plot(self) -> None:
         """Update kurva pyqtgraph dari buffer deque. Dipanggil tiap 100 ms oleh QTimer."""
