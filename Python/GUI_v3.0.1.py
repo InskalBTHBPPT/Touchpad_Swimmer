@@ -70,7 +70,8 @@ from typing import Literal
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QThread, Signal, QTimer, Qt
+from PySide6.QtCore import QThread, Signal, QTimer, Qt, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtGui import QFont, QPalette, QColor, QBrush
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
@@ -178,7 +179,9 @@ _THEMES: dict[str, dict] = {
             "set_param":  _btn_ss("#455a64", "#546e7a"),
             "theme":      _btn_ss("#512da8", "#5e35b1"),
             "load_log":   _btn_ss("#00838f", "#0097a7"),
-            "load_table": _btn_ss("#e64a19", "#f4511e"),
+            # Load CSV Table — sama warna dengan Save Table to CSV (biru)
+            "load_table": _btn_ss("#1976d2", "#1e88e5"),
+            "clear_analisa": _btn_ss("#c62828", "#e53935"),
         },
     },
     "Dark": {
@@ -216,7 +219,8 @@ _THEMES: dict[str, dict] = {
             "set_param":  _btn_ss("#37474f", "#455a64"),
             "theme":      _btn_ss("#4527a0", "#512da8"),
             "load_log":   _btn_ss("#006064", "#00838f"),
-            "load_table": _btn_ss("#bf360c", "#e64a19"),
+            "load_table": _btn_ss("#1565c0", "#1976d2"),
+            "clear_analisa": _btn_ss("#b71c1c", "#d32f2f"),
         },
     },
 }
@@ -236,6 +240,25 @@ DEFAULT_HYSTERESIS = "0.005"
 DEFAULT_SCALE      = "1.00"
 
 CONFIG_PATH = pathlib.Path(__file__).parent / "config.json"
+USER_MANUAL_PDF = pathlib.Path(__file__).parent / "UserManual_v3.pdf"
+USER_MANUAL_MD = pathlib.Path(__file__).parent / "UserManual_v3.md"
+
+# Ringkasan aplikasi (selaras dengan UserManual_v3.md — bagian Pendahuluan)
+_ABOUT_APP_BLURB = (
+    "NI DAQ Monitor Swimmer Touchpad Monitor v3 adalah aplikasi desktop untuk akuisisi dan analisis data dari "
+    "dua sensor touchpad (Pad 1 / Pad 2) yang terhubung ke NI Data Acquisition (NI-DAQ).\n\n"
+    "Kedua touchpad dipasang pada garis lintasan kolam renang: satu di sisi dekat blok "
+    "start dan satu di sisi jauh (ujung berlawanan pada lintasan yang sama), sehingga "
+    "data merekam interaksi perenang di kedua titik tersebut.\n\n"
+    "Aplikasi memantau tegangan keluaran setiap touchpad secara real-time serta mencatat "
+    "waktu ketika perenang menyentuh atau menekan masing-masing pad, dan besar tekanan "
+    "sentuhan dalam kilogram (kg). Tekanan diperoleh dari tegangan saat sentuhan "
+    "dikalikan faktor skala (Kg/Volt) yang dapat diatur per perangkat, bersama parameter "
+    "deteksi lainnya.\n\n"
+    "Aplikasi mendukung pengujian touchpad perenang: tekanan/gaya sentuhan sekaligus "
+    "metrik waktu lintasan (waktu antar-pad / split time) untuk analisis timing race "
+    "dan tempo putaran, tidak hanya fase dorong di satu titik."
+)
 
 # Jarak valid per gaya renang (sesuai standar kompetisi)
 STROKE_DISTANCES: dict[str, list[str]] = {
@@ -979,8 +1002,8 @@ class MainWindow(QMainWindow):
             pi.setClipToView(True)
             return pw, pi.plot()
 
-        self._pw_ai0, self._curve_ai0 = _make_plot_widget("AI 0")
-        self._pw_ai1, self._curve_ai1 = _make_plot_widget("AI 1")
+        self._pw_ai0, self._curve_ai0 = _make_plot_widget("AI 0 - Pad 0")
+        self._pw_ai1, self._curve_ai1 = _make_plot_widget("AI 1 - Pad 1")
 
         # Hubungkan sumbu X agar zoom/pan bergerak bersamaan
         self._pw_ai0.setXLink(self._pw_ai1)
@@ -1236,16 +1259,18 @@ class MainWindow(QMainWindow):
         lay_tl.addWidget(grp_tbl_data, stretch=1)
 
         # ── Clear All ─────────────────────────────────────────────────────
-        btn_clear = QPushButton("🗑  Clear All")
-        btn_clear.setToolTip("Hapus semua plot dan data yang sudah dimuat")
-        btn_clear.clicked.connect(self._on_analisa_clear)
+        self._btn_analisa_clear = QPushButton("🗑  Clear All")
+        self._btn_analisa_clear.setToolTip(
+            "Hapus semua plot dan data yang sudah dimuat"
+        )
+        self._btn_analisa_clear.clicked.connect(self._on_analisa_clear)
 
         load_vbox = QVBoxLayout()
         load_vbox.setContentsMargins(0, 0, 0, 0)
         load_vbox.setSpacing(8)
         load_vbox.addWidget(grp_log_load)
         load_vbox.addWidget(grp_tbl_load, stretch=1)
-        load_vbox.addWidget(btn_clear)
+        load_vbox.addWidget(self._btn_analisa_clear)
 
         load_container = QWidget()
         load_container.setFixedWidth(380)
@@ -1941,6 +1966,19 @@ class MainWindow(QMainWindow):
         self._btn_theme.setMinimumHeight(32)
         self._btn_theme.clicked.connect(self._on_toggle_theme)
 
+        # Help / About — UI saja (handler ditambahkan nanti)
+        self._btn_help = QPushButton("❓  Help")
+        self._btn_help.setMinimumHeight(32)
+        self._btn_help.setToolTip(
+            "Buka panduan pengguna (UserManual_v3.pdf, atau .md jika PDF tidak ada)"
+        )
+        self._btn_help.clicked.connect(self._on_help)
+
+        self._btn_about = QPushButton("ℹ️  About")
+        self._btn_about.setMinimumHeight(32)
+        self._btn_about.setToolTip("Informasi aplikasi")
+        self._btn_about.clicked.connect(self._on_about)
+
         # Layout dalam QGroupBox("Table") — hanya elemen tabel
         table_vbox = QVBoxLayout()
         table_vbox.setContentsMargins(8, 8, 8, 8)
@@ -1956,6 +1994,8 @@ class MainWindow(QMainWindow):
         btn_bottom_row.setSpacing(6)
         btn_bottom_row.addWidget(self._btn_set_param)
         btn_bottom_row.addWidget(self._btn_theme)
+        btn_bottom_row.addWidget(self._btn_help)
+        btn_bottom_row.addWidget(self._btn_about)
 
         outer_vbox = QVBoxLayout()
         outer_vbox.setContentsMargins(0, 0, 0, 0)
@@ -2017,6 +2057,62 @@ class MainWindow(QMainWindow):
 
     def _on_open_param_dialog(self) -> None:
         dlg = ParameterDialog(self, parent=self)
+        dlg.exec()
+
+    def _on_help(self) -> None:
+        """Buka panduan: utamakan PDF, fallback ke Markdown di folder aplikasi."""
+        if USER_MANUAL_PDF.is_file():
+            path = USER_MANUAL_PDF
+        elif USER_MANUAL_MD.is_file():
+            path = USER_MANUAL_MD
+        else:
+            QMessageBox.warning(
+                self,
+                "Help",
+                "Berkas panduan tidak ditemukan:\n"
+                f"• {USER_MANUAL_PDF.name}\n"
+                f"• {USER_MANUAL_MD.name}\n\n"
+                f"Lokasi yang diharapkan:\n{USER_MANUAL_PDF.parent}",
+            )
+            return
+        url = QUrl.fromLocalFile(str(path.resolve()))
+        if not QDesktopServices.openUrl(url):
+            QMessageBox.warning(
+                self,
+                "Help",
+                f"Tidak dapat membuka berkas dengan aplikasi default:\n{path}",
+            )
+
+    def _on_about(self) -> None:
+        """Dialog ringkas: tujuan aplikasi, penempatan touchpad, tegangan/waktu/tekanan."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Tentang — Swimmer Monitor")
+        dlg.setMinimumWidth(440)
+
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(10)
+
+        title = QLabel("<b>Swimmer Monitor</b><br>NI DAQ Monitor &nbsp;v3.0")
+        title.setTextFormat(Qt.TextFormat.RichText)
+
+        body = QLabel(_ABOUT_APP_BLURB)
+        body.setWordWrap(True)
+        body.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+
+        btn_ok = QPushButton("OK")
+        btn_ok.setDefault(True)
+        btn_ok.clicked.connect(dlg.accept)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        btn_row.addWidget(btn_ok)
+
+        lay.addWidget(title)
+        lay.addWidget(body)
+        lay.addLayout(btn_row)
+
         dlg.exec()
 
     def _on_save_table_csv(self) -> None:
@@ -2105,8 +2201,11 @@ class MainWindow(QMainWindow):
         self._btn_save_table.setStyleSheet(bs["save"])
         self._btn_set_param.setStyleSheet(bs["set_param"])
         self._btn_theme.setStyleSheet(bs["theme"])
+        self._btn_help.setStyleSheet(bs["set_param"])
+        self._btn_about.setStyleSheet(bs["set_param"])
         self._btn_load_log.setStyleSheet(bs["load_log"])
         self._btn_load_table.setStyleSheet(bs["load_table"])
+        self._btn_analisa_clear.setStyleSheet(bs["clear_analisa"])
 
         # Label tombol tema
         if theme_name == "Dark":
