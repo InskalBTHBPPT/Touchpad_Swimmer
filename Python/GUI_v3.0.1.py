@@ -243,6 +243,21 @@ CONFIG_PATH = pathlib.Path(__file__).parent / "config.json"
 USER_MANUAL_PDF = pathlib.Path(__file__).parent / "UserManual_v3.pdf"
 USER_MANUAL_MD = pathlib.Path(__file__).parent / "UserManual_v3.md"
 
+# Ringkasan aplikasi (selaras dengan UserManual_v3.md — bagian Pendahuluan)
+_ABOUT_APP_BLURB = (
+    "NI DAQ Monitor v3 adalah aplikasi desktop untuk akuisisi dan analisis data dari "
+    "dua sensor touchpad (Pad 1 / Pad 2) yang terhubung ke NI Data Acquisition (NI-DAQ).\n\n"
+    "Kedua touchpad dipasang pada garis lintasan kolam renang: satu di sisi dekat blok "
+    "start dan satu di sisi jauh (ujung berlawanan pada lintasan yang sama), sehingga "
+    "data merekam interaksi perenang di kedua titik tersebut.\n\n"
+    "Aplikasi memantau tegangan keluaran setiap touchpad secara real-time serta mencatat "
+    "waktu ketika perenang menyentuh atau menekan masing-masing pad, dan besar tekanan "
+    "sentuhan dalam kilogram (kg). Tekanan diperoleh dari tegangan saat sentuhan "
+    "dikalikan faktor skala (Kg/Volt) yang dapat diatur per perangkat, bersama parameter "
+    "deteksi lainnya.\n\n"
+    "Dirancang untuk pengujian gaya dorong perenang (swimmer touchpad testing)."
+)
+
 # Jarak valid per gaya renang (sesuai standar kompetisi)
 STROKE_DISTANCES: dict[str, list[str]] = {
     "Bebas":      ["50m", "100m", "200m", "400m", "800m", "1500m"],
@@ -1960,6 +1975,7 @@ class MainWindow(QMainWindow):
         self._btn_about = QPushButton("ℹ️  About")
         self._btn_about.setMinimumHeight(32)
         self._btn_about.setToolTip("Informasi aplikasi")
+        self._btn_about.clicked.connect(self._on_about)
 
         # Layout dalam QGroupBox("Table") — hanya elemen tabel
         table_vbox = QVBoxLayout()
@@ -2064,6 +2080,38 @@ class MainWindow(QMainWindow):
                 "Help",
                 f"Tidak dapat membuka berkas dengan aplikasi default:\n{path}",
             )
+
+    def _on_about(self) -> None:
+        """Dialog ringkas: tujuan aplikasi, penempatan touchpad, tegangan/waktu/tekanan."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Tentang — Swimmer Monitor")
+        dlg.setMinimumWidth(440)
+
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(10)
+
+        title = QLabel("<b>Swimmer Monitor</b><br>NI DAQ Monitor &nbsp;v3.0")
+        title.setTextFormat(Qt.TextFormat.RichText)
+
+        body = QLabel(_ABOUT_APP_BLURB)
+        body.setWordWrap(True)
+        body.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+
+        btn_ok = QPushButton("OK")
+        btn_ok.setDefault(True)
+        btn_ok.clicked.connect(dlg.accept)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        btn_row.addWidget(btn_ok)
+
+        lay.addWidget(title)
+        lay.addWidget(body)
+        lay.addLayout(btn_row)
+
+        dlg.exec()
 
     def _on_save_table_csv(self) -> None:
         """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV."""
