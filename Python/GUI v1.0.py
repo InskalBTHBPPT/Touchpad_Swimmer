@@ -325,7 +325,7 @@ class DaqWorker(QThread):
                                 self.warning_occurred.emit(
                                     "read_waveform tidak didukung driver ini. "
                                     "Fallback ke read() Manual. "
-                                    "Upgrade NI-DAQmx: ni.com/downloads"
+                                    "Upgrade NI-DAQmx: https://www.ni.com/en/support/downloads/drivers/download.ni-daq-mx.html#590033"
                                 )
                                 fallback_warned = True
                             use_waveform = False

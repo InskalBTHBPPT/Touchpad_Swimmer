@@ -69,7 +69,7 @@ pip install PySide6 pyqtgraph numpy nidaqmx
 
 ## 3. Instalasi
 
-1. Install **NI-DAQmx driver** dari [ni.com/downloads](https://www.ni.com/downloads)
+1. Install **NI-DAQmx driver** dari [halaman unduhan NI-DAQmx](https://www.ni.com/en/support/downloads/drivers/download.ni-daq-mx.html#590033)
 2. Install Python 3.11+
 3. Install dependensi Python (lihat bagian 2)
 4. Salin folder proyek ke direktori kerja Anda

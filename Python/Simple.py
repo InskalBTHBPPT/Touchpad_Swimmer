@@ -118,7 +118,7 @@ with nidaqmx.Task() as task:
                                 "Peringatan: read_waveform tidak didukung oleh "
                                 "NI-DAQmx ini (butuh upgrade driver). "
                                 "Fallback ke read() + TIME_PRINT_MODE_A. "
-                                "Unduh driver terbaru: https://www.ni.com/en/support/downloads/drivers.html",
+                                "Unduh driver terbaru: https://www.ni.com/en/support/downloads/drivers/download.ni-daq-mx.html#590033",
                                 file=sys.stderr,
                             )
                             waveform_fallback_warned = True
