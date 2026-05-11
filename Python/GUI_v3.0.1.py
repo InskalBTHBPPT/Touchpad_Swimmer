@@ -70,7 +70,8 @@ from typing import Literal
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QThread, Signal, QTimer, Qt
+from PySide6.QtCore import QThread, Signal, QTimer, Qt, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtGui import QFont, QPalette, QColor, QBrush
 from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (
@@ -239,6 +240,8 @@ DEFAULT_HYSTERESIS = "0.005"
 DEFAULT_SCALE      = "1.00"
 
 CONFIG_PATH = pathlib.Path(__file__).parent / "config.json"
+USER_MANUAL_PDF = pathlib.Path(__file__).parent / "UserManual_v3.pdf"
+USER_MANUAL_MD = pathlib.Path(__file__).parent / "UserManual_v3.md"
 
 # Jarak valid per gaya renang (sesuai standar kompetisi)
 STROKE_DISTANCES: dict[str, list[str]] = {
@@ -1949,7 +1952,10 @@ class MainWindow(QMainWindow):
         # Help / About — UI saja (handler ditambahkan nanti)
         self._btn_help = QPushButton("❓  Help")
         self._btn_help.setMinimumHeight(32)
-        self._btn_help.setToolTip("Bantuan penggunaan aplikasi")
+        self._btn_help.setToolTip(
+            "Buka panduan pengguna (UserManual_v3.pdf, atau .md jika PDF tidak ada)"
+        )
+        self._btn_help.clicked.connect(self._on_help)
 
         self._btn_about = QPushButton("ℹ️  About")
         self._btn_about.setMinimumHeight(32)
@@ -2034,6 +2040,30 @@ class MainWindow(QMainWindow):
     def _on_open_param_dialog(self) -> None:
         dlg = ParameterDialog(self, parent=self)
         dlg.exec()
+
+    def _on_help(self) -> None:
+        """Buka panduan: utamakan PDF, fallback ke Markdown di folder aplikasi."""
+        if USER_MANUAL_PDF.is_file():
+            path = USER_MANUAL_PDF
+        elif USER_MANUAL_MD.is_file():
+            path = USER_MANUAL_MD
+        else:
+            QMessageBox.warning(
+                self,
+                "Help",
+                "Berkas panduan tidak ditemukan:\n"
+                f"• {USER_MANUAL_PDF.name}\n"
+                f"• {USER_MANUAL_MD.name}\n\n"
+                f"Lokasi yang diharapkan:\n{USER_MANUAL_PDF.parent}",
+            )
+            return
+        url = QUrl.fromLocalFile(str(path.resolve()))
+        if not QDesktopServices.openUrl(url):
+            QMessageBox.warning(
+                self,
+                "Help",
+                f"Tidak dapat membuka berkas dengan aplikasi default:\n{path}",
+            )
 
     def _on_save_table_csv(self) -> None:
         """Simpan isi tabel (Pad 1 & Pad 2) ke file CSV."""
