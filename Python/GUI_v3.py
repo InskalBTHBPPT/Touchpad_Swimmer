@@ -228,6 +228,7 @@ DEFAULT_TABLE_FOLDER = str(pathlib.Path(__file__).parent / "DataTable")
 
 N_COLLECT = 50          # jumlah sampel yang dirata-rata setelah trigger
 TABLE_ROWS = 10         # baris data pada tabel
+ANALISA_TABLE_HEADER_ROWS = 2  # baris header in-cell (No + Pad 1/2) pada tabel Analisa
 DEFAULT_HOLD_TIME = 10.0  # detik minimum di state HOLD sebelum bisa re-arm
 
 DEFAULT_THRESHOLD  = "0.05"
@@ -1018,6 +1019,68 @@ class MainWindow(QMainWindow):
         ("#80cbc4", "#ff7043"),  # teal – oranye tua
     ]
 
+    def _setup_analisa_data_table(self) -> None:
+        """Buat tabel Analisa: header dua baris (No rowspan + Pad 1/2), data dari baris ke-2."""
+        self._analisa_tbl_data = QTableWidget(ANALISA_TABLE_HEADER_ROWS, 5)
+        self._analisa_tbl_data.horizontalHeader().hide()
+        self._analisa_tbl_data.verticalHeader().hide()
+        self._analisa_tbl_data.setEditTriggers(
+            QTableWidget.EditTrigger.NoEditTriggers
+        )
+        self._analisa_tbl_data.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
+        self._analisa_tbl_data.setAlternatingRowColors(False)
+        self._analisa_tbl_data.setShowGrid(True)
+
+        self._analisa_tbl_data.setSpan(0, 0, 2, 1)  # No — dua baris
+        self._analisa_tbl_data.setSpan(0, 1, 1, 2)  # Pad 1
+        self._analisa_tbl_data.setSpan(0, 3, 1, 2)  # Pad 2
+
+        bold = QFont()
+        bold.setBold(True)
+        header_only = Qt.ItemFlag.ItemIsEnabled
+
+        no_item = QTableWidgetItem("No")
+        no_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        no_item.setFont(bold)
+        no_item.setFlags(header_only)
+        self._analisa_tbl_data.setItem(0, 0, no_item)
+
+        for col, text in ((1, "Pad 1"), (3, "Pad 2")):
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            item.setFont(bold)
+            item.setFlags(header_only)
+            self._analisa_tbl_data.setItem(0, col, item)
+
+        row1_labels = {
+            1: "Time",
+            2: "Press (Kg)",
+            3: "Time",
+            4: "Press (Kg)",
+        }
+        for col, text in row1_labels.items():
+            item = QTableWidgetItem(text)
+            item.setTextAlignment(
+                Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            item.setFont(bold)
+            item.setFlags(header_only)
+            self._analisa_tbl_data.setItem(1, col, item)
+
+        self._analisa_tbl_data.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self._analisa_tbl_data.setRowHeight(0, 26)
+        self._analisa_tbl_data.setRowHeight(1, 22)
+
+        self._update_table_header_colors()
+
     def _build_analisa_tab(self) -> QWidget:
         """Bangun tab Analisa Data: chart overlay (kiri) + panel load (kanan)."""
 
@@ -1076,19 +1139,7 @@ class MainWindow(QMainWindow):
         grp_table_plot.setLayout(bottom_hbox)
 
         # Tabel data — dipindah ke load_container (lihat di bawah)
-        self._analisa_tbl_data = QTableWidget(0, 5)
-        self._analisa_tbl_data.setHorizontalHeaderLabels(
-            ["No", "Time Pad1 (s)", "Press Pad1 (Kg)", "Time Pad2 (s)", "Press Pad2 (Kg)"]
-        )
-        self._analisa_tbl_data.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._analisa_tbl_data.setSelectionBehavior(
-            QTableWidget.SelectionBehavior.SelectRows
-        )
-        self._analisa_tbl_data.setAlternatingRowColors(False)
-        self._analisa_tbl_data.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
-        self._analisa_tbl_data.verticalHeader().hide()
+        self._setup_analisa_data_table()
 
         chart_vbox = QVBoxLayout()
         chart_vbox.setContentsMargins(0, 0, 0, 0)
@@ -1348,20 +1399,21 @@ class MainWindow(QMainWindow):
         self._analisa_lbl_tbl_tanggal.setText(meta.get("Tanggal", "-"))
 
         # Populate QTableWidget dan kumpulkan data untuk plot
-        self._analisa_tbl_data.setRowCount(len(rows))
+        self._analisa_tbl_data.setRowCount(ANALISA_TABLE_HEADER_ROWS + len(rows))
         t1_list:  list[float] = []
         p1_list:  list[float] = []
         t2_list:  list[float] = []
         p2_list:  list[float] = []
 
         for i, row in enumerate(rows):
+            r = ANALISA_TABLE_HEADER_ROWS + i
             for j in range(5):
                 val = row[j].strip() if j < len(row) else ""
                 item = QTableWidgetItem(val)
                 item.setTextAlignment(
                     Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
                 )
-                self._analisa_tbl_data.setItem(i, j, item)
+                self._analisa_tbl_data.setItem(r, j, item)
 
             t1 = self._analisa_parse_time_s(row[1] if len(row) > 1 else "")
             t2 = self._analisa_parse_time_s(row[3] if len(row) > 3 else "")
@@ -1574,7 +1626,7 @@ class MainWindow(QMainWindow):
             self._analisa_press_legend_box.clear()
         except Exception:
             pass
-        self._analisa_tbl_data.setRowCount(0)
+        self._analisa_tbl_data.setRowCount(ANALISA_TABLE_HEADER_ROWS)
 
         # Reset label CSV Log
         for lbl in (
@@ -1921,21 +1973,39 @@ class MainWindow(QMainWindow):
         return container
 
     def _update_table_header_colors(self) -> None:
-        """Sesuaikan warna background sel header dengan tema aktif."""
-        if not hasattr(self, "_data_table"):
-            return
+        """Sesuaikan warna header tabel Live dan Analisa dengan tema aktif (sama)."""
         if self._current_theme == "Dark":
             bg = QColor("#4a4d51")
             fg = QColor("#dddddd")
         else:
             bg = QColor("#d6d9df")
             fg = QColor("#1a1a1a")
-        header_cells = [(0, 0), (0, 2), (1, 0), (1, 1), (1, 2), (1, 3)]
-        for row, col in header_cells:
-            item = self._data_table.item(row, col)
-            if item:
-                item.setBackground(QBrush(bg))
-                item.setForeground(QBrush(fg))
+
+        if hasattr(self, "_data_table"):
+            header_cells = [(0, 0), (0, 2), (1, 0), (1, 1), (1, 2), (1, 3)]
+            for row, col in header_cells:
+                item = self._data_table.item(row, col)
+                if item:
+                    item.setBackground(QBrush(bg))
+                    item.setForeground(QBrush(fg))
+
+        if hasattr(self, "_analisa_tbl_data"):
+            # Header in-cell (sama pola dengan tabel Live): warna sel, bukan QHeaderView
+            analisa_header_cells = [
+                (0, 0),
+                (0, 1),
+                (0, 3),
+                (1, 1),
+                (1, 2),
+                (1, 3),
+                (1, 4),
+            ]
+            for row, col in analisa_header_cells:
+                item = self._analisa_tbl_data.item(row, col)
+                if item:
+                    item.setBackground(QBrush(bg))
+                    item.setForeground(QBrush(fg))
+            self._analisa_tbl_data.horizontalHeader().setStyleSheet("")
 
     # ── Save table ────────────────────────────────────────────────────────────
     def _on_browse_table_folder(self) -> None:
