@@ -35,8 +35,7 @@ Change Log 3.0.3 dari 3.0.2
 * Dialog "Load CSV Log" diarahkan ke folder DataLog, sedangkan
   "Load CSV Table" diarahkan ke folder DataTable.
 * Handler kedua tombol load CSV memvalidasi header file sebelum parsing:
-  - CSV Log harus memiliki header `timestamp_s,ai0_kg,ai1_kg`
-    (header lama `timestamp_s,ai0_V,ai1_V` masih dikenali).
+  - CSV Log harus memiliki header `timestamp_s,ai0_kg,ai1_kg`.
   - CSV Table harus memiliki header
     `No,Time_Pad1,Pressure_Pad1(Kg),Time_Pad2,Pressure_Pad2(Kg)`.
   Jika file tidak sesuai, aplikasi menampilkan notifikasi
@@ -1053,7 +1052,6 @@ class MainWindow(QMainWindow):
         ("#80cbc4", "#ff7043"),  # teal – oranye tua
     ]
     _CSV_LOG_HEADER: tuple[str, ...] = ("timestamp_s", "ai0_kg", "ai1_kg")
-    _CSV_LOG_LEGACY_HEADER: tuple[str, ...] = ("timestamp_s", "ai0_v", "ai1_v")
     _CSV_TABLE_HEADER: tuple[str, ...] = (
         "no",
         "time_pad1",
@@ -1130,13 +1128,13 @@ class MainWindow(QMainWindow):
         # ── Chart panel (kiri) ─────────────────────────────────────────────
         self._analisa_pw_log = pg.PlotWidget()
         pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
-        pi_log.setTitle("CSV Log — Overlay")
-        pi_log.setLabel("left", "Voltage", units="V")
+        pi_log.setTitle("CSV Log Pressure — Overlay")
+        pi_log.setLabel("left", "Pressure", units="Kg")
         pi_log.setLabel("bottom", "Time", units="s")
         pi_log.showGrid(x=True, y=True, alpha=0.3)
         self._analisa_legend = pi_log.addLegend(offset=(10, 10))
 
-        grp_log_plot = QGroupBox("CSV Log Overlay")
+        grp_log_plot = QGroupBox("CSV Log Pressure Overlay")
         lay_lp = QVBoxLayout(grp_log_plot)
         lay_lp.setContentsMargins(4, 4, 4, 4)
         lay_lp.addWidget(self._analisa_pw_log)
@@ -1329,10 +1327,7 @@ class MainWindow(QMainWindow):
                 header = tuple(
                     cell.strip().lower().lstrip("\ufeff") for cell in row
                 )
-                if header[: len(cls._CSV_LOG_HEADER)] in (
-                    cls._CSV_LOG_HEADER,
-                    cls._CSV_LOG_LEGACY_HEADER,
-                ):
+                if header[: len(cls._CSV_LOG_HEADER)] == cls._CSV_LOG_HEADER:
                     return "log"
                 if header[: len(cls._CSV_TABLE_HEADER)] == cls._CSV_TABLE_HEADER:
                     return "table"
