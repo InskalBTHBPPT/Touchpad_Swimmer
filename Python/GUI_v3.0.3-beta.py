@@ -1036,6 +1036,14 @@ class MainWindow(QMainWindow):
         ("#ffee58", "#ec407a"),  # kuning – pink
         ("#80cbc4", "#ff7043"),  # teal – oranye tua
     ]
+    _CSV_LOG_HEADER: tuple[str, ...] = ("timestamp_s", "ai0_v", "ai1_v")
+    _CSV_TABLE_HEADER: tuple[str, ...] = (
+        "no",
+        "time_pad1",
+        "pressure_pad1(kg)",
+        "time_pad2",
+        "pressure_pad2(kg)",
+    )
 
     def _setup_analisa_data_table(self) -> None:
         """Buat tabel Analisa: header dua baris (No rowspan + Pad 1/2), data dari baris ke-2."""
@@ -1287,6 +1295,53 @@ class MainWindow(QMainWindow):
         return root_widget
 
     # ── Analisa slots ─────────────────────────────────────────────────────────
+    @classmethod
+    def _analisa_detect_csv_kind(
+        cls, filepath: pathlib.Path
+    ) -> Literal["log", "table", "unknown", "empty"]:
+        """Deteksi tipe CSV dari header pertama setelah baris metadata."""
+        with filepath.open("r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if not row:
+                    continue
+                first_cell = row[0].strip().lstrip("\ufeff")
+                if first_cell.startswith("#"):
+                    continue
+
+                header = tuple(
+                    cell.strip().lower().lstrip("\ufeff") for cell in row
+                )
+                if header[: len(cls._CSV_LOG_HEADER)] == cls._CSV_LOG_HEADER:
+                    return "log"
+                if header[: len(cls._CSV_TABLE_HEADER)] == cls._CSV_TABLE_HEADER:
+                    return "table"
+                return "unknown"
+        return "empty"
+
+    def _warn_csv_kind_mismatch(
+        self,
+        selected_kind: Literal["log", "table", "unknown", "empty"],
+        expected_kind: Literal["log", "table"],
+    ) -> None:
+        expected_label = "CSV Log" if expected_kind == "log" else "CSV Table"
+        selected_label = "CSV Log" if selected_kind == "log" else "CSV Table"
+
+        if selected_kind in ("log", "table"):
+            message = (
+                f"File yang dipilih adalah {selected_label}, "
+                f"bukan {expected_label}."
+            )
+        elif selected_kind == "empty":
+            message = "File CSV kosong."
+        else:
+            message = (
+                "Format CSV tidak dikenali.\n"
+                "Silakan pilih file CSV Log atau CSV Table dari aplikasi ini."
+            )
+
+        QMessageBox.warning(self, "File Tidak Sesuai", message)
+
     def _on_analisa_load_log(self) -> None:
         """Buka dialog pilih satu/banyak CSV Log, lalu plot overlay."""
         initial_dir = self._inp_csv_folder.text().strip() or DEFAULT_CSV_FOLDER
@@ -1302,6 +1357,16 @@ class MainWindow(QMainWindow):
         times: list[float] = []
         ai0_data: list[float] = []
         ai1_data: list[float] = []
+
+        try:
+            csv_kind = self._analisa_detect_csv_kind(filepath)
+        except OSError as exc:
+            QMessageBox.critical(self, "Error", f"Gagal membuka file:\n{exc}")
+            return
+
+        if csv_kind != "log":
+            self._warn_csv_kind_mismatch(csv_kind, "log")
+            return
 
         try:
             with filepath.open("r", encoding="utf-8") as f:
@@ -1388,6 +1453,16 @@ class MainWindow(QMainWindow):
         """Baca CSV Table, populate tabel analisa, dan plot delta time."""
         meta: dict[str, str] = {}
         rows: list[list[str]] = []
+
+        try:
+            csv_kind = self._analisa_detect_csv_kind(filepath)
+        except OSError as exc:
+            QMessageBox.critical(self, "Error", f"Gagal membuka file:\n{exc}")
+            return
+
+        if csv_kind != "table":
+            self._warn_csv_kind_mismatch(csv_kind, "table")
+            return
 
         try:
             with filepath.open("r", encoding="utf-8") as f:
