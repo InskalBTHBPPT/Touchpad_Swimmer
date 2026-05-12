@@ -9,8 +9,8 @@
   "ts_set": "Manual (A)",
   "ts_display": "Relative",
   "dev0": {
-    "threshold": "4.5",
-    "hysteresis": "0.15",
+    "threshold": "0.02",
+    "hysteresis": "0.005",
     "scale": "1.00",
     "hold": "10.0"
   },
