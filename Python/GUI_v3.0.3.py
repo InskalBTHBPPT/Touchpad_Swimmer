@@ -1,5 +1,5 @@
 """
-GUI_v3.0.3-beta.py — NI DAQ Monitor for Touchpad Swimmer
+GUI_v3.0.3.py — NI DAQ Monitor for Touchpad Swimmer
 ====================================================
 Aplikasi desktop real-time untuk akuisisi dan analisis data dua sensor
 touchpad (Pad 1 / Pad 2) menggunakan perangkat NI Data Acquisition (NI DAQ).
@@ -17,6 +17,7 @@ Fitur Utama
 * Info Perenang (Nama, Gaya, Jarak) sebagai metadata header CSV.
 * Tombol Help (buka PDF/MD manual) dan About (ringkasan aplikasi).
 * Antarmuka bertab: "Live Data" dan "Analisa Data".
+* Proteksi load CSV pada tab Analisa Data berdasarkan header file.
 
 Tab Analisa Data
 ----------------
@@ -27,6 +28,20 @@ Tab Analisa Data
   - Y kanan: Pressure (Kg)
   - Warna arah lintasan: biru (→Pad2/outbound), merah (→Pad1/return)
   - Marker tekanan: hijau (Pad1), kuning (Pad2)
+  - Auto range sumbu Y kanan berdasarkan nilai pressure yang dimuat.
+
+Change Log 3.0.3 dari 3.0.2
+---------------------------
+* Dialog "Load CSV Log" diarahkan ke folder DataLog, sedangkan
+  "Load CSV Table" diarahkan ke folder DataTable.
+* Handler kedua tombol load CSV memvalidasi header file sebelum parsing:
+  - CSV Log harus memiliki header `timestamp_s,ai0_V,ai1_V`.
+  - CSV Table harus memiliki header
+    `No,Time_Pad1,Pressure_Pad1(Kg),Time_Pad2,Pressure_Pad2(Kg)`.
+  Jika file tidak sesuai, aplikasi menampilkan notifikasi
+  "File Tidak Sesuai" dan proses load dibatalkan.
+* Limit sumbu Y sekunder (Pressure/Kg) pada plot analisa dibuat otomatis
+  mengikuti nilai pressure yang sedang diplot.
 
 Struktur Kelas
 --------------
@@ -46,10 +61,10 @@ nidaqmx  (NI-DAQmx Python driver)
 
 Cara Menjalankan
 ----------------
-    python GUI_v3.0.3-beta.py
+    python GUI_v3.0.3.py
 
 Penulis  : Tim Pengujian Touchpad Swimmer
-Versi    : 3.0.3-beta
+Versi    : 3.0.3
 """
 
 import collections
