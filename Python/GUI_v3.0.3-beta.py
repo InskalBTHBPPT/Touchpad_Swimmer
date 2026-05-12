@@ -1692,9 +1692,24 @@ class MainWindow(QMainWindow):
                 txt.setPos(x, y)
                 self._analisa_vb_press.addItem(txt)
 
-        # Sinkronkan geometri ViewBox sekunder + set range Y tetap 0–7
+        # Sinkronkan geometri ViewBox sekunder + auto range Y berdasarkan pressure.
         self._analisa_vb_press.setGeometry(pi.vb.sceneBoundingRect())
-        self._analisa_vb_press.setYRange(0, 7, padding=0)
+        if press_y:
+            y_min_raw = min(press_y)
+            y_max_raw = max(press_y)
+            y_span = y_max_raw - y_min_raw
+            y_margin = max(
+                y_span * 0.10,
+                max(abs(y_min_raw), abs(y_max_raw)) * 0.05,
+                0.10,
+            )
+            y_min = y_min_raw - y_margin
+            y_max = y_max_raw + y_margin
+            if y_min_raw >= 0:
+                y_min = 0.0
+            if y_min >= y_max:
+                y_max = y_min + 1.0
+            self._analisa_vb_press.setYRange(y_min, y_max, padding=0)
 
         # Pastikan sumbu X bertick integer
         pi.getAxis("bottom").setTicks(
