@@ -313,13 +313,11 @@ class ChannelDetector:
         self,
         threshold: float,
         hysteresis: float,
-        scale: float,
         n_collect: int = N_COLLECT,
         hold_time: float = DEFAULT_HOLD_TIME,
     ) -> None:
         self.threshold = threshold
         self.hysteresis = hysteresis
-        self.scale = scale
         self.n_collect = n_collect
         self.hold_time = hold_time
         self._state = "ARMED"
@@ -340,7 +338,7 @@ class ChannelDetector:
     def process(self, value: float, timestamp: float) -> tuple[float, float] | None:
         """Proses satu sampel.
 
-        Returns (t0_s, pressure_scaled) saat deteksi selesai, else None.
+        Returns (t0_s, pressure) saat deteksi selesai, else None.
         """
         if self._state == "ARMED":
             if value >= self.lower_trip:
@@ -351,7 +349,7 @@ class ChannelDetector:
         elif self._state == "COLLECTING":
             self._buf.append(value)
             if len(self._buf) >= self.n_collect:
-                pressure = (sum(self._buf) / self.n_collect) * self.scale
+                pressure = sum(self._buf) / self.n_collect
                 self._t_hold_start = timestamp
                 self._state = "HOLD"
                 self._buf = []
@@ -895,6 +893,8 @@ class MainWindow(QMainWindow):
         self._current_theme = "Light"
         self._detector0: ChannelDetector | None = None
         self._detector1: ChannelDetector | None = None
+        self._scale0 = 1.0
+        self._scale1 = 1.0
         self._table_next_row = [2, 2]  # [pad0, pad1] – baris 0-1 adalah header
 
         max_pts = int(DEFAULT_RATE * PLOT_WINDOW_SEC)
@@ -2442,16 +2442,17 @@ class MainWindow(QMainWindow):
             except ValueError:
                 return default
 
+        self._scale0 = _safe_float(self._inp_scale0.text(), 1.0)
+        self._scale1 = _safe_float(self._inp_scale1.text(), 1.0)
+
         self._detector0 = ChannelDetector(
-            threshold=_safe_float(self._inp_thresh0.text(), 0.05),
-            hysteresis=_safe_float(self._inp_hyst0.text(),  0.005),
-            scale=_safe_float(self._inp_scale0.text(),      1.0),
+            threshold=_safe_float(self._inp_thresh0.text(), 0.05) * self._scale0,
+            hysteresis=_safe_float(self._inp_hyst0.text(),  0.005) * self._scale0,
             hold_time=_safe_float(self._inp_hold0.text(),   DEFAULT_HOLD_TIME),
         )
         self._detector1 = ChannelDetector(
-            threshold=_safe_float(self._inp_thresh1.text(), 0.05),
-            hysteresis=_safe_float(self._inp_hyst1.text(),  0.005),
-            scale=_safe_float(self._inp_scale1.text(),      1.0),
+            threshold=_safe_float(self._inp_thresh1.text(), 0.05) * self._scale1,
+            hysteresis=_safe_float(self._inp_hyst1.text(),  0.005) * self._scale1,
             hold_time=_safe_float(self._inp_hold1.text(),   DEFAULT_HOLD_TIME),
         )
 
@@ -2557,23 +2558,27 @@ class MainWindow(QMainWindow):
         ----------
         ai0, ai1 : list[float]
             Tegangan (Volt) per sampel untuk masing-masing channel.
+            Jalur Live mengonversinya ke Kg sebelum plot dan deteksi.
         offset : int
             Indeks sampel pertama di chunk ini (untuk menghitung timestamp relatif).
         """
+        ai0_live = [float(value) * self._scale0 for value in ai0]
+        ai1_live = [float(value) * self._scale1 for value in ai1]
+
         for i in range(len(ai0)):
             x_val = (offset + i) * self._dt_sample
             self._buf_x.append(x_val)
-            self._buf_ai0.append(ai0[i])
-            self._buf_ai1.append(ai1[i])
+            self._buf_ai0.append(ai0_live[i])
+            self._buf_ai1.append(ai1_live[i])
 
             # Proses detector per sampel
             if self._detector0 is not None:
-                result0 = self._detector0.process(ai0[i], x_val)
+                result0 = self._detector0.process(ai0_live[i], x_val)
                 if result0 is not None:
                     self._append_table_row(result0[0], result0[1], channel=0)
 
             if self._detector1 is not None:
-                result1 = self._detector1.process(ai1[i], x_val)
+                result1 = self._detector1.process(ai1_live[i], x_val)
                 if result1 is not None:
                     self._append_table_row(result1[0], result1[1], channel=1)
 
