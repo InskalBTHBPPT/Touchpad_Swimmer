@@ -12,7 +12,8 @@ BUFFER_SIZE = 100_000
 SAMPLES_PER_LOOP = int(RATE_HZ // 10)  # 1/10 rate → 50 sampel per iterasi
 
 # Urutan = kolom print: timestamp, ai0, ai1 (timing task sama untuk semua saluran).
-DEVICE_CHANNELS = ("Dev2/ai0", "Dev2/ai1")
+# DEVICE_CHANNELS = ("Dev2/ai0", "Dev2/ai1")
+DEVICE_CHANNELS = ("Dev1/ai0", "Dev1/ai1")
 AI_TERMINAL_CONFIG = TerminalConfiguration.DIFF
 # None = loop tak terbatas (hentikan dengan Ctrl+C).
 NUM_LOOPS = None

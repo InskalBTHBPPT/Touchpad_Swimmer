@@ -1,6 +1,6 @@
 {
-  "ch0": "Dev2/ai0",
-  "ch1": "Dev2/ai1",
+  "ch0": "Dev1/ai0",
+  "ch1": "Dev1/ai1",
   "rate": "500.0",
   "buffer": "100000",
   "spl": "50",
@@ -15,7 +15,7 @@
     "hold": "10.0"
   },
   "dev1": {
-    "threshold": "5.5",
+    "threshold": "2.5",
     "hysteresis": "0.25",
     "scale": "1.00",
     "hold": "10.0"
