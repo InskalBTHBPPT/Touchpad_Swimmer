@@ -35,7 +35,8 @@ Change Log 3.0.3 dari 3.0.2
 * Dialog "Load CSV Log" diarahkan ke folder DataLog, sedangkan
   "Load CSV Table" diarahkan ke folder DataTable.
 * Handler kedua tombol load CSV memvalidasi header file sebelum parsing:
-  - CSV Log harus memiliki header `timestamp_s,ai0_V,ai1_V`.
+  - CSV Log harus memiliki header `timestamp_s,ai0_kg,ai1_kg`
+    (header lama `timestamp_s,ai0_V,ai1_V` masih dikenali).
   - CSV Table harus memiliki header
     `No,Time_Pad1,Pressure_Pad1(Kg),Time_Pad2,Pressure_Pad2(Kg)`.
   Jika file tidak sesuai, aplikasi menampilkan notifikasi
@@ -392,7 +393,7 @@ class CsvWriter:
             writer = csv.writer(f)
             for key, val in self._metadata.items():
                 writer.writerow([f"# {key}", val])
-            writer.writerow(["timestamp_s", "ai0_V", "ai1_V"])
+            writer.writerow(["timestamp_s", "ai0_kg", "ai1_kg"])
             while True:
                 item = self._queue.get()
                 if item is self._SENTINEL:
@@ -1051,7 +1052,8 @@ class MainWindow(QMainWindow):
         ("#ffee58", "#ec407a"),  # kuning – pink
         ("#80cbc4", "#ff7043"),  # teal – oranye tua
     ]
-    _CSV_LOG_HEADER: tuple[str, ...] = ("timestamp_s", "ai0_v", "ai1_v")
+    _CSV_LOG_HEADER: tuple[str, ...] = ("timestamp_s", "ai0_kg", "ai1_kg")
+    _CSV_LOG_LEGACY_HEADER: tuple[str, ...] = ("timestamp_s", "ai0_v", "ai1_v")
     _CSV_TABLE_HEADER: tuple[str, ...] = (
         "no",
         "time_pad1",
@@ -1327,7 +1329,10 @@ class MainWindow(QMainWindow):
                 header = tuple(
                     cell.strip().lower().lstrip("\ufeff") for cell in row
                 )
-                if header[: len(cls._CSV_LOG_HEADER)] == cls._CSV_LOG_HEADER:
+                if header[: len(cls._CSV_LOG_HEADER)] in (
+                    cls._CSV_LOG_HEADER,
+                    cls._CSV_LOG_LEGACY_HEADER,
+                ):
                     return "log"
                 if header[: len(cls._CSV_TABLE_HEADER)] == cls._CSV_TABLE_HEADER:
                     return "table"
@@ -2583,7 +2588,7 @@ class MainWindow(QMainWindow):
                     self._append_table_row(result1[0], result1[1], channel=1)
 
         if self._csv_writer is not None:
-            self._csv_writer.write_chunk(ai0, ai1, offset)
+            self._csv_writer.write_chunk(ai0_live, ai1_live, offset)
 
         # ── Print ke terminal (dicomment secara default) ───────────────────
         # ts_display = self._dd_ts_display.currentText()
