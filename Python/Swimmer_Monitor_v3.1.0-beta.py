@@ -1006,7 +1006,7 @@ class MainWindow(QMainWindow):
         def _make_plot_widget(title: str) -> tuple[pg.PlotWidget, pg.PlotDataItem]:
             pw = pg.PlotWidget(title=title)
             pi: pg.PlotItem = pw.getPlotItem()
-            pi.setLabel("left", "Voltage", units="V")
+            pi.setLabel("left", "Pressure", units="Kg")
             pi.setLabel("bottom", "Time", units="s")
             pi.showGrid(x=True, y=True, alpha=0.3)
             pi.setDownsampling(auto=True, mode="peak")
