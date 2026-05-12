@@ -1,5 +1,5 @@
 """
-GUI_v3.0.3.py — NI DAQ Monitor for Touchpad Swimmer
+Swimmer_Monitor_v3.1.0-beta.py — NI DAQ Monitor for Touchpad Swimmer
 ====================================================
 Aplikasi desktop real-time untuk akuisisi dan analisis data dua sensor
 touchpad (Pad 1 / Pad 2) menggunakan perangkat NI Data Acquisition (NI DAQ).
@@ -29,6 +29,18 @@ Tab Analisa Data
   - Warna arah lintasan: biru (→Pad2/outbound), merah (→Pad1/return)
   - Marker tekanan: hijau (Pad1), kuning (Pad2)
   - Auto range sumbu Y kanan berdasarkan nilai pressure yang dimuat.
+
+Change Log 3.1.0 dari 3.0.3
+---------------------------
+* Jalur Live mengonversi data DAQ dari Volt ke Kg segera setelah pembacaan
+  berdasarkan parameter Scale (Kg/Volt) per channel.
+* Threshold dan hysteresis tetap dimuat/disimpan sebagai Volt, lalu dikonversi
+  ke Kg saat Start sebelum dibandingkan dengan data Live.
+* ChannelDetector tidak lagi mengalikan Scale; hasil deteksi adalah rata-rata
+  sampel yang sudah dalam Kg.
+* CSV Log memakai header `timestamp_s,ai0_kg,ai1_kg` dan menyimpan data Kg.
+* Plot Live dan overlay CSV Log pada tab Analisa memakai sumbu Y Pressure (Kg).
+* Manual aplikasi diperbarui ke `UserManual_v3.1.0.md/.pdf`.
 
 Change Log 3.0.3 dari 3.0.2
 ---------------------------
@@ -61,10 +73,10 @@ nidaqmx  (NI-DAQmx Python driver)
 
 Cara Menjalankan
 ----------------
-    python GUI_v3.0.3.py
+    python Swimmer_Monitor_v3.1.0-beta.py
 
 Penulis  : Tim Pengujian Touchpad Swimmer
-Versi    : 3.0.3
+Versi    : 3.1.0
 """
 
 import collections
@@ -249,10 +261,10 @@ DEFAULT_HYSTERESIS = "0.005"
 DEFAULT_SCALE      = "1.00"
 
 CONFIG_PATH = pathlib.Path(__file__).parent / "config.json"
-USER_MANUAL_PDF = pathlib.Path(__file__).parent / "UserManual_v3.pdf"
-USER_MANUAL_MD = pathlib.Path(__file__).parent / "UserManual_v3.md"
+USER_MANUAL_PDF = pathlib.Path(__file__).parent / "UserManual_v3.1.0.pdf"
+USER_MANUAL_MD = pathlib.Path(__file__).parent / "UserManual_v3.1.0.md"
 
-# Ringkasan aplikasi (selaras dengan UserManual_v3.md — bagian Pendahuluan)
+# Ringkasan aplikasi (selaras dengan UserManual_v3.1.0.md — bagian Pendahuluan)
 _ABOUT_APP_BLURB = (
     "NI DAQ Monitor Swimmer Touchpad Monitor v3 adalah aplikasi desktop untuk akuisisi dan analisis data dari "
     "dua sensor touchpad (Pad 1 / Pad 2) yang terhubung ke NI Data Acquisition (NI-DAQ).\n\n"
@@ -2089,7 +2101,7 @@ class MainWindow(QMainWindow):
         self._btn_help = QPushButton("❓  Help")
         self._btn_help.setMinimumHeight(32)
         self._btn_help.setToolTip(
-            "Buka panduan pengguna (UserManual_v3.pdf, atau .md jika PDF tidak ada)"
+            "Buka panduan pengguna (UserManual_v3.1.0.pdf, atau .md jika PDF tidak ada)"
         )
         self._btn_help.clicked.connect(self._on_help)
 
@@ -2213,7 +2225,7 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(dlg)
         lay.setSpacing(10)
 
-        title = QLabel("<b>Swimmer Monitor</b><br>NI DAQ Monitor &nbsp;v3.0")
+        title = QLabel("<b>Swimmer Monitor</b><br>NI DAQ Monitor &nbsp;v3.1.0")
         title.setTextFormat(Qt.TextFormat.RichText)
 
         body = QLabel(_ABOUT_APP_BLURB)
