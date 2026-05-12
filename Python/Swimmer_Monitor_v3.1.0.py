@@ -1,5 +1,5 @@
 """
-Swimmer_Monitor_v3.1.0-beta.py — NI DAQ Monitor for Touchpad Swimmer
+Swimmer_Monitor_v3.1.0.py — NI DAQ Monitor for Touchpad Swimmer
 ====================================================
 Aplikasi desktop real-time untuk akuisisi dan analisis data dua sensor
 touchpad (Pad 1 / Pad 2) menggunakan perangkat NI Data Acquisition (NI DAQ).
@@ -73,7 +73,7 @@ nidaqmx  (NI-DAQmx Python driver)
 
 Cara Menjalankan
 ----------------
-    python Swimmer_Monitor_v3.1.0-beta.py
+    python Swimmer_Monitor_v3.1.0.py
 
 Penulis  : Tim Pengujian Touchpad Swimmer
 Versi    : 3.1.0

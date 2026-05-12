@@ -1,6 +1,6 @@
 # User Manual — NI DAQ Monitor (Touchpad Swimmer)
 **Versi:** 3.1.0  
-**File Aplikasi:** `Swimmer_Monitor_v3.1.0-beta.py`  
+**File Aplikasi:** `Swimmer_Monitor_v3.1.0.py`  
 **Platform:** Windows 10/11  
 **Terakhir diperbarui:** Mei 2026
 
@@ -91,7 +91,7 @@ Struktur folder:
 ```
 Touchpad_Swimmer/
 ├── Python/
-│   ├── Swimmer_Monitor_v3.1.0-beta.py ← File aplikasi utama
+│   ├── Swimmer_Monitor_v3.1.0.py ← File aplikasi utama
 │   ├── config.json            ← Konfigurasi tersimpan (dibuat otomatis)
 │   ├── UserManual_v3.1.0.md   ← Dokumen ini
 │   ├── UserManual_v3.1.0.pdf  ← Versi PDF dokumen ini
@@ -106,10 +106,10 @@ Touchpad_Swimmer/
 Buka terminal / command prompt, arahkan ke folder `Python/`, lalu jalankan:
 
 ```bash
-python Swimmer_Monitor_v3.1.0-beta.py
+python Swimmer_Monitor_v3.1.0.py
 ```
 
-Atau klik dua kali file `Swimmer_Monitor_v3.1.0-beta.py` jika Python sudah terkait dengan ekstensi `.py`.
+Atau klik dua kali file `Swimmer_Monitor_v3.1.0.py` jika Python sudah terkait dengan ekstensi `.py`.
 
 ---
 
@@ -565,4 +565,4 @@ Hapus file `config.json` dan jalankan ulang. Sistem akan menggunakan nilai defau
 
 ---
 
-*Dokumen ini dibuat untuk `Swimmer_Monitor_v3.1.0-beta.py` — NI DAQ Monitor Touchpad Swimmer v3.1.0*
+*Dokumen ini dibuat untuk `Swimmer_Monitor_v3.1.0.py` — NI DAQ Monitor Touchpad Swimmer v3.1.0*
