@@ -545,12 +545,31 @@ class MainWindow(QMainWindow):
     def _add_analyze_marker_label(
         self,
         plot: pg.PlotWidget,
-        x: float,
-        y: float,
+        marker_x: float,
+        marker_y: float,
         text: str,
-        anchor: tuple[float, float] = (0.5, 1.0),
+        ts_min: float,
+        ts_max: float,
     ) -> None:
-        """Label kecil di koordinat data (anchor: bawah teks di titik, teks ke atas)."""
+        """
+        Label dua baris di samping marker (bukan di atas) supaya baris ``t:`` tidak terpotong
+        di tepi atas plot.
+
+        Aturan horizontal (berdasarkan posisi waktu dalam rentang CSV):
+        - titik di separuh kiri rentang waktu → label di kanan marker (teks menjauh ke kanan);
+        - titik di separuh kanan → label di kiri marker (teks menjauh ke kiri).
+        Vertikal: tengah teks sejajar dengan titik (anchor y = 0.5).
+        """
+        span = (ts_max - ts_min) or 1.0
+        dx = max(span * 0.028, 1e-6)
+        mid = (ts_min + ts_max) * 0.5
+        if marker_x <= mid:
+            lx = marker_x + dx
+            anchor = (0.0, 0.5)
+        else:
+            lx = marker_x - dx
+            anchor = (1.0, 0.5)
+
         ti = pg.TextItem(
             text,
             color="#f8fafc",
@@ -560,7 +579,7 @@ class MainWindow(QMainWindow):
         )
         ti.setFont(QFont("Segoe UI", 9))
         ti.setZValue(11)
-        ti.setPos(x, y)
+        ti.setPos(lx, marker_y)
         plot.addItem(ti)
         self._analyze_stat_texts.append((plot, ti))
 
@@ -591,6 +610,9 @@ class MainWindow(QMainWindow):
         i_pmin = _argmin_first(p_list)
         i_pmax = _argmax_first(p_list)
 
+        ts_min = min(ts_list)
+        ts_max = max(ts_list)
+
         self.stat_force_label.setText(
             f"Force — maksimum: {v_fmax:.2f} Kg\nwaktu terjadi: {t_fmax:.2f} s"
         )
@@ -617,6 +639,8 @@ class MainWindow(QMainWindow):
             t_fmax,
             v_fmax,
             f"t: {t_fmax:.2f} s\nmax: {v_fmax:.2f} Kg",
+            ts_min,
+            ts_max,
         )
 
         self._analyze_scatter_roll = pg.ScatterPlotItem(
@@ -638,12 +662,16 @@ class MainWindow(QMainWindow):
             tr_min,
             vr_min,
             f"t: {tr_min:.2f} s\nmin: {vr_min:.2f}°",
+            ts_min,
+            ts_max,
         )
         self._add_analyze_marker_label(
             self.analyze_roll_plot_widget,
             tr_max,
             vr_max,
             f"t: {tr_max:.2f} s\nmax: {vr_max:.2f}°",
+            ts_min,
+            ts_max,
         )
 
         self._analyze_scatter_pitch = pg.ScatterPlotItem(
@@ -665,12 +693,16 @@ class MainWindow(QMainWindow):
             tp_min,
             vp_min,
             f"t: {tp_min:.2f} s\nmin: {vp_min:.2f}°",
+            ts_min,
+            ts_max,
         )
         self._add_analyze_marker_label(
             self.analyze_pitch_plot_widget,
             tp_max,
             vp_max,
             f"t: {tp_max:.2f} s\nmax: {vp_max:.2f}°",
+            ts_min,
+            ts_max,
         )
 
     def toggle_connection(self, checked: bool) -> None:
