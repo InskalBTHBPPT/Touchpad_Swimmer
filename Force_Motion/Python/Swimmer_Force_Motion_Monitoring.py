@@ -80,21 +80,23 @@ LIVE_CSV_DATA_HEADER: tuple[str, ...] = (
 ANALYZE_MARKER_MIN_COLOR = "#22c55e"
 ANALYZE_MARKER_MAX_COLOR = "#ef4444"
 
-# Baris komentar (#) di awal file ekspor statistik — contoh format + penjelasan singkat.
-STATISTIK_CSV_FORMAT_EXAMPLE_LINES: tuple[str, ...] = (
-    "# --- Contoh format file statistik (referensi; baris # boleh dihapus jika mengganggu) ---",
-    "# Blok meta: pasangan kolom (Kunci, Nilai).",
-    "#   Nama_Perenang, Gaya_Renang, Waktu_Ekspor_Statistik (ISO), Berkas_Sumber",
-    "# Blok tabel: header lalu satu baris per metrik ekstremum.",
-    "#   Metrik, Nilai, Satuan, Waktu_s",
-    "# Contoh baris data:",
-    "#   Force_maksimum,49.77,Kg,1202.10",
-    "#   Roll_minimum,-19.88,deg,1204.01",
-    "#   Roll_maksimum,19.62,deg,1202.40",
-    "#   Pitch_minimum,-39.87,deg,1204.31",
-    "#   Pitch_maksimum,39.27,deg,1203.51",
-    "# --- Akhir contoh ---",
-)
+# Dialog QMessageBox (Simpan statistik): selaras dengan palet gelap + tombol biru seperti app.
+THEMED_MESSAGEBOX_STYLESHEET = """
+QMessageBox { background-color: #1f2937; }
+QMessageBox QLabel { color: #e5e7eb; font-size: 11pt; min-width: 320px; }
+QMessageBox QPushButton {
+    padding: 8px 18px;
+    background-color: #3b82f6;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    min-width: 72px;
+    font-size: 11pt;
+}
+QMessageBox QPushButton:hover { background-color: #2563eb; }
+QMessageBox QPushButton:pressed { background-color: #1d4ed8; }
+QMessageBox QPushButton:focus { outline: none; }
+"""
 
 
 def _he(s: str) -> str:
@@ -462,6 +464,7 @@ class MainWindow(QMainWindow):
         stats_inner.addWidget(self.stat_pitch_label)
 
         self.save_stats_btn = QPushButton("Simpan statistik…", self)
+        self.save_stats_btn.setObjectName("SaveStatsButton")
         self.save_stats_btn.setToolTip(
             "Simpan langsung ke folder DataStatistik/ di samping DataLog: "
             "<nama_file_log>_DataStaistik.csv (UTF-8), tanpa dialog Save As."
@@ -524,6 +527,19 @@ class MainWindow(QMainWindow):
                 background: transparent;
                 border: none;
                 padding: 0px;
+            }
+            QPushButton#SaveStatsButton {
+                background-color: #22c55e;
+            }
+            QPushButton#SaveStatsButton:hover {
+                background-color: #16a34a;
+            }
+            QPushButton#SaveStatsButton:pressed {
+                background-color: #15803d;
+            }
+            QPushButton#SaveStatsButton:disabled {
+                background-color: #6b7280;
+                color: #d1d5db;
             }
             """
         )
@@ -857,10 +873,25 @@ class MainWindow(QMainWindow):
         }
         self.save_stats_btn.setEnabled(self._analyze_export_ctx is not None)
 
+    def _show_statistik_message_box(
+        self,
+        icon: QMessageBox.Icon,
+        title: str,
+        text: str,
+    ) -> None:
+        """QMessageBox dengan stylesheet sama tema aplikasi (gelap + aksi biru)."""
+        mb = QMessageBox(self)
+        mb.setIcon(icon)
+        mb.setWindowTitle(title)
+        mb.setText(text)
+        mb.setStandardButtons(QMessageBox.StandardButton.Ok)
+        mb.setStyleSheet(THEMED_MESSAGEBOX_STYLESHEET)
+        mb.exec()
+
     def save_analyze_statistics_csv(self) -> None:
         if self._analyze_export_ctx is None or self._analyze_stats_snapshot is None:
-            QMessageBox.information(
-                self,
+            self._show_statistik_message_box(
+                QMessageBox.Icon.Information,
                 "Simpan statistik",
                 "Belum ada data analisa. Muat file CSV di tab Analisa terlebih dahulu.",
             )
@@ -872,7 +903,11 @@ class MainWindow(QMainWindow):
         try:
             DATASTATISTIK_DIR.mkdir(parents=True, exist_ok=True)
         except OSError as e:
-            QMessageBox.critical(self, "Simpan statistik", f"Tidak bisa membuat folder DataStatistik:\n{e}")
+            self._show_statistik_message_box(
+                QMessageBox.Icon.Critical,
+                "Simpan statistik",
+                f"Tidak bisa membuat folder DataStatistik:\n{e}",
+            )
             return
 
         src_name = Path(ctx["source_file"])
@@ -882,10 +917,18 @@ class MainWindow(QMainWindow):
         try:
             self._write_statistik_csv(path, ctx, snap)
         except OSError as e:
-            QMessageBox.critical(self, "Simpan statistik", f"Tidak bisa menulis file:\n{e}")
+            self._show_statistik_message_box(
+                QMessageBox.Icon.Critical,
+                "Simpan statistik",
+                f"Tidak bisa menulis file:\n{e}",
+            )
             return
 
-        QMessageBox.information(self, "Simpan statistik", f"Tersimpan:\n{path}")
+        self._show_statistik_message_box(
+            QMessageBox.Icon.Information,
+            "Simpan statistik",
+            f"Tersimpan:\n{path}",
+        )
 
     def _write_statistik_csv(
         self,
@@ -899,17 +942,13 @@ class MainWindow(QMainWindow):
         source_file = ctx["source_file"]
 
         with path.open("w", newline="", encoding="utf-8") as f:
-            for line in STATISTIK_CSV_FORMAT_EXAMPLE_LINES:
-                f.write(line + "\n")
-            f.write("\n")
-
             w = csv.writer(f)
             w.writerow(["Nama_Perenang", swimmer])
             w.writerow(["Gaya_Renang", stroke])
             w.writerow(["Waktu_Ekspor_Statistik", exported_at])
             w.writerow(["Berkas_Sumber", source_file])
             w.writerow([])
-            w.writerow(["Metrik", "Nilai", "Satuan", "Waktu_s"])
+            w.writerow(["Metrik", "Nilai", "Satuan", "Waktu (s)"])
             w.writerow(
                 [
                     "Force_maksimum",
