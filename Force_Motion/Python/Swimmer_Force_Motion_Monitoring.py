@@ -163,7 +163,7 @@ def _html_analyze_stat_pitch(v_min: float, t_min: float, v_max: float, t_max: fl
         f'<td style="color:#e2e8f0;">{_he(f"{t_min:.2f} s")}</td></tr>'
         f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Maksimum</td>'
         f'<td style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f}°")}</td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu saat Pitch minimum maksimum</td>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu saat Pitch maksimum</td>'
         f'<td style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</td></tr>'
         "</table></div></div>"
     )
@@ -737,7 +737,7 @@ class MainWindow(QMainWindow):
             self.analyze_force_plot_widget,
             t_fmax,
             v_fmax,
-            f"Waktu maksimum\n{t_fmax:.2f} s\nMaksimum\n{v_fmax:.2f} Kg",
+            f"t: {t_fmax:.2f} s\nmax: {v_fmax:.2f} Kg",
             ts_min,
             ts_max,
         )
@@ -760,7 +760,7 @@ class MainWindow(QMainWindow):
             self.analyze_roll_plot_widget,
             tr_min,
             vr_min,
-            f"Waktu minimum\n{tr_min:.2f} s\nMinimum\n{vr_min:.2f}°",
+            f"t: {tr_min:.2f} s\nmin: {vr_min:.2f}°",
             ts_min,
             ts_max,
         )
@@ -768,7 +768,7 @@ class MainWindow(QMainWindow):
             self.analyze_roll_plot_widget,
             tr_max,
             vr_max,
-            f"Waktu maksimum\n{tr_max:.2f} s\nMaksimum\n{vr_max:.2f}°",
+            f"t: {tr_max:.2f} s\nmax: {vr_max:.2f}°",
             ts_min,
             ts_max,
         )
@@ -791,7 +791,7 @@ class MainWindow(QMainWindow):
             self.analyze_pitch_plot_widget,
             tp_min,
             vp_min,
-            f"Waktu minimum\n{tp_min:.2f} s\nMinimum\n{vp_min:.2f}°",
+            f"t: {tp_min:.2f} s\nmin: {vp_min:.2f}°",
             ts_min,
             ts_max,
         )
@@ -799,7 +799,7 @@ class MainWindow(QMainWindow):
             self.analyze_pitch_plot_widget,
             tp_max,
             vp_max,
-            f"Waktu maksimum\n{tp_max:.2f} s\nMaksimum\n{vp_max:.2f}°",
+            f"t: {tp_max:.2f} s\nmax: {vp_max:.2f}°",
             ts_min,
             ts_max,
         )
