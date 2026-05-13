@@ -16,6 +16,7 @@ Catatan:
 - Tab Analisa: panel kanan (load + statistik) kartu HTML tanpa judul grup; marker dengan label waktu jelas.
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
+- Ekspor statistik tab Analisa ke folder DataStatistik/ dengan nama <file_log>_DataStaistik.csv (tanpa Save As).
 """
 
 from __future__ import annotations
@@ -54,6 +55,9 @@ from PySide6.QtWidgets import (
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATALOG_DIR = SCRIPT_DIR / "DataLog"
+DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
+# Sufiks nama file ekspor statistik (sesuai permintaan): <nama_file_log>_DataStaistik.csv
+STATISTIK_FILE_SUFFIX = "_DataStaistik"
 
 STROKE_STYLES = [
     "Gaya Bebas",
@@ -75,6 +79,22 @@ LIVE_CSV_DATA_HEADER: tuple[str, ...] = (
 # Marker ekstremum tab Analisa: semua min hijau, semua max merah
 ANALYZE_MARKER_MIN_COLOR = "#22c55e"
 ANALYZE_MARKER_MAX_COLOR = "#ef4444"
+
+# Baris komentar (#) di awal file ekspor statistik — contoh format + penjelasan singkat.
+STATISTIK_CSV_FORMAT_EXAMPLE_LINES: tuple[str, ...] = (
+    "# --- Contoh format file statistik (referensi; baris # boleh dihapus jika mengganggu) ---",
+    "# Blok meta: pasangan kolom (Kunci, Nilai).",
+    "#   Nama_Perenang, Gaya_Renang, Waktu_Ekspor_Statistik (ISO), Berkas_Sumber",
+    "# Blok tabel: header lalu satu baris per metrik ekstremum.",
+    "#   Metrik, Nilai, Satuan, Waktu_s",
+    "# Contoh baris data:",
+    "#   Force_maksimum,49.77,Kg,1202.10",
+    "#   Roll_minimum,-19.88,deg,1204.01",
+    "#   Roll_maksimum,19.62,deg,1202.40",
+    "#   Pitch_minimum,-39.87,deg,1204.31",
+    "#   Pitch_maksimum,39.27,deg,1203.51",
+    "# --- Akhir contoh ---",
+)
 
 
 def _he(s: str) -> str:
@@ -313,7 +333,7 @@ class MainWindow(QMainWindow):
 
         name_label = QLabel("Nama Perenang:")
         self.swimmer_name_edit = QLineEdit(self)
-        self.swimmer_name_edit.setPlaceholderText("Nama pemain")
+        self.swimmer_name_edit.setPlaceholderText("Nama Perenang")
 
         stroke_label = QLabel("Gaya renang:")
         self.stroke_combo = QComboBox(self)
@@ -441,10 +461,21 @@ class MainWindow(QMainWindow):
         stats_inner.addWidget(self.stat_roll_label)
         stats_inner.addWidget(self.stat_pitch_label)
 
+        self.save_stats_btn = QPushButton("Simpan statistik…", self)
+        self.save_stats_btn.setToolTip(
+            "Simpan langsung ke folder DataStatistik/ di samping DataLog: "
+            "<nama_file_log>_DataStaistik.csv (UTF-8), tanpa dialog Save As."
+        )
+        self.save_stats_btn.setEnabled(False)
+        self.save_stats_btn.clicked.connect(self.save_analyze_statistics_csv)
+        stats_inner.addWidget(self.save_stats_btn)
+
         self._analyze_scatter_force: pg.ScatterPlotItem | None = None
         self._analyze_scatter_roll: pg.ScatterPlotItem | None = None
         self._analyze_scatter_pitch: pg.ScatterPlotItem | None = None
         self._analyze_stat_texts: list[tuple[pg.PlotWidget, pg.TextItem]] = []
+        self._analyze_export_ctx: dict[str, str] | None = None
+        self._analyze_stats_snapshot: dict[str, float] | None = None
 
         analyze_right_layout.addWidget(analyze_load_group, 0)
         analyze_right_layout.addWidget(self.analyze_stats_group, 0)
@@ -623,6 +654,12 @@ class MainWindow(QMainWindow):
 
         self.analyze_meta_label.setText(_html_analyze_load_block(swimmer, stroke, path.name))
 
+        self._analyze_export_ctx = {
+            "swimmer": swimmer,
+            "stroke": stroke,
+            "source_file": path.name,
+        }
+
         self._clear_analyze_stat_markers()
         self._apply_analyze_statistics(ts_list, f_list, r_list, p_list)
 
@@ -692,6 +729,8 @@ class MainWindow(QMainWindow):
         """Hitung ekstremum, isi label Statistik, dan tampilkan marker di plot Analisa."""
         n = len(ts_list)
         if n == 0:
+            self._analyze_stats_snapshot = None
+            self.save_stats_btn.setEnabled(False)
             return
 
         def _argmin_first(vals: list[float]) -> int:
@@ -803,6 +842,114 @@ class MainWindow(QMainWindow):
             ts_min,
             ts_max,
         )
+
+        self._analyze_stats_snapshot = {
+            "force_max_kg": float(v_fmax),
+            "force_max_t_s": float(t_fmax),
+            "roll_min_deg": float(r_list[i_rmin]),
+            "roll_min_t_s": float(ts_list[i_rmin]),
+            "roll_max_deg": float(r_list[i_rmax]),
+            "roll_max_t_s": float(ts_list[i_rmax]),
+            "pitch_min_deg": float(p_list[i_pmin]),
+            "pitch_min_t_s": float(ts_list[i_pmin]),
+            "pitch_max_deg": float(p_list[i_pmax]),
+            "pitch_max_t_s": float(ts_list[i_pmax]),
+        }
+        self.save_stats_btn.setEnabled(self._analyze_export_ctx is not None)
+
+    def save_analyze_statistics_csv(self) -> None:
+        if self._analyze_export_ctx is None or self._analyze_stats_snapshot is None:
+            QMessageBox.information(
+                self,
+                "Simpan statistik",
+                "Belum ada data analisa. Muat file CSV di tab Analisa terlebih dahulu.",
+            )
+            return
+
+        ctx = self._analyze_export_ctx
+        snap = self._analyze_stats_snapshot
+
+        try:
+            DATASTATISTIK_DIR.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            QMessageBox.critical(self, "Simpan statistik", f"Tidak bisa membuat folder DataStatistik:\n{e}")
+            return
+
+        src_name = Path(ctx["source_file"])
+        suffix = src_name.suffix if src_name.suffix else ".csv"
+        out_name = f"{src_name.stem}{STATISTIK_FILE_SUFFIX}{suffix}"
+        path = DATASTATISTIK_DIR / out_name
+        try:
+            self._write_statistik_csv(path, ctx, snap)
+        except OSError as e:
+            QMessageBox.critical(self, "Simpan statistik", f"Tidak bisa menulis file:\n{e}")
+            return
+
+        QMessageBox.information(self, "Simpan statistik", f"Tersimpan:\n{path}")
+
+    def _write_statistik_csv(
+        self,
+        path: Path,
+        ctx: dict[str, str],
+        snap: dict[str, float],
+    ) -> None:
+        exported_at = datetime.now().isoformat(timespec="seconds")
+        swimmer = ctx["swimmer"]
+        stroke = ctx["stroke"]
+        source_file = ctx["source_file"]
+
+        with path.open("w", newline="", encoding="utf-8") as f:
+            for line in STATISTIK_CSV_FORMAT_EXAMPLE_LINES:
+                f.write(line + "\n")
+            f.write("\n")
+
+            w = csv.writer(f)
+            w.writerow(["Nama_Perenang", swimmer])
+            w.writerow(["Gaya_Renang", stroke])
+            w.writerow(["Waktu_Ekspor_Statistik", exported_at])
+            w.writerow(["Berkas_Sumber", source_file])
+            w.writerow([])
+            w.writerow(["Metrik", "Nilai", "Satuan", "Waktu_s"])
+            w.writerow(
+                [
+                    "Force_maksimum",
+                    f"{snap['force_max_kg']:.6g}",
+                    "Kg",
+                    f"{snap['force_max_t_s']:.6g}",
+                ]
+            )
+            w.writerow(
+                [
+                    "Roll_minimum",
+                    f"{snap['roll_min_deg']:.6g}",
+                    "deg",
+                    f"{snap['roll_min_t_s']:.6g}",
+                ]
+            )
+            w.writerow(
+                [
+                    "Roll_maksimum",
+                    f"{snap['roll_max_deg']:.6g}",
+                    "deg",
+                    f"{snap['roll_max_t_s']:.6g}",
+                ]
+            )
+            w.writerow(
+                [
+                    "Pitch_minimum",
+                    f"{snap['pitch_min_deg']:.6g}",
+                    "deg",
+                    f"{snap['pitch_min_t_s']:.6g}",
+                ]
+            )
+            w.writerow(
+                [
+                    "Pitch_maksimum",
+                    f"{snap['pitch_max_deg']:.6g}",
+                    "deg",
+                    f"{snap['pitch_max_t_s']:.6g}",
+                ]
+            )
 
     def toggle_connection(self, checked: bool) -> None:
         if checked:
