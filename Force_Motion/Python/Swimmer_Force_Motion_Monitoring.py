@@ -125,10 +125,10 @@ def _html_analyze_stat_force(v_max: float, t_max: float) -> str:
         '<div style="border-left:3px solid #38bdf8;padding-left:10px;">'
         '<div style="color:#38bdf8;font-weight:700;font-size:10px;letter-spacing:0.12em;">FORCE</div>'
         '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Force Maksimum</td>'
-        f'<td style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f} Kg")}</td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu saat Force maksimum</td>'
-        f'<td style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Force Maksimum</td>'
+        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_max:.2f} Kg")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 0 0;font-weight:600;">Waktu saat Force maksimum</td>'
+        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_max:.2f} s")}</td></tr>'
         "</table></div></div>"
     )
 
@@ -139,14 +139,14 @@ def _html_analyze_stat_roll(v_min: float, t_min: float, v_max: float, t_max: flo
         '<div style="border-left:3px solid #f59e0b;padding-left:10px;">'
         '<div style="color:#fbbf24;font-weight:700;font-size:10px;letter-spacing:0.12em;">ROLL</div>'
         '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Roll Minimum</td>'
-        f'<td style="font-weight:700;color:#86efac;font-size:13px;">{_he(f"{v_min:.2f}°")}</td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;">Waktu saat Roll minimum</td>'
-        f'<td style="color:#e2e8f0;">{_he(f"{t_min:.2f} s")}</td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Roll Maksimum</td>'
-        f'<td style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f}°")}</td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu saat Roll maksimum</td>'
-        f'<td style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Roll Minimum</td>'
+        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_min:.2f}°")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;font-weight:600;">Waktu saat Roll minimum</td>'
+        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_min:.2f} s")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Roll Maksimum</td>'
+        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_max:.2f}°")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 0 0;font-weight:600;">Waktu saat Roll maksimum</td>'
+        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_max:.2f} s")}</td></tr>'
         "</table></div></div>"
     )
 
@@ -157,14 +157,14 @@ def _html_analyze_stat_pitch(v_min: float, t_min: float, v_max: float, t_max: fl
         '<div style="border-left:3px solid #a78bfa;padding-left:10px;">'
         '<div style="color:#c4b5fd;font-weight:700;font-size:10px;letter-spacing:0.12em;">PITCH</div>'
         '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Pitch Minimum</td>'
-        f'<td style="font-weight:700;color:#86efac;font-size:13px;">{_he(f"{v_min:.2f}°")}</td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;">Waktu saat Pitch minimum</td>'
-        f'<td style="color:#e2e8f0;">{_he(f"{t_min:.2f} s")}</td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Pitch Maksimum</td>'
-        f'<td style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f}°")}</td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu saat Pitch maksimum</td>'
-        f'<td style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Pitch Minimum</td>'
+        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_min:.2f}°")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;font-weight:600;">Waktu saat Pitch minimum</td>'
+        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_min:.2f} s")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Pitch Maksimum</td>'
+        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_max:.2f}°")}</td></tr>'
+        f'<tr><td style="color:#ffffff;padding:4px 10px 0 0;font-weight:600;">Waktu saat Pitch maksimum</td>'
+        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_max:.2f} s")}</td></tr>'
         "</table></div></div>"
     )
 
