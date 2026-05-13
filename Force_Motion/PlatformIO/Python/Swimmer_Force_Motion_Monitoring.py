@@ -13,7 +13,7 @@ Format data serial (ESP32 Generate_TimeSeries_3_Random_data):
 
 Catatan:
 - Tab Live: tiga plot time-series vertikal (Force, Roll, Pitch masing-masing satu baris).
-- Tab Analisa: memuat CSV hasil rekaman Live (metadata + kolom data).
+- Tab Analisa: memuat CSV hasil rekaman Live (metadata + kolom data); format dicek ketat.
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
 """
@@ -60,6 +60,14 @@ STROKE_STYLES = [
     "Ganti kategori (medley)",
     "Lainnya",
 ]
+
+# Header baris data persis seperti ditulis tab Live (toggle_logging)
+LIVE_CSV_DATA_HEADER: tuple[str, ...] = (
+    "TimeStamp(s)",
+    "Force(Kg)",
+    "Roll(Deg)",
+    "Pitch(Deg)",
+)
 
 
 def _safe_filename_part(s: str) -> str:
@@ -374,8 +382,13 @@ class MainWindow(QMainWindow):
     @staticmethod
     def _parse_logged_csv(path: Path) -> tuple[str, str, list[float], list[float], list[float], list[float]]:
         """
-        Baca CSV dari tab Live: baris metadata (Nama Perenang, Gaya Renang, Time),
-        lalu header TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg) dan baris data.
+        Baca CSV yang ditulis tab Live saja.
+
+        Validasi:
+        - Prolog wajib memuat baris metadata: Nama Perenang:, Gaya Renang:, Time:,
+          (sama seperti urutan/kunci yang ditulis aplikasi).
+        - Baris header data harus persis 4 kolom:
+          TimeStamp(s), Force(Kg), Roll(Deg), Pitch(Deg) (perbandingan case-insensitive, spasi dijepit).
         """
         raw = path.read_text(encoding="utf-8-sig")
         lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
@@ -396,15 +409,43 @@ class MainWindow(QMainWindow):
                 continue
             if low.startswith("time:") or low.startswith("time,"):
                 continue
-            if "timestamp" in low and "force" in low:
+
+            try:
+                row = next(csv.reader([line]))
+            except StopIteration:
+                continue
+            cells = [c.strip() for c in row]
+            if len(cells) < 4:
+                continue
+            if all(
+                cells[i].lower() == LIVE_CSV_DATA_HEADER[i].lower()
+                for i in range(4)
+            ):
                 header_idx = idx
                 break
 
         if header_idx is None:
             raise ValueError(
-                "Format CSV tidak dikenali. Harus memuat baris header "
-                '"TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)".'
+                "Bukan file rekaman Live yang valid.\n"
+                "Header data harus tepat: "
+                "TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)"
             )
+
+        prologue = lines[:header_idx]
+        blob = "\n".join(p.lower() for p in prologue)
+        if "nama perenang" not in blob:
+            raise ValueError(
+                'Bukan file rekaman Live: tidak ada baris "Nama Perenang:," di awal file.'
+            )
+        if "gaya renang" not in blob:
+            raise ValueError(
+                'Bukan file rekaman Live: tidak ada baris "Gaya Renang:," di awal file.'
+            )
+        if not any(
+            p.lower().startswith("time:") or p.lower().startswith("time,")
+            for p in prologue
+        ):
+            raise ValueError('Bukan file rekaman Live: tidak ada baris "Time:," sebelum data.')
 
         data_lines = "\n".join(lines[header_idx + 1 :])
         ts_list: list[float] = []
