@@ -13,12 +13,15 @@ Format data serial (ESP32 Generate_TimeSeries_3_Random_data):
 
 Catatan:
 - Tab Live: tiga plot time-series vertikal (Force, Roll, Pitch masing-masing satu baris).
+- Tab Analisa: memuat CSV hasil rekaman Live (metadata + kolom data).
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
 """
 
 from __future__ import annotations
 
+import csv
+import io
 import re
 import sys
 from datetime import datetime
@@ -27,10 +30,11 @@ from pathlib import Path
 import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -39,6 +43,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -61,6 +66,54 @@ def _safe_filename_part(s: str) -> str:
     s = re.sub(r'[<>:"/\\|?*]', "", s)
     s = re.sub(r"\s+", "_", s.strip())
     return s or "TanpaNama"
+
+
+def make_three_stack_plots() -> tuple[
+    pg.PlotWidget,
+    pg.PlotWidget,
+    pg.PlotWidget,
+    pg.PlotDataItem,
+    pg.PlotDataItem,
+    pg.PlotDataItem,
+]:
+    """Tiga plot vertikal (Force, Roll, Pitch) dengan gaya konsisten."""
+    force_w = pg.PlotWidget()
+    force_w.setLabel("left", "Force (Kg)", color="#e5e7eb", **{"font-size": "12pt"})
+    force_w.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "12pt"})
+    force_w.setTitle("Force Data (Kg)", color="#e5e7eb", size="12pt")
+    force_w.setBackground("#1f2937")
+    force_w.showGrid(x=False, y=False)
+    force_w.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    force_w.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    force_w.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
+    force_w.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
+    force_c = force_w.plot(pen=pg.mkPen(color="#38bdf8", width=2))
+
+    roll_w = pg.PlotWidget()
+    roll_w.setLabel("left", "Angle (°)", color="#e5e7eb", **{"font-size": "11pt"})
+    roll_w.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "11pt"})
+    roll_w.setTitle("Roll Motion (Deg)", color="#e5e7eb", size="11pt")
+    roll_w.setBackground("#1f2937")
+    roll_w.showGrid(x=False, y=False)
+    roll_w.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    roll_w.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    roll_w.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
+    roll_w.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
+    roll_c = roll_w.plot(pen=pg.mkPen(color="#f59e0b", width=2))
+
+    pitch_w = pg.PlotWidget()
+    pitch_w.setLabel("left", "Angle (°)", color="#e5e7eb", **{"font-size": "11pt"})
+    pitch_w.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "11pt"})
+    pitch_w.setTitle("Pitch Motion (Deg)", color="#e5e7eb", size="11pt")
+    pitch_w.setBackground("#1f2937")
+    pitch_w.showGrid(x=False, y=False)
+    pitch_w.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    pitch_w.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    pitch_w.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
+    pitch_w.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
+    pitch_c = pitch_w.plot(pen=pg.mkPen(color="#a78bfa", width=2))
+
+    return force_w, roll_w, pitch_w, force_c, roll_c, pitch_c
 
 
 class MainWindow(QMainWindow):
@@ -86,47 +139,26 @@ class MainWindow(QMainWindow):
         # ~10 detik jendela tampilan pada laju ~10 baris/detik (mis. ESP timerInterval 100 ms)
         self.max_points = 100
 
-        central = QWidget(self)
-        self.setCentralWidget(central)
-        root = QHBoxLayout(central)
-        root.setContentsMargins(8, 8, 8, 8)
+        self.tab_widget = QTabWidget(self)
+        self.setCentralWidget(self.tab_widget)
 
-        # ---------- Kiri: plots ----------
+        live_tab = QWidget(self)
+        live_layout = QHBoxLayout(live_tab)
+        live_layout.setContentsMargins(8, 8, 8, 8)
+
+        # ---------- Kiri: plots Live ----------
         plots_panel = QWidget(self)
         plots_layout = QVBoxLayout(plots_panel)
         plots_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.force_plot_widget = pg.PlotWidget()
-        self.force_plot_widget.setLabel("left", "Force (Kg)", color="#e5e7eb", **{"font-size": "12pt"})
-        self.force_plot_widget.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "12pt"})
-        self.force_plot_widget.setTitle("Force Data (Kg)", color="#e5e7eb", size="12pt")
-        self.force_plot_widget.setBackground("#1f2937")
-        self.force_plot_widget.showGrid(x=False, y=False)
-        self.force_plot_widget.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
-        self.force_plot_widget.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
-        self.force_plot_widget.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
-        self.force_plot_widget.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
-        self.force_curve = self.force_plot_widget.plot(pen=pg.mkPen(color="#38bdf8", width=2))
-
-        self.roll_plot_widget = pg.PlotWidget()
-        self.roll_plot_widget.setLabel("left", "Angle (°)", color="#e5e7eb", **{"font-size": "11pt"})
-        self.roll_plot_widget.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "11pt"})
-        self.roll_plot_widget.setTitle("Roll Motion (Deg)", color="#e5e7eb", size="11pt")
-        self.roll_plot_widget.setBackground("#1f2937")
-        self.roll_plot_widget.showGrid(x=False, y=False)
-        self.roll_plot_widget.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
-        self.roll_plot_widget.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
-        self.roll_curve = self.roll_plot_widget.plot(pen=pg.mkPen(color="#f59e0b", width=2))
-
-        self.pitch_plot_widget = pg.PlotWidget()
-        self.pitch_plot_widget.setLabel("left", "Angle (°)", color="#e5e7eb", **{"font-size": "11pt"})
-        self.pitch_plot_widget.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "11pt"})
-        self.pitch_plot_widget.setTitle("Pitch Motion (Deg)", color="#e5e7eb", size="11pt")
-        self.pitch_plot_widget.setBackground("#1f2937")
-        self.pitch_plot_widget.showGrid(x=False, y=False)
-        self.pitch_plot_widget.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
-        self.pitch_plot_widget.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
-        self.pitch_curve = self.pitch_plot_widget.plot(pen=pg.mkPen(color="#a78bfa", width=2))
+        (
+            self.force_plot_widget,
+            self.roll_plot_widget,
+            self.pitch_plot_widget,
+            self.force_curve,
+            self.roll_curve,
+            self.pitch_curve,
+        ) = make_three_stack_plots()
 
         plots_layout.addWidget(self.force_plot_widget, 1)
         plots_layout.addWidget(self.roll_plot_widget, 1)
@@ -228,8 +260,70 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(controls, 0)
         right_layout.addWidget(indicators, 1)
 
-        root.addWidget(plots_panel, 4)
-        root.addWidget(right_panel, 1)
+        live_layout.addWidget(plots_panel, 4)
+        live_layout.addWidget(right_panel, 1)
+
+        # ---------- Tab Analisa ----------
+        analyze_tab = QWidget(self)
+        analyze_layout = QHBoxLayout(analyze_tab)
+        analyze_layout.setContentsMargins(8, 8, 8, 8)
+
+        analyze_plots_panel = QWidget(self)
+        analyze_plots_layout = QVBoxLayout(analyze_plots_panel)
+        analyze_plots_layout.setContentsMargins(0, 0, 0, 0)
+
+        (
+            self.analyze_force_plot_widget,
+            self.analyze_roll_plot_widget,
+            self.analyze_pitch_plot_widget,
+            self.analyze_force_curve,
+            self.analyze_roll_curve,
+            self.analyze_pitch_curve,
+        ) = make_three_stack_plots()
+        self.analyze_force_plot_widget.setTitle("Force Data (Kg) — rekaman", color="#e5e7eb", size="12pt")
+        self.analyze_roll_plot_widget.setTitle("Roll Motion (Deg) — rekaman", color="#e5e7eb", size="11pt")
+        self.analyze_pitch_plot_widget.setTitle("Pitch Motion (Deg) — rekaman", color="#e5e7eb", size="11pt")
+
+        analyze_plots_layout.addWidget(self.analyze_force_plot_widget, 1)
+        analyze_plots_layout.addWidget(self.analyze_roll_plot_widget, 1)
+        analyze_plots_layout.addWidget(self.analyze_pitch_plot_widget, 1)
+
+        analyze_right_panel = QWidget(self)
+        analyze_right_layout = QVBoxLayout(analyze_right_panel)
+        analyze_right_layout.setContentsMargins(0, 0, 0, 0)
+
+        analyze_load_group = QGroupBox("", self)
+        analyze_load_group.setLayout(QVBoxLayout())
+        analyze_load_group.layout().setContentsMargins(12, 12, 12, 12)
+
+        self.load_csv_btn = QPushButton("Load CSV…", self)
+        self.load_csv_btn.clicked.connect(self.load_analyze_csv)
+        analyze_load_group.layout().addWidget(self.load_csv_btn)
+
+        self.analyze_swimmer_label = QLabel("Nama perenang: —", self)
+        self.analyze_stroke_label = QLabel("Gaya renang: —", self)
+        self.analyze_loaded_file_label = QLabel("Nama file: —", self)
+        self.analyze_loaded_file_label.setWordWrap(True)
+        for lb in (
+            self.analyze_swimmer_label,
+            self.analyze_stroke_label,
+            self.analyze_loaded_file_label,
+        ):
+            lb.setStyleSheet("color: #e5e7eb; font-size: 11pt;")
+
+        analyze_load_group.layout().addWidget(self.analyze_swimmer_label)
+        analyze_load_group.layout().addWidget(self.analyze_stroke_label)
+        analyze_load_group.layout().addWidget(self.analyze_loaded_file_label)
+        analyze_load_group.layout().addStretch(1)
+
+        analyze_right_layout.addWidget(analyze_load_group, 0)
+        analyze_right_layout.addStretch(1)
+
+        analyze_layout.addWidget(analyze_plots_panel, 4)
+        analyze_layout.addWidget(analyze_right_panel, 1)
+
+        self.tab_widget.addTab(live_tab, "Live")
+        self.tab_widget.addTab(analyze_tab, "Analisa")
 
         self._apply_styles(controls, indicators)
 
@@ -248,6 +342,22 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background-color: #2563eb; }
             QPushButton:checked { background-color: #ef4444; }
             QPushButton:disabled { background-color: #6b7280; color: #d1d5db; }
+            QTabWidget::pane {
+                border: 1px solid #374151;
+                border-radius: 8px;
+                background: #0f172a;
+                margin-top: 4px;
+            }
+            QTabBar::tab {
+                background: #1f2937;
+                color: #d1d5db;
+                padding: 8px 20px;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                margin-right: 4px;
+            }
+            QTabBar::tab:selected { background: #3b82f6; color: #fff; }
+            QTabBar::tab:hover:!selected { background: #374151; }
             """
         )
 
@@ -260,6 +370,91 @@ class MainWindow(QMainWindow):
             self.port_combo.setCurrentText(current)
         elif len(items) == 1:
             self.port_combo.setCurrentIndex(0)
+
+    @staticmethod
+    def _parse_logged_csv(path: Path) -> tuple[str, str, list[float], list[float], list[float], list[float]]:
+        """
+        Baca CSV dari tab Live: baris metadata (Nama Perenang, Gaya Renang, Time),
+        lalu header TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg) dan baris data.
+        """
+        raw = path.read_text(encoding="utf-8-sig")
+        lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+
+        swimmer = "—"
+        stroke = "—"
+        header_idx: int | None = None
+
+        for idx, line in enumerate(lines):
+            low = line.lower()
+            if low.startswith("nama perenang"):
+                if "," in line:
+                    swimmer = line.split(",", 1)[1].strip() or "—"
+                continue
+            if low.startswith("gaya renang"):
+                if "," in line:
+                    stroke = line.split(",", 1)[1].strip() or "—"
+                continue
+            if low.startswith("time:") or low.startswith("time,"):
+                continue
+            if "timestamp" in low and "force" in low:
+                header_idx = idx
+                break
+
+        if header_idx is None:
+            raise ValueError(
+                "Format CSV tidak dikenali. Harus memuat baris header "
+                '"TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)".'
+            )
+
+        data_lines = "\n".join(lines[header_idx + 1 :])
+        ts_list: list[float] = []
+        f_list: list[float] = []
+        r_list: list[float] = []
+        p_list: list[float] = []
+        reader = csv.reader(io.StringIO(data_lines))
+        for row in reader:
+            if len(row) < 4:
+                continue
+            try:
+                ts_list.append(float(row[0].strip()))
+                f_list.append(float(row[1].strip()))
+                r_list.append(float(row[2].strip()))
+                p_list.append(float(row[3].strip()))
+            except ValueError:
+                continue
+
+        if not ts_list:
+            raise ValueError("Tidak ada baris data numerik yang valid (4 kolom).")
+
+        return swimmer, stroke, ts_list, f_list, r_list, p_list
+
+    def load_analyze_csv(self) -> None:
+        start_dir = str(DATALOG_DIR) if DATALOG_DIR.is_dir() else str(SCRIPT_DIR)
+        path_str, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load CSV rekaman",
+            start_dir,
+            "CSV (*.csv);;Semua (*.*)",
+        )
+        if not path_str:
+            return
+        path = Path(path_str)
+        try:
+            swimmer, stroke, ts_list, f_list, r_list, p_list = self._parse_logged_csv(path)
+        except OSError as e:
+            QMessageBox.critical(self, "Load CSV", f"Tidak bisa membaca file:\n{e}")
+            return
+        except ValueError as e:
+            QMessageBox.warning(self, "Load CSV", str(e))
+            return
+
+        self.analyze_force_curve.setData(ts_list, f_list)
+        self.analyze_roll_curve.setData(ts_list, r_list)
+        self.analyze_pitch_curve.setData(ts_list, p_list)
+
+        self.analyze_swimmer_label.setText(f"Nama perenang: {swimmer}")
+        self.analyze_stroke_label.setText(f"Gaya renang: {stroke}")
+        self.analyze_loaded_file_label.setText(f"Nama file: {path.name}")
 
     def toggle_connection(self, checked: bool) -> None:
         if checked:
