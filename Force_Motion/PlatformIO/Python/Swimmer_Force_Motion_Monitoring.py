@@ -12,7 +12,7 @@ Format data serial (ESP32 Generate_TimeSeries_3_Random_data):
 4) Pitch (Deg)    — kolom 4 serial (RandomData3)
 
 Catatan:
-- Tab Live: tiga plot time-series (Force atas; Roll kiri & Pitch kanan di baris bawah).
+- Tab Live: tiga plot time-series vertikal (Force, Roll, Pitch masing-masing satu baris).
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
 """
@@ -108,10 +108,6 @@ class MainWindow(QMainWindow):
         self.force_plot_widget.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
         self.force_curve = self.force_plot_widget.plot(pen=pg.mkPen(color="#38bdf8", width=2))
 
-        bottom_row = QWidget(self)
-        bottom_layout = QHBoxLayout(bottom_row)
-        bottom_layout.setContentsMargins(0, 0, 0, 0)
-
         self.roll_plot_widget = pg.PlotWidget()
         self.roll_plot_widget.setLabel("left", "Angle (°)", color="#e5e7eb", **{"font-size": "11pt"})
         self.roll_plot_widget.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "11pt"})
@@ -132,11 +128,9 @@ class MainWindow(QMainWindow):
         self.pitch_plot_widget.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
         self.pitch_curve = self.pitch_plot_widget.plot(pen=pg.mkPen(color="#a78bfa", width=2))
 
-        bottom_layout.addWidget(self.roll_plot_widget, 1)
-        bottom_layout.addWidget(self.pitch_plot_widget, 1)
-
         plots_layout.addWidget(self.force_plot_widget, 1)
-        plots_layout.addWidget(bottom_row, 1)
+        plots_layout.addWidget(self.roll_plot_widget, 1)
+        plots_layout.addWidget(self.pitch_plot_widget, 1)
 
         self.force_time_data: list[float] = []
         self.force_data: list[float] = []
