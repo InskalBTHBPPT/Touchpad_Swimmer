@@ -13,6 +13,7 @@ Format data serial (ESP32 Generate_TimeSeries_3_Random_data):
 
 Catatan:
 - Tab Live: tiga plot time-series (Force atas; Roll kiri & Pitch kanan di baris bawah).
+- Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
 """
 
@@ -82,7 +83,8 @@ class MainWindow(QMainWindow):
         self.log_timer.timeout.connect(self.flush_log_buffer)
         self._log_header_time_str = ""
 
-        self.max_points = 400
+        # ~10 detik jendela tampilan pada laju ~10 baris/detik (mis. ESP timerInterval 100 ms)
+        self.max_points = 100
 
         central = QWidget(self)
         self.setCentralWidget(central)
@@ -95,7 +97,7 @@ class MainWindow(QMainWindow):
         plots_layout.setContentsMargins(0, 0, 0, 0)
 
         self.force_plot_widget = pg.PlotWidget()
-        self.force_plot_widget.setLabel("left", "Force", color="#e5e7eb", **{"font-size": "12pt"})
+        self.force_plot_widget.setLabel("left", "Force (Kg)", color="#e5e7eb", **{"font-size": "12pt"})
         self.force_plot_widget.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "12pt"})
         self.force_plot_widget.setTitle("Force Data (Kg)", color="#e5e7eb", size="12pt")
         self.force_plot_widget.setBackground("#1f2937")
@@ -186,6 +188,16 @@ class MainWindow(QMainWindow):
         grid.addWidget(self.stroke_combo, 3, 1, 1, 2)
 
         controls.layout().addLayout(grid)
+
+        file_name_caption = QLabel("Nama file:", self)
+        file_name_caption.setStyleSheet("color: #9ca3af; font-size: 10pt; font-weight: 600;")
+        self.log_filename_label = QLabel("—", self)
+        self.log_filename_label.setWordWrap(True)
+        self.log_filename_label.setStyleSheet(
+            "color: #d1d5db; font-size: 10pt; font-family: Consolas, 'Courier New', monospace;"
+        )
+        controls.layout().addWidget(file_name_caption)
+        controls.layout().addWidget(self.log_filename_label)
 
         row_btn = QHBoxLayout()
         self.connect_btn = QPushButton("Connect", self)
@@ -422,11 +434,13 @@ class MainWindow(QMainWindow):
                 self.swimmer_name_edit.setEnabled(False)
                 self.stroke_combo.setEnabled(False)
                 self.connect_btn.setEnabled(False)
+                self.log_filename_label.setText(path.name)
             except Exception as e:
                 QMessageBox.critical(self, "Log", f"Gagal membuka file:\n{e}")
                 self.log_file = None
                 self.log_file_path = None
                 self.log_btn.setChecked(False)
+                self.log_filename_label.setText("—")
         else:
             self.stop_logging()
 
@@ -447,6 +461,7 @@ class MainWindow(QMainWindow):
             self.stroke_combo.setEnabled(True)
             if self.connect_btn:
                 self.connect_btn.setEnabled(True)
+            self.log_filename_label.setText("—")
 
     def flush_log_buffer(self) -> None:
         if not self.log_file or not self.log_buffer:
