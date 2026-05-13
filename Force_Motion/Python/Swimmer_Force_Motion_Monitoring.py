@@ -16,7 +16,7 @@ Catatan:
 - Tab Analisa: panel kanan (load + statistik) kartu HTML tanpa judul grup; marker dengan label waktu jelas.
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
-- Ekspor statistik tab Analisa ke folder DataStatistik/ dengan nama <file_log>_DataStaistik.csv (tanpa Save As).
+- Ekspor statistik tab Analisa ke folder DataStatistik/ dengan nama <file_log>_DataStatistik.csv (tanpa Save As).
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
     QGridLayout,
     QGroupBox,
@@ -47,6 +48,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QStyle,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -80,16 +82,16 @@ LIVE_CSV_DATA_HEADER: tuple[str, ...] = (
 ANALYZE_MARKER_MIN_COLOR = "#22c55e"
 ANALYZE_MARKER_MAX_COLOR = "#ef4444"
 
-# Dialog QMessageBox (Simpan statistik): selaras dengan palet gelap + tombol biru seperti app.
-THEMED_MESSAGEBOX_STYLESHEET = """
-QMessageBox { background-color: #1f2937; }
-QMessageBox QLabel {
+# Dialog Simpan statistik: QDialog vertikal (ikon atas, teks bawah — bukan sebaris dengan ikon).
+THEMED_STATISTIK_DIALOG_STYLESHEET = """
+QDialog { background-color: #1f2937; }
+QDialog QLabel#StatDialogMessage {
     color: #e5e7eb;
     font-size: 11pt;
-    min-width: 320px;
-    qproperty-alignment: 'AlignLeft|AlignTop';
+    min-width: 360px;
+    max-width: 520px;
 }
-QMessageBox QPushButton {
+QDialog QPushButton {
     padding: 8px 18px;
     background-color: #3b82f6;
     color: #ffffff;
@@ -98,15 +100,15 @@ QMessageBox QPushButton {
     min-width: 72px;
     font-size: 11pt;
 }
-QMessageBox QPushButton:hover { background-color: #2563eb; }
-QMessageBox QPushButton:pressed { background-color: #1d4ed8; }
-QMessageBox QPushButton:focus { outline: none; }
+QDialog QPushButton:hover { background-color: #2563eb; }
+QDialog QPushButton:pressed { background-color: #1d4ed8; }
+QDialog QPushButton:focus { outline: none; }
 """
 
 
 def _path_text_for_dialog(path: Path | str) -> str:
     """
-    Teks path untuk QMessageBox: hindari wrap aneh setelah huruf drive.
+    Teks path untuk dialog: hindari wrap aneh setelah huruf drive.
 
     Di Windows, layout teks sering memutus baris di ``:`` (``D:`` dianggap satu
     segmen), sehingga path tampil sebagai ``D:`` lalu ``\\Pengujian\\...`` di
@@ -899,19 +901,52 @@ class MainWindow(QMainWindow):
         title: str,
         text: str,
     ) -> None:
-        """QMessageBox dengan stylesheet sama tema aplikasi (gelap + aksi biru)."""
-        mb = QMessageBox(self)
-        mb.setIcon(icon)
-        mb.setWindowTitle(title)
-        mb.setText(text)
-        mb.setStandardButtons(QMessageBox.StandardButton.Ok)
-        mb.setStyleSheet(THEMED_MESSAGEBOX_STYLESHEET)
-        # Tanpa ini, teks di area lebar QMessageBox sering tampak “geser ke kanan”
-        # (default perataan + kolom ikon). Paksa rata kiri untuk semua QLabel berisi teks.
-        for lb in mb.findChildren(QLabel):
-            if lb.text():
-                lb.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        mb.exec()
+        """
+        Dialog ringkas tema gelap: ikon di baris sendiri (atas), teks di bawah,
+        tombol OK — bukan layout horizontal QMessageBox (ikon kiri / teks kanan).
+        """
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setModal(True)
+        root = QVBoxLayout(dlg)
+        root.setSpacing(14)
+        root.setContentsMargins(20, 20, 20, 18)
+
+        app = QApplication.instance()
+        pixmap = None
+        if app is not None:
+            st = app.style()
+            if icon == QMessageBox.Icon.Critical:
+                sp = QStyle.StandardPixmap.SP_MessageBoxCritical
+            elif icon == QMessageBox.Icon.Warning:
+                sp = QStyle.StandardPixmap.SP_MessageBoxWarning
+            else:
+                sp = QStyle.StandardPixmap.SP_MessageBoxInformation
+            pixmap = st.standardPixmap(sp, None, dlg)
+
+        if pixmap is not None and not pixmap.isNull():
+            icon_lbl = QLabel(dlg)
+            icon_lbl.setPixmap(pixmap)
+            icon_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            root.addWidget(icon_lbl)
+
+        msg = QLabel(text, dlg)
+        msg.setObjectName("StatDialogMessage")
+        msg.setWordWrap(True)
+        msg.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        root.addWidget(msg)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        ok_btn = QPushButton("OK", dlg)
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(ok_btn)
+        root.addLayout(btn_row)
+
+        dlg.setStyleSheet(THEMED_STATISTIK_DIALOG_STYLESHEET)
+        dlg.exec()
 
     def save_analyze_statistics_csv(self) -> None:
         if self._analyze_export_ctx is None or self._analyze_stats_snapshot is None:
