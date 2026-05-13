@@ -1,8 +1,9 @@
-Python/DataLog/
-Image/
-Python/DataTable/
-Python/__pycache__/
-Force_Motion/PlatformIO/ArduinoFramework/ESP32-C3-Supermini/Generate_TimeSeries_3_Random_data/.pio/
-Force_Motion/PlatformIO/ArduinoFramework/ESP32-C3-Supermini/Generate_TimeSeries_3_Random_data/.vscode/
-Force_Motion/Python/DataLog/
-Force_Motion/Python/DataStatistik/
+Python/DataLog/
+Image/
+Python/DataTable/
+Python/__pycache__/
+Force_Motion/PlatformIO/ArduinoFramework/ESP32-C3-Supermini/Generate_TimeSeries_3_Random_data/.pio/
+Force_Motion/PlatformIO/ArduinoFramework/ESP32-C3-Supermini/Generate_TimeSeries_3_Random_data/.vscode/
+Force_Motion/PlatformIO/Python/DataLog/
+Force_Motion/Python/DataLog/
+Force_Motion/Python/DataStatistik/

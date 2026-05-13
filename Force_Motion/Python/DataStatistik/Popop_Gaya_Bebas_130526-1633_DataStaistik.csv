@@ -1,0 +1,11 @@
+Nama_Perenang,Popop
+Gaya_Renang,Gaya Bebas
+Waktu_Ekspor_Statistik,2026-05-13T18:41:39
+Berkas_Sumber,Popop_Gaya_Bebas_130526-1633.csv
+
+Metrik,Nilai,Satuan,Waktu (s)
+Force_maksimum,49.77,Kg,1202.1
+Roll_minimum,-19.88,deg,1204.01
+Roll_maksimum,19.62,deg,1202.4
+Pitch_minimum,-39.87,deg,1204.31
+Pitch_maksimum,39.27,deg,1203.51

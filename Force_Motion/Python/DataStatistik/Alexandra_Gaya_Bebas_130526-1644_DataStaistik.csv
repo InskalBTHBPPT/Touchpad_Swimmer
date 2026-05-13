@@ -1,0 +1,11 @@
+Nama_Perenang,Alexandra
+Gaya_Renang,Gaya Bebas
+Waktu_Ekspor_Statistik,2026-05-13T18:30:03
+Berkas_Sumber,Alexandra_Gaya_Bebas_130526-1644.csv
+
+Metrik,Nilai,Satuan,Waktu (s)
+Force_maksimum,49.13,Kg,371.59
+Roll_minimum,-19.86,deg,369.29
+Roll_maksimum,19.68,deg,363.98
+Pitch_minimum,-39.63,deg,362.29
+Pitch_maksimum,39.93,deg,362.39
