@@ -13,7 +13,7 @@ Format data serial (ESP32 Generate_TimeSeries_3_Random_data):
 
 Catatan:
 - Tab Live: tiga plot time-series vertikal (Force, Roll, Pitch masing-masing satu baris).
-- Tab Analisa: load CSV Live, statistik ekstremum (force maks; roll/pitch min–maks + waktu), marker di plot.
+- Tab Analisa: load CSV Live, statistik ekstremum, marker + label teks di plot (t / max / min).
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
 """
@@ -31,6 +31,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -347,6 +348,7 @@ class MainWindow(QMainWindow):
         self._analyze_scatter_force: pg.ScatterPlotItem | None = None
         self._analyze_scatter_roll: pg.ScatterPlotItem | None = None
         self._analyze_scatter_pitch: pg.ScatterPlotItem | None = None
+        self._analyze_stat_texts: list[tuple[pg.PlotWidget, pg.TextItem]] = []
 
         analyze_right_layout.addWidget(analyze_load_group, 0)
         analyze_right_layout.addWidget(self.analyze_stats_group, 0)
@@ -526,6 +528,10 @@ class MainWindow(QMainWindow):
         self._apply_analyze_statistics(ts_list, f_list, r_list, p_list)
 
     def _clear_analyze_stat_markers(self) -> None:
+        for plot, txt in self._analyze_stat_texts:
+            plot.removeItem(txt)
+        self._analyze_stat_texts.clear()
+
         for plot, attr in (
             (self.analyze_force_plot_widget, "_analyze_scatter_force"),
             (self.analyze_roll_plot_widget, "_analyze_scatter_roll"),
@@ -535,6 +541,28 @@ class MainWindow(QMainWindow):
             if sc is not None:
                 plot.removeItem(sc)
                 setattr(self, attr, None)
+
+    def _add_analyze_marker_label(
+        self,
+        plot: pg.PlotWidget,
+        x: float,
+        y: float,
+        text: str,
+        anchor: tuple[float, float] = (0.5, 1.0),
+    ) -> None:
+        """Label kecil di koordinat data (anchor: bawah teks di titik, teks ke atas)."""
+        ti = pg.TextItem(
+            text,
+            color="#f8fafc",
+            anchor=anchor,
+            border=pg.mkPen("#94a3b8", width=1),
+            fill=pg.mkBrush(30, 41, 59, 230),
+        )
+        ti.setFont(QFont("Segoe UI", 9))
+        ti.setZValue(11)
+        ti.setPos(x, y)
+        plot.addItem(ti)
+        self._analyze_stat_texts.append((plot, ti))
 
     def _apply_analyze_statistics(
         self,
@@ -584,6 +612,12 @@ class MainWindow(QMainWindow):
         )
         self._analyze_scatter_force.setZValue(10)
         self.analyze_force_plot_widget.addItem(self._analyze_scatter_force)
+        self._add_analyze_marker_label(
+            self.analyze_force_plot_widget,
+            t_fmax,
+            v_fmax,
+            f"t: {t_fmax:.2f} s\nmax: {v_fmax:.2f} Kg",
+        )
 
         self._analyze_scatter_roll = pg.ScatterPlotItem(
             pos=[
@@ -597,6 +631,20 @@ class MainWindow(QMainWindow):
         )
         self._analyze_scatter_roll.setZValue(10)
         self.analyze_roll_plot_widget.addItem(self._analyze_scatter_roll)
+        tr_min, vr_min = ts_list[i_rmin], r_list[i_rmin]
+        tr_max, vr_max = ts_list[i_rmax], r_list[i_rmax]
+        self._add_analyze_marker_label(
+            self.analyze_roll_plot_widget,
+            tr_min,
+            vr_min,
+            f"t: {tr_min:.2f} s\nmin: {vr_min:.2f}°",
+        )
+        self._add_analyze_marker_label(
+            self.analyze_roll_plot_widget,
+            tr_max,
+            vr_max,
+            f"t: {tr_max:.2f} s\nmax: {vr_max:.2f}°",
+        )
 
         self._analyze_scatter_pitch = pg.ScatterPlotItem(
             pos=[
@@ -610,6 +658,20 @@ class MainWindow(QMainWindow):
         )
         self._analyze_scatter_pitch.setZValue(10)
         self.analyze_pitch_plot_widget.addItem(self._analyze_scatter_pitch)
+        tp_min, vp_min = ts_list[i_pmin], p_list[i_pmin]
+        tp_max, vp_max = ts_list[i_pmax], p_list[i_pmax]
+        self._add_analyze_marker_label(
+            self.analyze_pitch_plot_widget,
+            tp_min,
+            vp_min,
+            f"t: {tp_min:.2f} s\nmin: {vp_min:.2f}°",
+        )
+        self._add_analyze_marker_label(
+            self.analyze_pitch_plot_widget,
+            tp_max,
+            vp_max,
+            f"t: {tp_max:.2f} s\nmax: {vp_max:.2f}°",
+        )
 
     def toggle_connection(self, checked: bool) -> None:
         if checked:
