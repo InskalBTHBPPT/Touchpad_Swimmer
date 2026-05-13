@@ -13,7 +13,7 @@ Format data serial (ESP32 Generate_TimeSeries_3_Random_data):
 
 Catatan:
 - Tab Live: tiga plot time-series vertikal (Force, Roll, Pitch masing-masing satu baris).
-- Tab Analisa: load CSV Live, statistik ekstremum, marker + label teks di plot (t / max / min).
+- Tab Analisa: panel Data rekaman & Statistik memakai Rich HTML (kartu, hierarki warna).
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
 """
@@ -27,10 +27,12 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from html import escape
+
 import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -73,6 +75,103 @@ LIVE_CSV_DATA_HEADER: tuple[str, ...] = (
 # Marker ekstremum tab Analisa: semua min hijau, semua max merah
 ANALYZE_MARKER_MIN_COLOR = "#22c55e"
 ANALYZE_MARKER_MAX_COLOR = "#ef4444"
+
+
+def _he(s: str) -> str:
+    return escape(s, quote=False)
+
+
+def _html_analyze_load_field(label: str, value: str, *, monospace: bool = False, margin_top: int = 8) -> str:
+    """Satu blok meta rekaman (judul kecil + nilai tebal)."""
+    mono = (
+        'font-family: Consolas, "Cascadia Mono", "Courier New", monospace; font-size: 11.5px;'
+        if monospace
+        else "font-size: 13px;"
+    )
+    return (
+        f'<div style="margin-top:{margin_top}px;">'
+        f'<div style="color:#64748b;font-size:9px;font-weight:700;letter-spacing:0.14em;">'
+        f"{_he(label.upper())}</div>"
+        f'<div style="color:#f8fafc;font-weight:600;margin-top:3px;line-height:1.45;{mono}">'
+        f"{_he(value)}</div>"
+        f"</div>"
+    )
+
+
+def _html_analyze_load_block(swimmer: str, stroke: str, filename: str) -> str:
+    """Satu kartu HTML untuk panel Data rekaman."""
+    return (
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:12px 14px;">'
+        f"{_html_analyze_load_field('Nama perenang', swimmer, margin_top=0)}"
+        f"{_html_analyze_load_field('Gaya renang', stroke)}"
+        f"{_html_analyze_load_field('Nama file', filename, monospace=True)}"
+        "</div>"
+    )
+
+
+def _html_analyze_load_placeholder() -> str:
+    return (
+        '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:14px 16px;">'
+        '<p style="margin:0;color:#64748b;font-size:11px;line-height:1.55;">'
+        'Belum ada rekaman dimuat.<br/>'
+        'Tekan <b style="color:#94a3b8;">Load CSV…</b> untuk memilih file hasil tab Live.'
+        "</p></div>"
+    )
+
+
+def _html_analyze_stat_force(v_max: float, t_max: float) -> str:
+    return (
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
+        '<div style="border-left:3px solid #38bdf8;padding-left:10px;">'
+        '<div style="color:#38bdf8;font-weight:700;font-size:10px;letter-spacing:0.12em;">FORCE</div>'
+        '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Maksimum</td>'
+        f'<td style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f} Kg")}</td></tr>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu</td>'
+        f'<td style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</td></tr>'
+        "</table></div></div>"
+    )
+
+
+def _html_analyze_stat_roll(v_min: float, t_min: float, v_max: float, t_max: float) -> str:
+    return (
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
+        '<div style="border-left:3px solid #f59e0b;padding-left:10px;">'
+        '<div style="color:#fbbf24;font-weight:700;font-size:10px;letter-spacing:0.12em;">ROLL</div>'
+        '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Minimum</td>'
+        f'<td><span style="font-weight:700;color:#86efac;font-size:13px;">{_he(f"{v_min:.2f}°")}</span>'
+        f'&nbsp;&nbsp;<span style="color:#64748b;">t</span> <span style="color:#e2e8f0;">{_he(f"{t_min:.2f} s")}</span></td></tr>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Maksimum</td>'
+        f'<td><span style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f}°")}</span>'
+        f'&nbsp;&nbsp;<span style="color:#64748b;">t</span> <span style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</span></td></tr>'
+        "</table></div></div>"
+    )
+
+
+def _html_analyze_stat_pitch(v_min: float, t_min: float, v_max: float, t_max: float) -> str:
+    return (
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
+        '<div style="border-left:3px solid #a78bfa;padding-left:10px;">'
+        '<div style="color:#c4b5fd;font-weight:700;font-size:10px;letter-spacing:0.12em;">PITCH</div>'
+        '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Minimum</td>'
+        f'<td><span style="font-weight:700;color:#86efac;font-size:13px;">{_he(f"{v_min:.2f}°")}</span>'
+        f'&nbsp;&nbsp;<span style="color:#64748b;">t</span> <span style="color:#e2e8f0;">{_he(f"{t_min:.2f} s")}</span></td></tr>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Maksimum</td>'
+        f'<td><span style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f}°")}</span>'
+        f'&nbsp;&nbsp;<span style="color:#64748b;">t</span> <span style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</span></td></tr>'
+        "</table></div></div>"
+    )
+
+
+def _html_analyze_stat_placeholder() -> str:
+    return (
+        '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
+        '<p style="margin:0;color:#64748b;font-size:10px;line-height:1.55;">'
+        "Muat CSV dari tab Live untuk menampilkan ringkasan ekstremum (force, roll, pitch)."
+        "</p></div>"
+    )
 
 
 def _safe_filename_part(s: str) -> str:
@@ -305,45 +404,34 @@ class MainWindow(QMainWindow):
         analyze_right_layout = QVBoxLayout(analyze_right_panel)
         analyze_right_layout.setContentsMargins(0, 0, 0, 0)
 
-        analyze_load_group = QGroupBox("", self)
+        analyze_load_group = QGroupBox("Data rekaman", self)
         analyze_load_group.setLayout(QVBoxLayout())
-        analyze_load_group.layout().setContentsMargins(12, 12, 12, 12)
+        analyze_load_group.layout().setContentsMargins(12, 14, 12, 14)
+        analyze_load_group.layout().setSpacing(10)
 
         self.load_csv_btn = QPushButton("Load CSV…", self)
         self.load_csv_btn.clicked.connect(self.load_analyze_csv)
         analyze_load_group.layout().addWidget(self.load_csv_btn)
 
-        self.analyze_swimmer_label = QLabel("Nama perenang: —", self)
-        self.analyze_stroke_label = QLabel("Gaya renang: —", self)
-        self.analyze_loaded_file_label = QLabel("Nama file: —", self)
-        self.analyze_loaded_file_label.setWordWrap(True)
-        for lb in (
-            self.analyze_swimmer_label,
-            self.analyze_stroke_label,
-            self.analyze_loaded_file_label,
-        ):
-            lb.setStyleSheet("color: #e5e7eb; font-size: 11pt;")
-
-        analyze_load_group.layout().addWidget(self.analyze_swimmer_label)
-        analyze_load_group.layout().addWidget(self.analyze_stroke_label)
-        analyze_load_group.layout().addWidget(self.analyze_loaded_file_label)
+        self.analyze_meta_label = QLabel(self)
+        self.analyze_meta_label.setObjectName("AnalyzeRichLabel")
+        self.analyze_meta_label.setWordWrap(True)
+        self.analyze_meta_label.setTextFormat(Qt.TextFormat.RichText)
+        self.analyze_meta_label.setText(_html_analyze_load_placeholder())
+        analyze_load_group.layout().addWidget(self.analyze_meta_label)
 
         self.analyze_stats_group = QGroupBox("Statistik", self)
         stats_inner = QVBoxLayout(self.analyze_stats_group)
-        stats_inner.setContentsMargins(12, 12, 12, 12)
-        stats_inner.setSpacing(6)
-        self.stat_force_label = QLabel(
-            "Force — maksimum: —\nwaktu terjadi: — s", self
-        )
-        self.stat_roll_label = QLabel(
-            "Roll — minimum: — (t = — s)\nmaksimum: — (t = — s)", self
-        )
-        self.stat_pitch_label = QLabel(
-            "Pitch — minimum: — (t = — s)\nmaksimum: — (t = — s)", self
-        )
+        stats_inner.setContentsMargins(12, 14, 12, 14)
+        stats_inner.setSpacing(10)
+        self.stat_force_label = QLabel(self)
+        self.stat_roll_label = QLabel(self)
+        self.stat_pitch_label = QLabel(self)
         for lb in (self.stat_force_label, self.stat_roll_label, self.stat_pitch_label):
+            lb.setObjectName("AnalyzeRichLabel")
             lb.setWordWrap(True)
-            lb.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+            lb.setTextFormat(Qt.TextFormat.RichText)
+            lb.setText(_html_analyze_stat_placeholder())
 
         stats_inner.addWidget(self.stat_force_label)
         stats_inner.addWidget(self.stat_roll_label)
@@ -397,6 +485,11 @@ class MainWindow(QMainWindow):
             }
             QTabBar::tab:selected { background: #3b82f6; color: #fff; }
             QTabBar::tab:hover:!selected { background: #374151; }
+            QLabel#AnalyzeRichLabel {
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }
             """
         )
 
@@ -524,9 +617,7 @@ class MainWindow(QMainWindow):
         self.analyze_roll_curve.setData(ts_list, r_list)
         self.analyze_pitch_curve.setData(ts_list, p_list)
 
-        self.analyze_swimmer_label.setText(f"Nama perenang: {swimmer}")
-        self.analyze_stroke_label.setText(f"Gaya renang: {stroke}")
-        self.analyze_loaded_file_label.setText(f"Nama file: {path.name}")
+        self.analyze_meta_label.setText(_html_analyze_load_block(swimmer, stroke, path.name))
 
         self._clear_analyze_stat_markers()
         self._apply_analyze_statistics(ts_list, f_list, r_list, p_list)
@@ -617,16 +708,16 @@ class MainWindow(QMainWindow):
         ts_min = min(ts_list)
         ts_max = max(ts_list)
 
-        self.stat_force_label.setText(
-            f"Force — maksimum: {v_fmax:.2f} Kg\nwaktu terjadi: {t_fmax:.2f} s"
-        )
+        self.stat_force_label.setText(_html_analyze_stat_force(v_fmax, t_fmax))
         self.stat_roll_label.setText(
-            f"Roll — minimum: {r_list[i_rmin]:.2f}° (t = {ts_list[i_rmin]:.2f} s)\n"
-            f"maksimum: {r_list[i_rmax]:.2f}° (t = {ts_list[i_rmax]:.2f} s)"
+            _html_analyze_stat_roll(
+                r_list[i_rmin], ts_list[i_rmin], r_list[i_rmax], ts_list[i_rmax]
+            )
         )
         self.stat_pitch_label.setText(
-            f"Pitch — minimum: {p_list[i_pmin]:.2f}° (t = {ts_list[i_pmin]:.2f} s)\n"
-            f"maksimum: {p_list[i_pmax]:.2f}° (t = {ts_list[i_pmax]:.2f} s)"
+            _html_analyze_stat_pitch(
+                p_list[i_pmin], ts_list[i_pmin], p_list[i_pmax], ts_list[i_pmax]
+            )
         )
 
         self._analyze_scatter_force = pg.ScatterPlotItem(
