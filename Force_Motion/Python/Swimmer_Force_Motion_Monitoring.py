@@ -15,7 +15,7 @@ Catatan:
 - Tab Live: tiga plot time-series vertikal (Force, Roll, Pitch masing-masing satu baris).
 - Tab Analisa: panel kanan (load + statistik) kartu HTML tanpa judul grup; marker dengan label waktu jelas.
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
-- Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
+- Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As); opsi checkbox menggeser TimeStamp di CSV ke nol dari sampel pertama setelah Start Log (bukan Connect).
 - Ekspor statistik tab Analisa ke folder DataStatistik/ dengan nama <file_log>_DataStatistik.csv (tanpa Save As).
 """
 
@@ -37,6 +37,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -295,6 +296,7 @@ class MainWindow(QMainWindow):
         self.log_timer.setInterval(400)
         self.log_timer.timeout.connect(self.flush_log_buffer)
         self._log_header_time_str = ""
+        self._log_timestamp_t0: float | None = None
 
         # ~10 detik jendela tampilan pada laju ~10 baris/detik (mis. ESP timerInterval 100 ms)
         self.max_points = 100
@@ -384,6 +386,15 @@ class MainWindow(QMainWindow):
         )
         controls.layout().addWidget(file_name_caption)
         controls.layout().addWidget(self.log_filename_label)
+
+        self.log_ts_zero_checkbox = QCheckBox("TimeStamp CSV mulai 0 saat Start Log", self)
+        self.log_ts_zero_checkbox.setChecked(False)
+        self.log_ts_zero_checkbox.setToolTip(
+            "Jika dicentang, kolom TimeStamp(s) di file CSV = waktu serial dikurangi "
+            "timestamp sampel pertama setelah Anda menekan Start Log (bukan saat Connect). "
+            "Baris pertama data ≈ 0 s; plot Live tetap memakai waktu dari perangkat."
+        )
+        controls.layout().addWidget(self.log_ts_zero_checkbox)
 
         row_btn = QHBoxLayout()
         self.connect_btn = QPushButton("Connect", self)
@@ -529,6 +540,19 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background-color: #2563eb; }
             QPushButton:checked { background-color: #ef4444; }
             QPushButton:disabled { background-color: #6b7280; color: #d1d5db; }
+            QCheckBox { color: #e5e7eb; spacing: 8px; }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 1px solid #4b5563;
+                background: #374151;
+            }
+            QCheckBox::indicator:checked {
+                background: #3b82f6;
+                border-color: #60a5fa;
+            }
+            QCheckBox::indicator:disabled { background: #2d3643; border-color: #4b5563; }
             QTabWidget::pane {
                 border: 1px solid #374151;
                 border-radius: 8px;
@@ -1145,8 +1169,13 @@ class MainWindow(QMainWindow):
                     continue
                 self.update_live(ts, force_kg, roll_deg, pitch_deg)
                 if self.log_file is not None:
+                    ts_log = ts
+                    if self.log_ts_zero_checkbox.isChecked():
+                        if self._log_timestamp_t0 is None:
+                            self._log_timestamp_t0 = ts
+                        ts_log = ts - self._log_timestamp_t0
                     self.log_buffer.append(
-                        f"{ts:.2f},{force_kg:.2f},{roll_deg:.2f},{pitch_deg:.2f}\n"
+                        f"{ts_log:.2f},{force_kg:.2f},{roll_deg:.2f},{pitch_deg:.2f}\n"
                     )
         except Exception as e:
             print(f"[SERIAL] Read error: {e}")
@@ -1212,10 +1241,12 @@ class MainWindow(QMainWindow):
                 self.log_file.write(f"Time:,{self._log_header_time_str}\n")
                 self.log_file.write("TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)\n")
                 self.log_buffer.clear()
+                self._log_timestamp_t0 = None
                 self.log_timer.start()
                 self.log_btn.setText("Stop Log")
                 self.swimmer_name_edit.setEnabled(False)
                 self.stroke_combo.setEnabled(False)
+                self.log_ts_zero_checkbox.setEnabled(False)
                 self.connect_btn.setEnabled(False)
                 self.log_filename_label.setText(path.name)
             except Exception as e:
@@ -1242,9 +1273,11 @@ class MainWindow(QMainWindow):
                 self.log_btn.setText("Start Log")
             self.swimmer_name_edit.setEnabled(True)
             self.stroke_combo.setEnabled(True)
+            self.log_ts_zero_checkbox.setEnabled(True)
             if self.connect_btn:
                 self.connect_btn.setEnabled(True)
             self.log_filename_label.setText("—")
+            self._log_timestamp_t0 = None
 
     def flush_log_buffer(self) -> None:
         if not self.log_file or not self.log_buffer:
