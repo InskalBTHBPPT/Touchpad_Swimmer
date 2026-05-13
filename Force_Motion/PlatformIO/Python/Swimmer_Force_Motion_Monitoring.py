@@ -70,6 +70,10 @@ LIVE_CSV_DATA_HEADER: tuple[str, ...] = (
     "Pitch(Deg)",
 )
 
+# Marker ekstremum tab Analisa: semua min hijau, semua max merah
+ANALYZE_MARKER_MIN_COLOR = "#22c55e"
+ANALYZE_MARKER_MAX_COLOR = "#ef4444"
+
 
 def _safe_filename_part(s: str) -> str:
     s = re.sub(r'[<>:"/\\|?*]', "", s)
@@ -630,7 +634,7 @@ class MainWindow(QMainWindow):
             size=14,
             symbol="o",
             pen=pg.mkPen("#f8fafc", width=2),
-            brush=pg.mkBrush("#ef4444"),
+            brush=pg.mkBrush(ANALYZE_MARKER_MAX_COLOR),
         )
         self._analyze_scatter_force.setZValue(10)
         self.analyze_force_plot_widget.addItem(self._analyze_scatter_force)
@@ -651,7 +655,7 @@ class MainWindow(QMainWindow):
             size=14,
             symbol="o",
             pen=pg.mkPen("#0f172a", width=2),
-            brush=[pg.mkBrush("#38bdf8"), pg.mkBrush("#fbbf24")],
+            brush=[pg.mkBrush(ANALYZE_MARKER_MIN_COLOR), pg.mkBrush(ANALYZE_MARKER_MAX_COLOR)],
         )
         self._analyze_scatter_roll.setZValue(10)
         self.analyze_roll_plot_widget.addItem(self._analyze_scatter_roll)
@@ -682,7 +686,7 @@ class MainWindow(QMainWindow):
             size=14,
             symbol="o",
             pen=pg.mkPen("#0f172a", width=2),
-            brush=[pg.mkBrush("#a78bfa"), pg.mkBrush("#4ade80")],
+            brush=[pg.mkBrush(ANALYZE_MARKER_MIN_COLOR), pg.mkBrush(ANALYZE_MARKER_MAX_COLOR)],
         )
         self._analyze_scatter_pitch.setZValue(10)
         self.analyze_pitch_plot_widget.addItem(self._analyze_scatter_pitch)
