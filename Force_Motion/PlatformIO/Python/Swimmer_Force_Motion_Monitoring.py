@@ -13,7 +13,7 @@ Format data serial (ESP32 Generate_TimeSeries_3_Random_data):
 
 Catatan:
 - Tab Live: tiga plot time-series vertikal (Force, Roll, Pitch masing-masing satu baris).
-- Tab Analisa: memuat CSV hasil rekaman Live (metadata + kolom data); format dicek ketat.
+- Tab Analisa: load CSV Live, statistik ekstremum (force maks; roll/pitch min–maks + waktu), marker di plot.
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
 """
@@ -322,9 +322,34 @@ class MainWindow(QMainWindow):
         analyze_load_group.layout().addWidget(self.analyze_swimmer_label)
         analyze_load_group.layout().addWidget(self.analyze_stroke_label)
         analyze_load_group.layout().addWidget(self.analyze_loaded_file_label)
-        analyze_load_group.layout().addStretch(1)
+
+        self.analyze_stats_group = QGroupBox("Statistik", self)
+        stats_inner = QVBoxLayout(self.analyze_stats_group)
+        stats_inner.setContentsMargins(12, 12, 12, 12)
+        stats_inner.setSpacing(6)
+        self.stat_force_label = QLabel(
+            "Force — maksimum: —\nwaktu terjadi: — s", self
+        )
+        self.stat_roll_label = QLabel(
+            "Roll — minimum: — (t = — s)\nmaksimum: — (t = — s)", self
+        )
+        self.stat_pitch_label = QLabel(
+            "Pitch — minimum: — (t = — s)\nmaksimum: — (t = — s)", self
+        )
+        for lb in (self.stat_force_label, self.stat_roll_label, self.stat_pitch_label):
+            lb.setWordWrap(True)
+            lb.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+
+        stats_inner.addWidget(self.stat_force_label)
+        stats_inner.addWidget(self.stat_roll_label)
+        stats_inner.addWidget(self.stat_pitch_label)
+
+        self._analyze_scatter_force: pg.ScatterPlotItem | None = None
+        self._analyze_scatter_roll: pg.ScatterPlotItem | None = None
+        self._analyze_scatter_pitch: pg.ScatterPlotItem | None = None
 
         analyze_right_layout.addWidget(analyze_load_group, 0)
+        analyze_right_layout.addWidget(self.analyze_stats_group, 0)
         analyze_right_layout.addStretch(1)
 
         analyze_layout.addWidget(analyze_plots_panel, 4)
@@ -496,6 +521,95 @@ class MainWindow(QMainWindow):
         self.analyze_swimmer_label.setText(f"Nama perenang: {swimmer}")
         self.analyze_stroke_label.setText(f"Gaya renang: {stroke}")
         self.analyze_loaded_file_label.setText(f"Nama file: {path.name}")
+
+        self._clear_analyze_stat_markers()
+        self._apply_analyze_statistics(ts_list, f_list, r_list, p_list)
+
+    def _clear_analyze_stat_markers(self) -> None:
+        for plot, attr in (
+            (self.analyze_force_plot_widget, "_analyze_scatter_force"),
+            (self.analyze_roll_plot_widget, "_analyze_scatter_roll"),
+            (self.analyze_pitch_plot_widget, "_analyze_scatter_pitch"),
+        ):
+            sc = getattr(self, attr, None)
+            if sc is not None:
+                plot.removeItem(sc)
+                setattr(self, attr, None)
+
+    def _apply_analyze_statistics(
+        self,
+        ts_list: list[float],
+        f_list: list[float],
+        r_list: list[float],
+        p_list: list[float],
+    ) -> None:
+        """Hitung ekstremum, isi label Statistik, dan tampilkan marker di plot Analisa."""
+        n = len(ts_list)
+        if n == 0:
+            return
+
+        def _argmin_first(vals: list[float]) -> int:
+            return min(range(len(vals)), key=lambda i: vals[i])
+
+        def _argmax_first(vals: list[float]) -> int:
+            return max(range(len(vals)), key=lambda i: vals[i])
+
+        i_fmax = _argmax_first(f_list)
+        t_fmax = ts_list[i_fmax]
+        v_fmax = f_list[i_fmax]
+
+        i_rmin = _argmin_first(r_list)
+        i_rmax = _argmax_first(r_list)
+        i_pmin = _argmin_first(p_list)
+        i_pmax = _argmax_first(p_list)
+
+        self.stat_force_label.setText(
+            f"Force — maksimum: {v_fmax:.2f} Kg\nwaktu terjadi: {t_fmax:.2f} s"
+        )
+        self.stat_roll_label.setText(
+            f"Roll — minimum: {r_list[i_rmin]:.2f}° (t = {ts_list[i_rmin]:.2f} s)\n"
+            f"maksimum: {r_list[i_rmax]:.2f}° (t = {ts_list[i_rmax]:.2f} s)"
+        )
+        self.stat_pitch_label.setText(
+            f"Pitch — minimum: {p_list[i_pmin]:.2f}° (t = {ts_list[i_pmin]:.2f} s)\n"
+            f"maksimum: {p_list[i_pmax]:.2f}° (t = {ts_list[i_pmax]:.2f} s)"
+        )
+
+        self._analyze_scatter_force = pg.ScatterPlotItem(
+            pos=[(t_fmax, v_fmax)],
+            size=14,
+            symbol="o",
+            pen=pg.mkPen("#f8fafc", width=2),
+            brush=pg.mkBrush("#ef4444"),
+        )
+        self._analyze_scatter_force.setZValue(10)
+        self.analyze_force_plot_widget.addItem(self._analyze_scatter_force)
+
+        self._analyze_scatter_roll = pg.ScatterPlotItem(
+            pos=[
+                (ts_list[i_rmin], r_list[i_rmin]),
+                (ts_list[i_rmax], r_list[i_rmax]),
+            ],
+            size=14,
+            symbol="o",
+            pen=pg.mkPen("#0f172a", width=2),
+            brush=[pg.mkBrush("#38bdf8"), pg.mkBrush("#fbbf24")],
+        )
+        self._analyze_scatter_roll.setZValue(10)
+        self.analyze_roll_plot_widget.addItem(self._analyze_scatter_roll)
+
+        self._analyze_scatter_pitch = pg.ScatterPlotItem(
+            pos=[
+                (ts_list[i_pmin], p_list[i_pmin]),
+                (ts_list[i_pmax], p_list[i_pmax]),
+            ],
+            size=14,
+            symbol="o",
+            pen=pg.mkPen("#0f172a", width=2),
+            brush=[pg.mkBrush("#a78bfa"), pg.mkBrush("#4ade80")],
+        )
+        self._analyze_scatter_pitch.setZValue(10)
+        self.analyze_pitch_plot_widget.addItem(self._analyze_scatter_pitch)
 
     def toggle_connection(self, checked: bool) -> None:
         if checked:
