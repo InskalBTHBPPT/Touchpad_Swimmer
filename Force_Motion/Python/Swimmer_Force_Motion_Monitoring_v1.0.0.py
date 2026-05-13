@@ -1,22 +1,95 @@
 """
-Swimmer Force Motion Monitoring
+Swimmer Force Motion Monitoring — aplikasi desktop (PySide6 + pyqtgraph).
 
-Ringkasan:
-- Dashboard PySide6 untuk monitoring gaya renang / beban (force) dan gerakan (roll, pitch) real-time.
-- Membaca serial CSV UTF-8: 4 kolom per baris (newline-terminated).
+Versi modul ini: **1.0.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v1.0.0.py``).
 
-Format data serial (ESP32 Generate_TimeSeries_3_Random_data):
-1) TimeStamp(s)   — waktu relatif dari firmware (detik)
-2) Force (Kg)     — kolom 2 serial (RandomData1)
-3) Roll (Deg)     — kolom 3 serial (RandomData2)
-4) Pitch (Deg)    — kolom 4 serial (RandomData3)
+Ringkasan fungsi
+==================
+Aplikasi memantau **beban (force, kg)** dan **orientasi gerak (roll & pitch, derajat)**
+secara *real-time* dari perangkat keras yang mengirim data lewat **port serial USB**
+dalam format **teks CSV**: satu baris per sampel, empat kolom numerik dipisahkan koma.
 
-Catatan:
-- Tab Live: tiga plot time-series vertikal (Force, Roll, Pitch masing-masing satu baris).
-- Tab Analisa: panel kanan (load + statistik) kartu HTML tanpa judul grup; marker dengan label waktu jelas.
-- Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
-- Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As); opsi checkbox menggeser TimeStamp di CSV ke nol dari sampel pertama setelah Start Log (bukan Connect).
-- Ekspor statistik tab Analisa ke folder DataStatistik/ dengan nama <file_log>_DataStatistik.csv (tanpa Save As).
+Dua tab utama:
+
+1. **Live** — koneksi serial, plot tiga deret waktu, indikator nilai terakhir, rekaman
+   ke berkas CSV di folder ``DataLog/``, opsi menggeser kolom waktu di CSV ke nol
+   per sesi **Start Log**, serta tombol **About** / **Help**.
+2. **Analisa** — muat CSV hasil tab Live, tampilkan plot rekaman dengan marker
+   ekstremum, ringkasan statistik, dan ekspor ringkasan ke ``DataStatistik/``.
+
+Arsitektur ringkas
+===================
+- **GUI**: ``QMainWindow`` + ``QTabWidget``; plot memakai **pyqtgraph** (performa baik
+  untuk deret waktu).
+- **Serial**: ``serial.Serial`` + ``QTimer`` periodik (``poll_serial``) membaca buffer
+  byte, memecah per ``\\n``, mendekode UTF-8, mem-parse empat kolom float.
+- **Live plot**: tiga ``PlotDataItem``; tiap kanal menyimpan maksimal ``max_points``
+  titik (default 100) — jendela geser ~10 s jika laju ~10 sampel/detik.
+- **Logging**: ``toggle_logging`` membuka berkas teks UTF-8; baris data di-buffer
+  dan di-flush periodik lewat ``QTimer`` terpisah agar I/O disk tidak memblokir
+  pembacaan serial setiap tick.
+
+Format baris serial (wajib)
+============================
+Satu baris (tanpa komentar ``#`` di depan), empat nilai dipisahkan koma, contoh::
+
+    12.34, 5.6, -1.2, 3.4
+
+Urutan kolom (sama dengan header CSV rekaman):
+
+1. **TimeStamp(s)** — skala detik; biasanya dari *timer* firmware (bukan jam PC).
+2. **Force(Kg)** — beban / gaya (satuan sesuai kalibrasi perangkat).
+3. **Roll(Deg)** — sudut roll.
+4. **Pitch(Deg)** — sudut pitch.
+
+Firmware referensi di repositori ini: proyek PlatformIO
+``Generate_TimeSeries_3_Random_data`` (ESP32) mengirim pola serupa untuk uji.
+
+Format berkas CSV rekaman (tab Live)
+=====================================
+Disimpan di ``DataLog/`` (folder sejajar skrip Python). Nama berkas memuat nama
+perenang aman, gaya renang, dan cap waktu ``ddmmyy-HHMM``.
+
+Struktur:
+
+- Beberapa baris **metadata** (mis. ``Nama Perenang:``, ``Gaya Renang:``, ``Time:``).
+- Satu baris **header data** persis:
+  ``TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)``
+- Baris data numerik empat kolom.
+
+Opsi **TimeStamp CSV mulai 0 saat Start Log**: jika dicentang, kolom waktu yang
+ditulis ke CSV adalah ``waktu_serial - waktu_sampel_pertama_sesi_log`` sehingga
+baris pertama data ≈ ``0`` detik. **Connect** tidak mengatur ulang referensi ini;
+hanya **Start Log** yang memulai sesi baru. Plot Live tetap memakai waktu mentah
+dari serial.
+
+Analisa & statistik
+===================
+``load_analyze_csv`` memvalidasi metadata + header, lalu membangun deret waktu
+dan nilai. Statistik ekstremum (min/max dan waktu terkait) ditampilkan di panel
+kanan dan sebagai marker pada plot.
+
+Tombol **Simpan statistik** menulis CSV ke ``DataStatistik/`` dengan nama
+``<nama_file_log>_DataStaistik.csv`` (tanpa dialog Save As), berisi meta + tabel
+metrik (lihat juga manual pengguna).
+
+Dependensi Python
+==================
+- ``PySide6`` — antarmuka Qt6.
+- ``pyqtgraph`` — plot deret waktu.
+- ``pyserial`` — komunikasi serial.
+
+Berkas terkait di folder yang sama
+===================================
+- ``UserManual_Force_Motion_v1.0.0.md`` — manual pengguna (Markdown).
+- ``UserManual_Force_Motion_v1.0.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
+- ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +
+  ``xhtml2pdf``), pola sama seperti proyek Touchpad_Timer_Pressure.
+
+Lihat juga
+==========
+Tombol **Help** di tab Live membuka PDF manual jika berkas ada; **About**
+menampilkan ringkasan versi dan tujuan aplikasi.
 """
 
 from __future__ import annotations
@@ -33,8 +106,8 @@ from html import escape
 import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -61,6 +134,11 @@ DATALOG_DIR = SCRIPT_DIR / "DataLog"
 DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
 # Sufiks nama file ekspor statistik (sesuai permintaan): <nama_file_log>_DataStaistik.csv
 STATISTIK_FILE_SUFFIX = "_DataStaistik"
+
+APP_NAME = "Swimmer Force Motion Monitoring"
+APP_VERSION = "1.0.0"
+USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v1.0.0.md"
+USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v1.0.0.pdf"
 
 STROKE_STYLES = [
     "Gaya Bebas",
@@ -280,7 +358,7 @@ def make_three_stack_plots() -> tuple[
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Swimmer Force Motion Monitoring")
+        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
         self.resize(1100, 720)
 
         self.ser: serial.Serial | None = None
@@ -427,6 +505,20 @@ class MainWindow(QMainWindow):
         ind_outer.addWidget(_pair("Force (Kg)", self.force_label))
         ind_outer.addWidget(_pair("Roll Motion (Deg)", self.roll_label))
         ind_outer.addWidget(_pair("Pitch Motion (Deg)", self.pitch_label))
+
+        about_help_row = QHBoxLayout()
+        about_help_row.addStretch(1)
+        self.about_btn = QPushButton("About", self)
+        self.about_btn.setObjectName("AboutHelpButton")
+        self.about_btn.setToolTip("Informasi aplikasi dan versi.")
+        self.about_btn.clicked.connect(self.show_about_dialog)
+        self.help_btn = QPushButton("Help", self)
+        self.help_btn.setObjectName("AboutHelpButton")
+        self.help_btn.setToolTip(f"Buka manual PDF ({USER_MANUAL_PDF.name}).")
+        self.help_btn.clicked.connect(self.open_user_manual_pdf)
+        about_help_row.addWidget(self.about_btn)
+        about_help_row.addWidget(self.help_btn)
+        ind_outer.addLayout(about_help_row)
 
         right_layout.addWidget(controls, 0)
         right_layout.addWidget(indicators, 1)
@@ -586,6 +678,17 @@ class MainWindow(QMainWindow):
             QPushButton#SaveStatsButton:disabled {
                 background-color: #6b7280;
                 color: #d1d5db;
+            }
+            QPushButton#AboutHelpButton {
+                background-color: #475569;
+                font-size: 10pt;
+                padding: 6px 12px;
+            }
+            QPushButton#AboutHelpButton:hover {
+                background-color: #64748b;
+            }
+            QPushButton#AboutHelpButton:pressed {
+                background-color: #334155;
             }
             """
         )
@@ -971,6 +1074,43 @@ class MainWindow(QMainWindow):
 
         dlg.setStyleSheet(THEMED_STATISTIK_DIALOG_STYLESHEET)
         dlg.exec()
+
+    def show_about_dialog(self) -> None:
+        """Dialog ringkas: nama aplikasi, versi, tujuan, rujukan manual."""
+        text = (
+            f"{APP_NAME}\n"
+            f"Versi {APP_VERSION}\n\n"
+            "Monitoring beban (kg) dan orientasi roll/pitch (°) dari perangkat serial "
+            "dalam format CSV empat kolom per baris.\n\n"
+            "Rekaman sesi disimpan ke folder DataLog; ringkasan statistik rekaman "
+            "bisa diekspor dari tab Analisa ke folder DataStatistik.\n\n"
+            f"Bantuan lengkap: tombol Help membuka\n{USER_MANUAL_PDF.name}\n"
+            "(PDF di folder yang sama dengan aplikasi, jika sudah dibuat)."
+        )
+        self._show_statistik_message_box(QMessageBox.Icon.Information, "Tentang", text)
+
+    def open_user_manual_pdf(self) -> None:
+        """Buka manual pengguna PDF dengan aplikasi bawaan sistem."""
+        pdf = USER_MANUAL_PDF.resolve()
+        if not pdf.is_file():
+            self._show_statistik_message_box(
+                QMessageBox.Icon.Warning,
+                "Help",
+                "Berkas manual PDF tidak ditemukan:\n"
+                f"{_path_text_for_dialog(pdf)}\n\n"
+                "Untuk membuat PDF dari Markdown, di folder aplikasi jalankan:\n"
+                "  python md_to_pdf_Force_Motion.py\n\n"
+                f"Masukan Markdown: {USER_MANUAL_MD.name}",
+            )
+            return
+        url = QUrl.fromLocalFile(str(pdf))
+        if not QDesktopServices.openUrl(url):
+            self._show_statistik_message_box(
+                QMessageBox.Icon.Critical,
+                "Help",
+                "Tidak dapat membuka PDF dengan aplikasi default sistem.\n"
+                f"{_path_text_for_dialog(pdf)}",
+            )
 
     def save_analyze_statistics_csv(self) -> None:
         if self._analyze_export_ctx is None or self._analyze_stats_snapshot is None:
