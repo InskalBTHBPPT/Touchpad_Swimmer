@@ -83,7 +83,12 @@ ANALYZE_MARKER_MAX_COLOR = "#ef4444"
 # Dialog QMessageBox (Simpan statistik): selaras dengan palet gelap + tombol biru seperti app.
 THEMED_MESSAGEBOX_STYLESHEET = """
 QMessageBox { background-color: #1f2937; }
-QMessageBox QLabel { color: #e5e7eb; font-size: 11pt; min-width: 320px; }
+QMessageBox QLabel {
+    color: #e5e7eb;
+    font-size: 11pt;
+    min-width: 320px;
+    qproperty-alignment: 'AlignLeft|AlignTop';
+}
 QMessageBox QPushButton {
     padding: 8px 18px;
     background-color: #3b82f6;
@@ -97,6 +102,21 @@ QMessageBox QPushButton:hover { background-color: #2563eb; }
 QMessageBox QPushButton:pressed { background-color: #1d4ed8; }
 QMessageBox QPushButton:focus { outline: none; }
 """
+
+
+def _path_text_for_dialog(path: Path | str) -> str:
+    """
+    Teks path untuk QMessageBox: hindari wrap aneh setelah huruf drive.
+
+    Di Windows, layout teks sering memutus baris di ``:`` (``D:`` dianggap satu
+    segmen), sehingga path tampil sebagai ``D:`` lalu ``\\Pengujian\\...`` di
+    baris berikutnya. Menyisipkan U+2060 WORD JOINER setelah ``:`` drive
+    menggabungkan ``D:`` dengan sisa path.
+    """
+    s = path.as_posix() if isinstance(path, Path) else str(path).replace("\\", "/")
+    if len(s) >= 3 and s[0].isalpha() and s[1] == ":" and s[2] == "/":
+        s = s[:2] + "\u2060" + s[2:]
+    return s
 
 
 def _he(s: str) -> str:
@@ -886,6 +906,11 @@ class MainWindow(QMainWindow):
         mb.setText(text)
         mb.setStandardButtons(QMessageBox.StandardButton.Ok)
         mb.setStyleSheet(THEMED_MESSAGEBOX_STYLESHEET)
+        # Tanpa ini, teks di area lebar QMessageBox sering tampak “geser ke kanan”
+        # (default perataan + kolom ikon). Paksa rata kiri untuk semua QLabel berisi teks.
+        for lb in mb.findChildren(QLabel):
+            if lb.text():
+                lb.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         mb.exec()
 
     def save_analyze_statistics_csv(self) -> None:
@@ -927,7 +952,7 @@ class MainWindow(QMainWindow):
         self._show_statistik_message_box(
             QMessageBox.Icon.Information,
             "Simpan statistik",
-            f"Tersimpan:\n{path}",
+            f"Tersimpan:\n{_path_text_for_dialog(path)}",
         )
 
     def _write_statistik_csv(
