@@ -13,7 +13,7 @@ Format data serial (ESP32 Generate_TimeSeries_3_Random_data):
 
 Catatan:
 - Tab Live: tiga plot time-series vertikal (Force, Roll, Pitch masing-masing satu baris).
-- Tab Analisa: panel Data rekaman & Statistik memakai Rich HTML (kartu, hierarki warna).
+- Tab Analisa: panel kanan (load + statistik) kartu HTML tanpa judul grup; marker dengan label waktu jelas.
 - Plot mempertahankan maksimal 100 titik (~10 detik jika ~10 sampel/detik).
 - Rekaman CSV ke folder DataLog/ di samping file ini (tanpa dialog Save As).
 """
@@ -90,7 +90,7 @@ def _html_analyze_load_field(label: str, value: str, *, monospace: bool = False,
     )
     return (
         f'<div style="margin-top:{margin_top}px;">'
-        f'<div style="color:#64748b;font-size:9px;font-weight:700;letter-spacing:0.14em;">'
+        f'<div style="color:#e2e8f0;font-size:9px;font-weight:700;letter-spacing:0.12em;opacity:0.92;">'
         f"{_he(label.upper())}</div>"
         f'<div style="color:#f8fafc;font-weight:600;margin-top:3px;line-height:1.45;{mono}">'
         f"{_he(value)}</div>"
@@ -112,9 +112,9 @@ def _html_analyze_load_block(swimmer: str, stroke: str, filename: str) -> str:
 def _html_analyze_load_placeholder() -> str:
     return (
         '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:14px 16px;">'
-        '<p style="margin:0;color:#64748b;font-size:11px;line-height:1.55;">'
+        '<p style="margin:0;color:#cbd5e1;font-size:11px;line-height:1.55;">'
         'Belum ada rekaman dimuat.<br/>'
-        'Tekan <b style="color:#94a3b8;">Load CSV…</b> untuk memilih file hasil tab Live.'
+        'Tekan <b style="color:#f1f5f9;">Load CSV…</b> untuk memilih file hasil tab Live.'
         "</p></div>"
     )
 
@@ -127,7 +127,7 @@ def _html_analyze_stat_force(v_max: float, t_max: float) -> str:
         '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
         f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Maksimum</td>'
         f'<td style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f} Kg")}</td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu</td>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu maksimum</td>'
         f'<td style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</td></tr>'
         "</table></div></div>"
     )
@@ -140,11 +140,13 @@ def _html_analyze_stat_roll(v_min: float, t_min: float, v_max: float, t_max: flo
         '<div style="color:#fbbf24;font-weight:700;font-size:10px;letter-spacing:0.12em;">ROLL</div>'
         '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
         f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Minimum</td>'
-        f'<td><span style="font-weight:700;color:#86efac;font-size:13px;">{_he(f"{v_min:.2f}°")}</span>'
-        f'&nbsp;&nbsp;<span style="color:#64748b;">t</span> <span style="color:#e2e8f0;">{_he(f"{t_min:.2f} s")}</span></td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Maksimum</td>'
-        f'<td><span style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f}°")}</span>'
-        f'&nbsp;&nbsp;<span style="color:#64748b;">t</span> <span style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</span></td></tr>'
+        f'<td style="font-weight:700;color:#86efac;font-size:13px;">{_he(f"{v_min:.2f}°")}</td></tr>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;">Waktu minimum</td>'
+        f'<td style="color:#e2e8f0;">{_he(f"{t_min:.2f} s")}</td></tr>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Maksimum</td>'
+        f'<td style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f}°")}</td></tr>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu maksimum</td>'
+        f'<td style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</td></tr>'
         "</table></div></div>"
     )
 
@@ -156,11 +158,13 @@ def _html_analyze_stat_pitch(v_min: float, t_min: float, v_max: float, t_max: fl
         '<div style="color:#c4b5fd;font-weight:700;font-size:10px;letter-spacing:0.12em;">PITCH</div>'
         '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
         f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Minimum</td>'
-        f'<td><span style="font-weight:700;color:#86efac;font-size:13px;">{_he(f"{v_min:.2f}°")}</span>'
-        f'&nbsp;&nbsp;<span style="color:#64748b;">t</span> <span style="color:#e2e8f0;">{_he(f"{t_min:.2f} s")}</span></td></tr>'
-        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Maksimum</td>'
-        f'<td><span style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f}°")}</span>'
-        f'&nbsp;&nbsp;<span style="color:#64748b;">t</span> <span style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</span></td></tr>'
+        f'<td style="font-weight:700;color:#86efac;font-size:13px;">{_he(f"{v_min:.2f}°")}</td></tr>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;">Waktu minimum</td>'
+        f'<td style="color:#e2e8f0;">{_he(f"{t_min:.2f} s")}</td></tr>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 4px 0;vertical-align:middle;">Maksimum</td>'
+        f'<td style="font-weight:700;color:#fca5a5;font-size:13px;">{_he(f"{v_max:.2f}°")}</td></tr>'
+        f'<tr><td style="color:#94a3b8;padding:4px 10px 0 0;">Waktu maksimum</td>'
+        f'<td style="color:#e2e8f0;">{_he(f"{t_max:.2f} s")}</td></tr>'
         "</table></div></div>"
     )
 
@@ -168,7 +172,7 @@ def _html_analyze_stat_pitch(v_min: float, t_min: float, v_max: float, t_max: fl
 def _html_analyze_stat_placeholder() -> str:
     return (
         '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
-        '<p style="margin:0;color:#64748b;font-size:10px;line-height:1.55;">'
+        '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
         "Muat CSV dari tab Live untuk menampilkan ringkasan ekstremum (force, roll, pitch)."
         "</p></div>"
     )
@@ -404,7 +408,7 @@ class MainWindow(QMainWindow):
         analyze_right_layout = QVBoxLayout(analyze_right_panel)
         analyze_right_layout.setContentsMargins(0, 0, 0, 0)
 
-        analyze_load_group = QGroupBox("Data rekaman", self)
+        analyze_load_group = QGroupBox("", self)
         analyze_load_group.setLayout(QVBoxLayout())
         analyze_load_group.layout().setContentsMargins(12, 14, 12, 14)
         analyze_load_group.layout().setSpacing(10)
@@ -420,7 +424,7 @@ class MainWindow(QMainWindow):
         self.analyze_meta_label.setText(_html_analyze_load_placeholder())
         analyze_load_group.layout().addWidget(self.analyze_meta_label)
 
-        self.analyze_stats_group = QGroupBox("Statistik", self)
+        self.analyze_stats_group = QGroupBox("", self)
         stats_inner = QVBoxLayout(self.analyze_stats_group)
         stats_inner.setContentsMargins(12, 14, 12, 14)
         stats_inner.setSpacing(10)
@@ -733,7 +737,7 @@ class MainWindow(QMainWindow):
             self.analyze_force_plot_widget,
             t_fmax,
             v_fmax,
-            f"t: {t_fmax:.2f} s\nmax: {v_fmax:.2f} Kg",
+            f"Waktu maksimum\n{t_fmax:.2f} s\nMaksimum\n{v_fmax:.2f} Kg",
             ts_min,
             ts_max,
         )
@@ -756,7 +760,7 @@ class MainWindow(QMainWindow):
             self.analyze_roll_plot_widget,
             tr_min,
             vr_min,
-            f"t: {tr_min:.2f} s\nmin: {vr_min:.2f}°",
+            f"Waktu minimum\n{tr_min:.2f} s\nMinimum\n{vr_min:.2f}°",
             ts_min,
             ts_max,
         )
@@ -764,7 +768,7 @@ class MainWindow(QMainWindow):
             self.analyze_roll_plot_widget,
             tr_max,
             vr_max,
-            f"t: {tr_max:.2f} s\nmax: {vr_max:.2f}°",
+            f"Waktu maksimum\n{tr_max:.2f} s\nMaksimum\n{vr_max:.2f}°",
             ts_min,
             ts_max,
         )
@@ -787,7 +791,7 @@ class MainWindow(QMainWindow):
             self.analyze_pitch_plot_widget,
             tp_min,
             vp_min,
-            f"t: {tp_min:.2f} s\nmin: {vp_min:.2f}°",
+            f"Waktu minimum\n{tp_min:.2f} s\nMinimum\n{vp_min:.2f}°",
             ts_min,
             ts_max,
         )
@@ -795,7 +799,7 @@ class MainWindow(QMainWindow):
             self.analyze_pitch_plot_widget,
             tp_max,
             vp_max,
-            f"t: {tp_max:.2f} s\nmax: {vp_max:.2f}°",
+            f"Waktu maksimum\n{tp_max:.2f} s\nMaksimum\n{vp_max:.2f}°",
             ts_min,
             ts_max,
         )
