@@ -1,0 +1,19 @@
+Nama_Perenang,sinus_freq
+Gaya_Renang,Gaya Bebas
+Waktu_Ekspor_Statistik,2026-05-14T11:27:31
+Berkas_Sumber,sinus_freq_Gaya_Bebas_140526-0955.csv
+
+Timestampstart (s),1278.04
+
+Metrik,Nilai,Satuan,Waktu (s)
+Force_maksimum,48.95,Kg,1289.45
+Roll_minimum,-19.99,deg,1317.96
+Roll_maksimum,19.97,deg,1301.05
+Pitch_minimum,-39.6,deg,1311.96
+Pitch_maksimum,38.77,deg,1313.16
+
+
+Metrik,Frekuensi Dominan (Hz),Metode
+Force,0.409836,Welch PSD
+Roll,0.327869,Welch PSD
+Pitch,0.163934,Welch PSD

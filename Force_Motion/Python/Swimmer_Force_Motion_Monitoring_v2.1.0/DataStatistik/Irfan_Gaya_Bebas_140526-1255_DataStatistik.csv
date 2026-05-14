@@ -1,0 +1,19 @@
+Nama_Perenang,Irfan
+Gaya_Renang,Gaya Bebas
+Waktu_Ekspor_Statistik,2026-05-14T13:05:47
+Berkas_Sumber,Irfan_Gaya_Bebas_140526-1255.csv
+
+Timestampstart (s),4686.35
+
+Metrik,Nilai,Satuan,Waktu (s)
+Force_maksimum,49.39,Kg,4702.55
+Roll_minimum,-19.93,deg,4850.93
+Roll_maksimum,20,deg,4867.84
+Pitch_minimum,-39.97,deg,4798.2
+Pitch_maksimum,39.98,deg,4741.07
+
+
+Metrik,Frekuensi Dominan (Hz),Metode
+Force,0.437262,Welch PSD
+Roll,0.342205,Welch PSD
+Pitch,0.418251,Welch PSD

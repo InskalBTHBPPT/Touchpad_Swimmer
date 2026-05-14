@@ -1,0 +1,19 @@
+Nama_Perenang,Sheva
+Gaya_Renang,Dada
+Waktu_Ekspor_Statistik,2026-05-14T13:05:57
+Berkas_Sumber,Sheva_Dada_140526-1305.csv
+
+Timestampstart (s),383.7
+
+Metrik,Nilai,Satuan,Waktu (s)
+Force_maksimum,49,Kg,403.11
+Roll_minimum,-19.78,deg,417.51
+Roll_maksimum,19.75,deg,400.7
+Pitch_minimum,-38.87,deg,384.6
+Pitch_maksimum,39.91,deg,397.9
+
+
+Metrik,Frekuensi Dominan (Hz),Metode
+Force,0.442478,FFT
+Roll,0.353982,FFT
+Pitch,0.265487,FFT

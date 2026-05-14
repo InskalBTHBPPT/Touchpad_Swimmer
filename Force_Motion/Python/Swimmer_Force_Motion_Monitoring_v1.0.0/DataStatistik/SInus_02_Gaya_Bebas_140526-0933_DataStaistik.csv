@@ -1,0 +1,11 @@
+Nama_Perenang,SInus_02
+Gaya_Renang,Gaya Bebas
+Waktu_Ekspor_Statistik,2026-05-14T09:34:25
+Berkas_Sumber,SInus_02_Gaya_Bebas_140526-0933.csv
+
+Metrik,Nilai,Satuan,Waktu (s)
+Force_maksimum,49.13,Kg,1428.02
+Roll_minimum,-19.99,deg,1418.01
+Roll_maksimum,19.96,deg,1401.1
+Pitch_minimum,-39.74,deg,1426.42
+Pitch_maksimum,39.71,deg,1398.3

@@ -1,0 +1,19 @@
+Metrik,sinus_freq,sinus_freq_01,sinus_freq,Sheva,alexa
+,Gaya Bebas,Dada,Gaya Bebas,Dada,Gaya Bebas
+,sinus_freq_Gaya_Bebas_140526-0955.csv,sinus_freq_01_Dada_140526-1132.csv,sinus_freq_Gaya_Bebas_140526-0955.csv,Sheva_Dada_140526-1305.csv,alexa_Gaya_Bebas_140526-1302.csv
+,Value,Value,Value,Value,Value
+Timestamp start (s),1278.04,4856.23,1278.04,383.7,237.42
+Force Maksimum (Kg),48.95,49.44,48.95,49,48.52
+Timestamp Force Maksimum (s),1289.45,5002.6,1289.45,403.11,264.34
+Frekuensi Dominan Force (Hz),0.429448,0.238806,0.429448,0.442478,0.448343
+Roll Maksimum (Deg),19.97,20,19.97,19.75,19.66
+Timestamp Roll Maksimum (s),1301.05,4867.84,1301.05,400.7,250.73
+Roll Minimum (Deg),-19.99,-19.94,-19.99,-19.78,-19.86
+Timestamp Roll Minimum (s),1317.96,4900.95,1317.96,417.51,267.54
+Frekuensi Dominan Roll (Hz),0.327198,0.179104,0.327198,0.353982,0.331384
+Pitch Maksimum (Deg),38.77,39.92,38.77,39.91,39.53
+Timestamp Pitch Maksimum (s),1313.16,4941.17,1313.16,397.9,241.42
+Pitch Minimum (Deg),-39.6,-39.93,-39.6,-38.87,-39.46
+Timestamp Pitch Minimum (s),1311.96,4998.3,1311.96,384.6,269.94
+Frekuensi Dominan Pitch (Hz),0.265849,0.139303,0.265849,0.265487,0.409357
+Metode Spektrum Frekuensi,FFT,FFT,FFT,FFT,FFT

@@ -1,0 +1,19 @@
+Nama_Perenang,sinus_freq_01
+Gaya_Renang,Dada
+Waktu_Ekspor_Statistik,2026-05-14T11:36:46
+Berkas_Sumber,sinus_freq_01_Dada_140526-1132.csv
+
+Timestampstart (s),4856.23
+
+Metrik,Nilai,Satuan,Waktu (s)
+Force_maksimum,49.44,Kg,5002.6
+Roll_minimum,-19.94,deg,4900.95
+Roll_maksimum,20,deg,4867.84
+Pitch_minimum,-39.93,deg,4998.3
+Pitch_maksimum,39.92,deg,4941.17
+
+
+Metrik,Frekuensi Dominan (Hz),Metode
+Force,0.438247,Welch PSD
+Roll,0.179283,Welch PSD
+Pitch,0.358566,Welch PSD
