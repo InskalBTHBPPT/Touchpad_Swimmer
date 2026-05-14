@@ -1,4 +1,17 @@
-"""Baca/menormalisasi CSV rekaman tab Live (satu format tetap)."""
+"""I/O CSV rekaman tab **Live** — header tetap dan parser untuk tab **Analisa**.
+
+Modul ini dipakai bersama oleh:
+
+- **``Swimmer_Force_Motion_Monitoring_v2.0.0.py``** — penulisan header baris data saat
+  *logging* (impor ``LIVE_CSV_DATA_HEADER``) konsisten dengan parser.
+- **``analyze_single_file_tab.py``** — ``parse_logged_csv`` memvalidasi prolog
+  metadata + baris header, lalu mengembalikan nama perenang, gaya renang, dan
+  empat deret float (TimeStamp, Force, Roll, Pitch).
+
+Kontrak berkas: lihat manual ``UserManual_Force_Motion_v2.0.0.md`` (struktur CSV
+``DataLog/``). Header data harus persis empat kolom seperti konstanta tuple di
+modul ini (perbandingan case-insensitive, spasi sel antar kolom dijepit).
+"""
 
 from __future__ import annotations
 

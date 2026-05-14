@@ -1,7 +1,22 @@
 """
 Swimmer Force Motion Monitoring — aplikasi desktop (PySide6 + pyqtgraph).
 
-Versi modul ini: **1.0.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v1.0.0.py``).
+Versi modul ini: **2.0.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.0.0.py``).
+
+Changelog (v1.0.0 → v2.0.0)
+==============================
+- **Modularisasi kode:** logika CSV rekaman dipindah ke ``live_csv_io.py`` (konstanta
+  ``LIVE_CSV_DATA_HEADER`` + ``parse_logged_csv``); tab **Analisa** dipindah ke
+  ``analyze_single_file_tab.py`` (kelas ``AnalyzeSingleFileTab`` + bantu plot).
+- **Tab Analisa:** selain plot waktu penuh + marker ekstremum, ditambah **tiga plot
+  spektrum** (Force / Roll / Pitch), pemilihan metode **FFT** atau **Welch PSD**
+  (``numpy`` / ``scipy``), marker puncak spektrum, dan **frekuensi dominan** pada
+  kartu statistik (selaras dengan metode yang dipilih).
+- **Ekspor ``DataStatistik/``:** CSV mencakup baris ``Timestampstart (s)`` (waktu
+  awal deret) serta blok tambahan **Frekuensi Dominan (Hz)** per saluran dengan
+  kolom **Metode** (FFT / Welch PSD).
+- **Antarmuka:** dialog *themed* untuk pesan simpan statistik / About; referensi
+  manual pengguna memakai berkas **v2.0.0** (lihat konstanta ``USER_MANUAL_*``).
 
 Ringkasan fungsi
 ==================
@@ -14,8 +29,9 @@ Dua tab utama:
 1. **Live** — koneksi serial, plot tiga deret waktu, indikator nilai terakhir, rekaman
    ke berkas CSV di folder ``DataLog/``, opsi menggeser kolom waktu di CSV ke nol
    per sesi **Start Log**, serta tombol **About** / **Help**.
-2. **Analisa** — muat CSV hasil tab Live, tampilkan plot rekaman dengan marker
-   ekstremum, ringkasan statistik, dan ekspor ringkasan ke ``DataStatistik/``.
+2. **Analisa** — muat CSV hasil tab Live, plot waktu dengan marker ekstremum,
+   **plot spektrum** (FFT / Welch), ringkasan statistik (termasuk frekuensi dominan),
+   dan ekspor ringkasan ke ``DataStatistik/``.
 
 Arsitektur ringkas
 ===================
@@ -87,10 +103,11 @@ Berkas terkait di folder yang sama
 ===================================
 - ``live_csv_io.py`` — header + parser CSV rekaman Live.
 - ``analyze_single_file_tab.py`` — widget tab Analisa (satu berkas).
-- ``UserManual_Force_Motion_v1.0.0.md`` — manual pengguna (Markdown).
-- ``UserManual_Force_Motion_v1.0.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
+- ``UserManual_Force_Motion_v2.0.0.md`` — manual pengguna (Markdown).
+- ``UserManual_Force_Motion_v2.0.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
 - ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +
-  ``xhtml2pdf``), pola sama seperti proyek Touchpad_Timer_Pressure.
+  ``xhtml2pdf``), berada di folder induk ``Force_Motion/Python`` (bukan di folder
+  skrip v2 ini); pola sama seperti proyek Touchpad_Timer_Pressure.
 
 Lihat juga
 ==========
@@ -141,9 +158,9 @@ DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
 STATISTIK_FILE_SUFFIX = "_DataStatistik"
 
 APP_NAME = "Swimmer Force Motion Monitoring"
-APP_VERSION = "1.0.0"
-USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v1.0.0.md"
-USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v1.0.0.pdf"
+APP_VERSION = "2.0.0"
+USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v2.0.0.md"
+USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v2.0.0.pdf"
 
 STROKE_STYLES = [
     "Gaya Bebas",
@@ -547,9 +564,11 @@ class MainWindow(QMainWindow):
                 "Help",
                 "Berkas manual PDF tidak ditemukan:\n"
                 f"{_path_text_for_dialog(pdf)}\n\n"
-                "Untuk membuat PDF dari Markdown, di folder aplikasi jalankan:\n"
-                "  python md_to_pdf_Force_Motion.py\n\n"
-                f"Masukan Markdown: {USER_MANUAL_MD.name}",
+                "Untuk membuat PDF dari Markdown, dari folder Force_Motion/Python jalankan:\n"
+                "  python md_to_pdf_Force_Motion.py "
+                f"-i Swimmer_Force_Motion_Monitoring_v2.0.0/{USER_MANUAL_MD.name} "
+                f"-o Swimmer_Force_Motion_Monitoring_v2.0.0/{USER_MANUAL_PDF.name}\n\n"
+                f"(Sesuaikan -i/-o jika Anda menjalankan skrip dari lokasi lain.)",
             )
             return
         url = QUrl.fromLocalFile(str(pdf))

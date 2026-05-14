@@ -1,10 +1,28 @@
 """
-Tab **Analisa (satu berkas)** — muat satu CSV rekaman Live, plot waktu + spektrum frekuensi,
-ekstremum, ekspor statistik.
+Tab **Analisa (satu berkas)** — ``AnalyzeSingleFileTab`` (PySide6 + pyqtgraph).
 
-Spektrum: **FFT** (NumPy) atau **Welch PSD** (SciPy). Dependensi tambahan: ``numpy``, ``scipy``.
+Fungsi utama
+============
+- **Load CSV** rekaman tab Live (parser ``live_csv_io.parse_logged_csv``): dialog
+  buka berkas, default folder ``DataLog/``.
+- **Plot waktu** penuh untuk Force, Roll, Pitch; **marker** titik ekstrem (min
+  hijau / maks merah) dan label waktu pada plot.
+- **Plot spektrum** satu sisi per kanal; metode **FFT** (``numpy.fft``) atau
+  **Welch PSD** (``scipy.signal.welch``), dipilih lewat ``QComboBox``; estimasi
+  laju sampel dari deret TimeStamp; marker puncak pada kurva spektrum.
+- **Panel statistik** (HTML ringan): TimeStamp Start, kartu FORCE / ROLL / PITCH
+  dengan ekstremum + **frekuensi dominan** (konsisten dengan metode spektrum).
+- **Simpan statistik** — menulis ``DataStatistik/<nama_log>_DataStaistik.csv``
+  (UTF-8): metadata, ``Timestampstart (s)``, tabel ekstremum, lalu blok frekuensi
+  dominan per saluran + kolom metode.
 
-Nanti analisis banyak berkas dapat ditambahkan sebagai tab terpisah tanpa mempengaruhi kelas ini.
+Dependensi tambahan (selain GUI): ``numpy``, ``scipy``.
+
+Fungsi modul ``make_three_stack_plots`` membangun tiga ``PlotWidget`` deret waktu
+dengan gaya konsisten; dipakai jendela utama saat menyusun tab Live.
+
+Analisis banyak berkas dapat ditambahkan sebagai tab terpisah tanpa mengubah
+kontrak kelas ini secara besar.
 """
 
 from __future__ import annotations
