@@ -3,14 +3,17 @@
 Konversi Markdown → HTML → PDF (paket ``markdown`` + ``xhtml2pdf``),
 mengikuti pola ``Touchpad_Timer_Pressure/Python/md_to_pdf_xhtml2pdf.py``.
 
-Default untuk manual Swimmer Force Motion Monitoring v1.0.0:
+Default untuk manual Swimmer Force Motion Monitoring **v1.0.0** (folder ini):
 
   UserManual_Force_Motion_v1.0.0.md  →  UserManual_Force_Motion_v1.0.0.pdf
 
-Contoh:
+Manual **v2.0.0** (subfolder ``Swimmer_Force_Motion_Monitoring_v2.0.0/``), contoh:
+
+  python md_to_pdf_Force_Motion.py -i Swimmer_Force_Motion_Monitoring_v2.0.0/UserManual_Force_Motion_v2.0.0.md -o Swimmer_Force_Motion_Monitoring_v2.0.0/UserManual_Force_Motion_v2.0.0.pdf
+
+Tanpa opsi:
 
   python md_to_pdf_Force_Motion.py
-  python md_to_pdf_Force_Motion.py -i UserManual_Force_Motion_v1.0.0.md -o out.pdf
 """
 
 from __future__ import annotations
