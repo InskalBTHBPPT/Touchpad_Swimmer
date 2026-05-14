@@ -129,6 +129,14 @@ def _spectrum_peak_frequency_hz(y: list[float], fs_hz: float, *, use_welch: bool
     return float(fq[imax])
 
 
+def _html_stat_freq_dominant(peak_hz: float | None, method_label: str) -> str:
+    """Baris spektrum di kartu statistik: Frekuensi dominan: … Hz [metode]."""
+    ml = _he(method_label)
+    if peak_hz is not None:
+        return f"Frekuensi dominan: {_he(f'{peak_hz:.2f}')} Hz [{ml}]"
+    return f"Frekuensi dominan: — Hz [{ml}]"
+
+
 def _html_stat_force(
     v_max: float,
     t_max: float,
@@ -138,11 +146,7 @@ def _html_stat_force(
     line1 = (
         f"Force Maksimum {_he(f'{v_max:.2f}')} Kg saat t = {_he(f'{t_max:.2f}')} s"
     )
-    line2 = (
-        f"{peak_hz:.2f} Hz ({_he(method_label)})"
-        if peak_hz is not None
-        else f"— ({_he(method_label)})"
-    )
+    line2 = _html_stat_freq_dominant(peak_hz, method_label)
     return (
         '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
         '<div style="border-left:3px solid #38bdf8;padding-left:10px;">'
@@ -168,11 +172,7 @@ def _html_stat_roll(
     line2 = (
         f"Roll Maksimum {_he(f'{v_max:.2f}')}° saat t = {_he(f'{t_max:.2f}')} s"
     )
-    line3 = (
-        f"{peak_hz:.2f} Hz ({_he(method_label)})"
-        if peak_hz is not None
-        else f"— ({_he(method_label)})"
-    )
+    line3 = _html_stat_freq_dominant(peak_hz, method_label)
     return (
         '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
         '<div style="border-left:3px solid #f59e0b;padding-left:10px;">'
@@ -199,11 +199,7 @@ def _html_stat_pitch(
     line2 = (
         f"Pitch Maksimum {_he(f'{v_max:.2f}')}° saat t = {_he(f'{t_max:.2f}')} s"
     )
-    line3 = (
-        f"{peak_hz:.2f} Hz ({_he(method_label)})"
-        if peak_hz is not None
-        else f"— ({_he(method_label)})"
-    )
+    line3 = _html_stat_freq_dominant(peak_hz, method_label)
     return (
         '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
         '<div style="border-left:3px solid #a78bfa;padding-left:10px;">'
