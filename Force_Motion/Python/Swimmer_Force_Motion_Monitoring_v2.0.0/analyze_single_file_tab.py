@@ -398,8 +398,12 @@ class AnalyzeSingleFileTab(QWidget):
         self._spectrum_method_group.addButton(self._radio_fft, 0)
         self._spectrum_method_group.addButton(self._radio_welch, 1)
         self._spectrum_method_group.idClicked.connect(self._on_spectrum_method_changed)
-        settings_inner.addWidget(self._radio_fft)
-        settings_inner.addWidget(self._radio_welch)
+        radios_row = QHBoxLayout()
+        radios_row.setSpacing(16)
+        radios_row.addWidget(self._radio_fft)
+        radios_row.addWidget(self._radio_welch)
+        radios_row.addStretch(1)
+        settings_inner.addLayout(radios_row)
 
         self.stats_group = QGroupBox("", self)
         stats_inner = QVBoxLayout(self.stats_group)
@@ -432,6 +436,7 @@ class AnalyzeSingleFileTab(QWidget):
         self._scatter_roll: pg.ScatterPlotItem | None = None
         self._scatter_pitch: pg.ScatterPlotItem | None = None
         self._stat_texts: list[tuple[pg.PlotWidget, pg.TextItem]] = []
+        self._spec_peak_artists: list[tuple[pg.PlotWidget, pg.ScatterPlotItem, pg.TextItem]] = []
         self._export_ctx: dict[str, str] | None = None
         self._stats_snapshot: dict[str, float] | None = None
 
@@ -445,17 +450,78 @@ class AnalyzeSingleFileTab(QWidget):
 
         self._clear_spectrum_plots()
 
+    def _clear_spectrum_peak_markers(self) -> None:
+        for plot, sc, ti in self._spec_peak_artists:
+            plot.removeItem(sc)
+            plot.removeItem(ti)
+        self._spec_peak_artists.clear()
+
     def _clear_spectrum_plots(self) -> None:
+        self._clear_spectrum_peak_markers()
         self.force_spec_curve.setData([], [])
         self.roll_spec_curve.setData([], [])
         self.pitch_spec_curve.setData([], [])
+
+    def _add_spectrum_peak_marker(
+        self,
+        plot: pg.PlotWidget,
+        fq: np.ndarray,
+        mag: np.ndarray,
+        *,
+        use_welch: bool,
+    ) -> None:
+        """Marker pada bin magnitudo / PSD maksimum; label f (Hz) dan Y sesuai metode."""
+        if fq.size == 0 or mag.size == 0:
+            return
+        imax = int(np.argmax(mag))
+        fx = float(fq[imax])
+        my = float(mag[imax])
+        f_min = float(fq[0])
+        f_max = float(fq[-1])
+        y_name = "PSD" if use_welch else "|FFT|"
+        text = f"f = {fx:.4f} Hz\n{y_name} = {my:.4g}"
+
+        span = (f_max - f_min) or 1.0
+        dx = max(span * 0.028, 1e-6)
+        mid = (f_min + f_max) * 0.5
+        if fx <= mid:
+            lx = fx + dx
+            anchor = (0.0, 0.5)
+        else:
+            lx = fx - dx
+            anchor = (1.0, 0.5)
+
+        sc = pg.ScatterPlotItem(
+            pos=[(fx, my)],
+            size=12,
+            symbol="o",
+            pen=pg.mkPen("#f8fafc", width=2),
+            brush=pg.mkBrush(MARKER_MAX_COLOR),
+        )
+        sc.setZValue(10)
+        plot.addItem(sc)
+        ti = pg.TextItem(
+            text,
+            color="#f8fafc",
+            anchor=anchor,
+            border=pg.mkPen("#94a3b8", width=1),
+            fill=pg.mkBrush(30, 41, 59, 230),
+        )
+        ti.setFont(QFont("Segoe UI", 9))
+        ti.setZValue(11)
+        ti.setPos(lx, my)
+        plot.addItem(ti)
+        self._spec_peak_artists.append((plot, sc, ti))
 
     def _on_spectrum_method_changed(self, _id: int) -> None:
         self._refresh_spectrum_plots()
 
     def _refresh_spectrum_plots(self) -> None:
+        self._clear_spectrum_peak_markers()
         if self._loaded_ts is None or self._loaded_f is None:
-            self._clear_spectrum_plots()
+            self.force_spec_curve.setData([], [])
+            self.roll_spec_curve.setData([], [])
+            self.pitch_spec_curve.setData([], [])
             return
         ts = self._loaded_ts
         fs = _estimate_sample_rate_hz(ts)
@@ -469,19 +535,23 @@ class AnalyzeSingleFileTab(QWidget):
         ):
             sw.setLabel("left", y_left, color="#e5e7eb", **{"font-size": "10pt"})
 
-        def _one(y: list[float], curve: pg.PlotDataItem) -> None:
+        def compute(y: list[float]) -> tuple[np.ndarray, np.ndarray]:
             if use_welch:
-                fq, mag = _spectrum_welch_bins(y, fs)
-            else:
-                fq, mag = _spectrum_fft_bins(y, fs)
+                return _spectrum_welch_bins(y, fs)
+            return _spectrum_fft_bins(y, fs)
+
+        channels: list[tuple[pg.PlotWidget, pg.PlotDataItem, list[float]]] = [
+            (self.force_spec_plot_widget, self.force_spec_curve, self._loaded_f),
+            (self.roll_spec_plot_widget, self.roll_spec_curve, self._loaded_r),
+            (self.pitch_spec_plot_widget, self.pitch_spec_curve, self._loaded_p),
+        ]
+        for plot, curve, ydata in channels:
+            fq, mag = compute(ydata)
             if fq.size == 0:
                 curve.setData([], [])
-                return
+                continue
             curve.setData(fq, mag)
-
-        _one(self._loaded_f, self.force_spec_curve)
-        _one(self._loaded_r, self.roll_spec_curve)
-        _one(self._loaded_p, self.pitch_spec_curve)
+            self._add_spectrum_peak_marker(plot, fq, mag, use_welch=use_welch)
 
         for sw in (
             self.force_spec_plot_widget,
