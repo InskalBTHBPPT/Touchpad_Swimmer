@@ -122,6 +122,21 @@ class AnalyzeMultiFileTab(QWidget):
         row1.addWidget(self.add_btn)
         row1.addWidget(self.save_btn)
         row1.addStretch(1)
+        row1.addWidget(QLabel("Hapus kolom:", self))
+        self._clear_target_combo = QComboBox(self)
+        for k in range(1, MAX_FILES + 1):
+            self._clear_target_combo.addItem(f"Kolom {k}", userData=k)
+        self._clear_target_combo.addItem("Semua kolom", userData=0)
+        self._clear_target_combo.setMinimumWidth(140)
+        self._clear_target_combo.setToolTip(
+            "Pilih kolom data (1 = berkas pertama, …) atau semua; lalu tekan Clear tabel."
+        )
+        row1.addWidget(self._clear_target_combo)
+        self.clear_btn = QPushButton("Clear tabel", self)
+        self.clear_btn.setObjectName("ClearTableDangerButton")
+        self.clear_btn.setToolTip("Hapus data kolom terpilih dari tabel (berkas dikeluarkan dari daftar).")
+        self.clear_btn.clicked.connect(self._on_clear_table)
+        row1.addWidget(self.clear_btn)
         root.addLayout(row1)
 
         row2 = QHBoxLayout()
@@ -161,6 +176,15 @@ class AnalyzeMultiFileTab(QWidget):
                 border-radius: 8px;
             }
             QPushButton:hover { background-color: #2563eb; }
+            QPushButton#ClearTableDangerButton {
+                padding: 8px 14px;
+                background-color: #dc2626;
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+            }
+            QPushButton#ClearTableDangerButton:hover { background-color: #b91c1c; }
+            QPushButton#ClearTableDangerButton:pressed { background-color: #991b1b; }
             QComboBox {
                 background: #374151;
                 color: #e5e7eb;
@@ -177,6 +201,44 @@ class AnalyzeMultiFileTab(QWidget):
             }
             QTableCornerButton::section { background: #14532d; }
             """
+        )
+
+    def _on_clear_table(self) -> None:
+        if not self._entries:
+            self._themed_stat_message(
+                QMessageBox.Icon.Information,
+                "Clear tabel",
+                "Tabel sudah kosong (belum ada berkas yang dimuat).",
+            )
+            return
+        raw = self._clear_target_combo.currentData()
+        clear_all = raw == 0
+        if clear_all:
+            self._entries.clear()
+            self._refresh_table()
+            self._themed_stat_message(
+                QMessageBox.Icon.Information,
+                "Clear tabel",
+                "Semua kolom data telah dihapus.",
+            )
+            return
+        col_1based = int(raw) if raw is not None else 1
+        if not (1 <= col_1based <= MAX_FILES):
+            return
+        idx = col_1based - 1
+        if idx >= len(self._entries):
+            self._themed_stat_message(
+                QMessageBox.Icon.Information,
+                "Clear tabel",
+                f"Tidak ada data pada kolom {col_1based} (hanya {len(self._entries)} berkas terpasang).",
+            )
+            return
+        del self._entries[idx]
+        self._refresh_table()
+        self._themed_stat_message(
+            QMessageBox.Icon.Information,
+            "Clear tabel",
+            f"Kolom {col_1based} dihapus (satu berkas dikeluarkan).",
         )
 
     def _spectrum_use_welch(self) -> bool:
