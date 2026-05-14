@@ -163,7 +163,7 @@ Setelah berhasil dimuat:
 ### 5.5 Plot perbandingan
 
 - Tombol hijau **Plot data** membuka **jendela terpisah** (non-modal).
-- Di jendela tersebut: dropdown **Metrik** (force/roll/pitch ekstremum dan frekuensi dominan per saluran), dropdown **Gaya plot** — **Diagram batang** (default), **Garis + penanda**, atau **Titik saja**.
+- Di jendela tersebut: dropdown **Metrik** (force/roll/pitch ekstremum dan frekuensi dominan per saluran), dropdown **Gaya plot** — **Garis + penanda** (default), **Diagram batang**, atau **Titik saja**.
 - Sumbu X = urutan kolom/berkas (label tick mengikuti nama perenang atau nama file); data selalu mengikuti **Metode spektrum** yang dipilih di tab (FFT / Welch).
 - Mengganti metrik atau gaya memperbarui gambar secara langsung.
 

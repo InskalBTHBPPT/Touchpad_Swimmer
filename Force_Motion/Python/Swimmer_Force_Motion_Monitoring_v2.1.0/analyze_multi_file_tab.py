@@ -144,12 +144,20 @@ class AnalyzeMultiFileTab(QWidget):
         self.add_btn.setToolTip(f"Tambah berkas log (maks. {MAX_FILES}).")
         self.add_btn.clicked.connect(self._on_add_file)
         self.save_btn = QPushButton("Simpan tabel ke CSV", self)
+        self.save_btn.setObjectName("SaveTableGrayButton")
         self.save_btn.setToolTip(
             f"Simpan ke folder {TABLE_MULTIFILE_DIRNAME}/ dengan sufiks {TABLE_MULTIFILE_SUFFIX}.csv"
         )
         self.save_btn.clicked.connect(self._on_save_csv)
         row1.addWidget(self.add_btn)
         row1.addWidget(self.save_btn)
+        self.plot_btn = QPushButton("Plot data", self)
+        self.plot_btn.setObjectName("PlotDataGreenButton")
+        self.plot_btn.setToolTip(
+            "Buka jendela plot: pilih metrik dan gaya diagram di dalam jendela tersebut."
+        )
+        self.plot_btn.clicked.connect(self._on_plot_data)
+        row1.addWidget(self.plot_btn)
         row1.addStretch(1)
         row1.addWidget(QLabel("Hapus kolom:", self))
         self._clear_target_combo = QComboBox(self)
@@ -166,14 +174,6 @@ class AnalyzeMultiFileTab(QWidget):
         self.clear_btn.setToolTip("Hapus data kolom terpilih dari tabel (berkas dikeluarkan dari daftar).")
         self.clear_btn.clicked.connect(self._on_clear_table)
         row1.addWidget(self.clear_btn)
-        row1.addSpacing(14)
-        self.plot_btn = QPushButton("Plot data", self)
-        self.plot_btn.setObjectName("PlotDataGreenButton")
-        self.plot_btn.setToolTip(
-            "Buka jendela plot: pilih metrik dan gaya diagram di dalam jendela tersebut."
-        )
-        self.plot_btn.clicked.connect(self._on_plot_data)
-        row1.addWidget(self.plot_btn)
         root.addLayout(row1)
 
         row2 = QHBoxLayout()
@@ -213,6 +213,15 @@ class AnalyzeMultiFileTab(QWidget):
                 border-radius: 8px;
             }
             QPushButton:hover { background-color: #2563eb; }
+            QPushButton#SaveTableGrayButton {
+                padding: 8px 14px;
+                background-color: #6b7280;
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+            }
+            QPushButton#SaveTableGrayButton:hover { background-color: #4b5563; }
+            QPushButton#SaveTableGrayButton:pressed { background-color: #374151; }
             QPushButton#ClearTableDangerButton {
                 padding: 8px 14px;
                 background-color: #dc2626;
@@ -489,8 +498,8 @@ class MultiFilePlotDialog(QDialog):
         ctrl.addSpacing(18)
         ctrl.addWidget(QLabel("Gaya plot:", self))
         self._style_combo = QComboBox(self)
-        self._style_combo.addItem("Diagram batang", userData=PLOT_STYLE_BAR)
         self._style_combo.addItem("Garis + penanda", userData=PLOT_STYLE_LINE)
+        self._style_combo.addItem("Diagram batang", userData=PLOT_STYLE_BAR)
         self._style_combo.addItem("Titik saja", userData=PLOT_STYLE_SCATTER)
         self._style_combo.setMinimumWidth(170)
         ctrl.addWidget(self._style_combo)
@@ -608,7 +617,7 @@ class MultiFilePlotDialog(QDialog):
         y_plot = np.array([0.0 if x is None else float(x) for x in y_raw], dtype=np.float64)
         x = np.arange(n, dtype=float)
         raw_style = self._style_combo.currentData()
-        style = raw_style if isinstance(raw_style, str) else PLOT_STYLE_BAR
+        style = raw_style if isinstance(raw_style, str) else PLOT_STYLE_LINE
 
         self._pw.setLabel("left", y_axis_label, color="#e5e7eb", **{"font-size": "11pt"})
         tick_specs = [(float(i), x_labels[i]) for i in range(n)]
