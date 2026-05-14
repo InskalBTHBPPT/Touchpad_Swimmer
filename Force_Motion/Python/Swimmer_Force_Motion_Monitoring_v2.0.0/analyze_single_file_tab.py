@@ -89,62 +89,131 @@ def _html_load_placeholder() -> str:
     )
 
 
-def _html_stat_force(v_max: float, t_max: float) -> str:
-    return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
-        '<div style="border-left:3px solid #38bdf8;padding-left:10px;">'
-        '<div style="color:#38bdf8;font-weight:700;font-size:10px;letter-spacing:0.12em;">FORCE</div>'
-        '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Force Maksimum</td>'
-        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_max:.2f} Kg")}</td></tr>'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 0 0;font-weight:600;">Waktu saat Force maksimum</td>'
-        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_max:.2f} s")}</td></tr>'
-        "</table></div></div>"
-    )
-
-
-def _html_stat_roll(v_min: float, t_min: float, v_max: float, t_max: float) -> str:
-    return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
-        '<div style="border-left:3px solid #f59e0b;padding-left:10px;">'
-        '<div style="color:#fbbf24;font-weight:700;font-size:10px;letter-spacing:0.12em;">ROLL</div>'
-        '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Roll Minimum</td>'
-        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_min:.2f}°")}</td></tr>'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;font-weight:600;">Waktu saat Roll minimum</td>'
-        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_min:.2f} s")}</td></tr>'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Roll Maksimum</td>'
-        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_max:.2f}°")}</td></tr>'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 0 0;font-weight:600;">Waktu saat Roll maksimum</td>'
-        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_max:.2f} s")}</td></tr>'
-        "</table></div></div>"
-    )
-
-
-def _html_stat_pitch(v_min: float, t_min: float, v_max: float, t_max: float) -> str:
-    return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
-        '<div style="border-left:3px solid #a78bfa;padding-left:10px;">'
-        '<div style="color:#c4b5fd;font-weight:700;font-size:10px;letter-spacing:0.12em;">PITCH</div>'
-        '<table style="margin-top:8px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Pitch Minimum</td>'
-        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_min:.2f}°")}</td></tr>'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;font-weight:600;">Waktu saat Pitch minimum</td>'
-        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_min:.2f} s")}</td></tr>'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 4px 0;vertical-align:middle;font-weight:600;">Pitch Maksimum</td>'
-        f'<td style="font-weight:700;color:#ffffff;font-size:13px;">{_he(f"{v_max:.2f}°")}</td></tr>'
-        f'<tr><td style="color:#ffffff;padding:4px 10px 0 0;font-weight:600;">Waktu saat Pitch maksimum</td>'
-        f'<td style="color:#ffffff;font-weight:600;">{_he(f"{t_max:.2f} s")}</td></tr>'
-        "</table></div></div>"
-    )
-
-
 def _html_stat_placeholder() -> str:
     return (
         '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
         '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
         "Muat CSV dari tab Live untuk menampilkan ringkasan ekstremum (force, roll, pitch)."
         "</p></div>"
+    )
+
+
+def _html_tstart_placeholder() -> str:
+    return (
+        '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
+        '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
+        "T Start: —"
+        "</p></div>"
+    )
+
+
+def _html_stat_tstart(t_start_s: float) -> str:
+    """Waktu paling awal di kolom TimeStamp CSV (min), gaya strip seperti kartu kanal."""
+    return (
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
+        '<div style="border-left:3px solid #64748b;padding-left:10px;">'
+        '<div style="color:#94a3b8;font-weight:700;font-size:10px;letter-spacing:0.12em;">T START</div>'
+        '<div style="margin-top:8px;color:#f8fafc;font-size:13px;font-weight:600;">'
+        f"T Start: {_he(f'{t_start_s:.2f}')} s"
+        "</div></div></div>"
+    )
+
+
+def _spectrum_peak_frequency_hz(y: list[float], fs_hz: float, *, use_welch: bool) -> float | None:
+    if use_welch:
+        fq, mag = _spectrum_welch_bins(y, fs_hz)
+    else:
+        fq, mag = _spectrum_fft_bins(y, fs_hz)
+    if fq.size == 0:
+        return None
+    imax = int(np.argmax(mag))
+    return float(fq[imax])
+
+
+def _html_stat_force(
+    v_max: float,
+    t_max: float,
+    peak_hz: float | None,
+    method_label: str,
+) -> str:
+    line1 = (
+        f"Force Maksimum {_he(f'{v_max:.2f}')} Kg saat t = {_he(f'{t_max:.2f}')} s"
+    )
+    line2 = (
+        f"{peak_hz:.2f} Hz ({_he(method_label)})"
+        if peak_hz is not None
+        else f"— ({_he(method_label)})"
+    )
+    return (
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
+        '<div style="border-left:3px solid #38bdf8;padding-left:10px;">'
+        '<div style="color:#38bdf8;font-weight:700;font-size:10px;letter-spacing:0.12em;">FORCE</div>'
+        '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{line1}</td></tr>'
+        f'<tr><td colspan="2" style="color:#94a3b8;padding:8px 0 0 0;font-size:11px;line-height:1.45;">{line2}</td></tr>'
+        "</table></div></div>"
+    )
+
+
+def _html_stat_roll(
+    v_min: float,
+    t_min: float,
+    v_max: float,
+    t_max: float,
+    peak_hz: float | None,
+    method_label: str,
+) -> str:
+    line1 = (
+        f"Roll Minimum {_he(f'{v_min:.2f}')}° saat t = {_he(f'{t_min:.2f}')} s"
+    )
+    line2 = (
+        f"Roll Maksimum {_he(f'{v_max:.2f}')}° saat t = {_he(f'{t_max:.2f}')} s"
+    )
+    line3 = (
+        f"{peak_hz:.2f} Hz ({_he(method_label)})"
+        if peak_hz is not None
+        else f"— ({_he(method_label)})"
+    )
+    return (
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
+        '<div style="border-left:3px solid #f59e0b;padding-left:10px;">'
+        '<div style="color:#fbbf24;font-weight:700;font-size:10px;letter-spacing:0.12em;">ROLL</div>'
+        '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{line1}</td></tr>'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line2}</td></tr>'
+        f'<tr><td colspan="2" style="color:#94a3b8;padding:8px 0 0 0;font-size:11px;line-height:1.45;">{line3}</td></tr>'
+        "</table></div></div>"
+    )
+
+
+def _html_stat_pitch(
+    v_min: float,
+    t_min: float,
+    v_max: float,
+    t_max: float,
+    peak_hz: float | None,
+    method_label: str,
+) -> str:
+    line1 = (
+        f"Pitch Minimum {_he(f'{v_min:.2f}')}° saat t = {_he(f'{t_min:.2f}')} s"
+    )
+    line2 = (
+        f"Pitch Maksimum {_he(f'{v_max:.2f}')}° saat t = {_he(f'{t_max:.2f}')} s"
+    )
+    line3 = (
+        f"{peak_hz:.2f} Hz ({_he(method_label)})"
+        if peak_hz is not None
+        else f"— ({_he(method_label)})"
+    )
+    return (
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
+        '<div style="border-left:3px solid #a78bfa;padding-left:10px;">'
+        '<div style="color:#c4b5fd;font-weight:700;font-size:10px;letter-spacing:0.12em;">PITCH</div>'
+        '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{line1}</td></tr>'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line2}</td></tr>'
+        f'<tr><td colspan="2" style="color:#94a3b8;padding:8px 0 0 0;font-size:11px;line-height:1.45;">{line3}</td></tr>'
+        "</table></div></div>"
     )
 
 
@@ -409,15 +478,25 @@ class AnalyzeSingleFileTab(QWidget):
         stats_inner = QVBoxLayout(self.stats_group)
         stats_inner.setContentsMargins(12, 14, 12, 14)
         stats_inner.setSpacing(10)
+        self.stat_tstart_label = QLabel(self)
         self.stat_force_label = QLabel(self)
         self.stat_roll_label = QLabel(self)
         self.stat_pitch_label = QLabel(self)
-        for lb in (self.stat_force_label, self.stat_roll_label, self.stat_pitch_label):
+        for lb in (
+            self.stat_tstart_label,
+            self.stat_force_label,
+            self.stat_roll_label,
+            self.stat_pitch_label,
+        ):
             lb.setObjectName("AnalyzeRichLabel")
             lb.setWordWrap(True)
             lb.setTextFormat(Qt.TextFormat.RichText)
-            lb.setText(_html_stat_placeholder())
+        self.stat_tstart_label.setText(_html_tstart_placeholder())
+        self.stat_force_label.setText(_html_stat_placeholder())
+        self.stat_roll_label.setText(_html_stat_placeholder())
+        self.stat_pitch_label.setText(_html_stat_placeholder())
 
+        stats_inner.addWidget(self.stat_tstart_label)
         stats_inner.addWidget(self.stat_force_label)
         stats_inner.addWidget(self.stat_roll_label)
         stats_inner.addWidget(self.stat_pitch_label)
@@ -515,6 +594,16 @@ class AnalyzeSingleFileTab(QWidget):
 
     def _on_spectrum_method_changed(self, _id: int) -> None:
         self._refresh_spectrum_plots()
+        if (
+            self._loaded_ts is not None
+            and self._loaded_f is not None
+            and self._loaded_r is not None
+            and self._loaded_p is not None
+        ):
+            self._clear_stat_markers()
+            self._apply_statistics(
+                self._loaded_ts, self._loaded_f, self._loaded_r, self._loaded_p
+            )
 
     def _refresh_spectrum_plots(self) -> None:
         self._clear_spectrum_peak_markers()
@@ -659,6 +748,10 @@ class AnalyzeSingleFileTab(QWidget):
         if n == 0:
             self._stats_snapshot = None
             self.save_stats_btn.setEnabled(False)
+            self.stat_tstart_label.setText(_html_tstart_placeholder())
+            self.stat_force_label.setText(_html_stat_placeholder())
+            self.stat_roll_label.setText(_html_stat_placeholder())
+            self.stat_pitch_label.setText(_html_stat_placeholder())
             return
 
         def _argmin_first(vals: list[float]) -> int:
@@ -678,16 +771,36 @@ class AnalyzeSingleFileTab(QWidget):
 
         ts_min = min(ts_list)
         ts_max = max(ts_list)
+        t_start = ts_min
+        fs = _estimate_sample_rate_hz(ts_list)
+        use_welch = self._radio_welch.isChecked()
+        method_label = "Welch PSD" if use_welch else "FFT"
+        peak_f = _spectrum_peak_frequency_hz(f_list, fs, use_welch=use_welch)
+        peak_r = _spectrum_peak_frequency_hz(r_list, fs, use_welch=use_welch)
+        peak_p = _spectrum_peak_frequency_hz(p_list, fs, use_welch=use_welch)
 
-        self.stat_force_label.setText(_html_stat_force(v_fmax, t_fmax))
+        self.stat_tstart_label.setText(_html_stat_tstart(t_start))
+        self.stat_force_label.setText(
+            _html_stat_force(v_fmax, t_fmax, peak_f, method_label)
+        )
         self.stat_roll_label.setText(
             _html_stat_roll(
-                r_list[i_rmin], ts_list[i_rmin], r_list[i_rmax], ts_list[i_rmax]
+                r_list[i_rmin],
+                ts_list[i_rmin],
+                r_list[i_rmax],
+                ts_list[i_rmax],
+                peak_r,
+                method_label,
             )
         )
         self.stat_pitch_label.setText(
             _html_stat_pitch(
-                p_list[i_pmin], ts_list[i_pmin], p_list[i_pmax], ts_list[i_pmax]
+                p_list[i_pmin],
+                ts_list[i_pmin],
+                p_list[i_pmax],
+                ts_list[i_pmax],
+                peak_p,
+                method_label,
             )
         )
 
