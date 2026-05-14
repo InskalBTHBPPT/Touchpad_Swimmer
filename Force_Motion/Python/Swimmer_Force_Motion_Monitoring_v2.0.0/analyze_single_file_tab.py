@@ -152,7 +152,7 @@ def _html_stat_force(
         '<div style="color:#38bdf8;font-weight:700;font-size:10px;letter-spacing:0.12em;">FORCE</div>'
         '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
         f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{line1}</td></tr>'
-        f'<tr><td colspan="2" style="color:#94a3b8;padding:8px 0 0 0;font-size:11px;line-height:1.45;">{line2}</td></tr>'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line2}</td></tr>'
         "</table></div></div>"
     )
 
@@ -179,7 +179,7 @@ def _html_stat_roll(
         '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
         f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{line1}</td></tr>'
         f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line2}</td></tr>'
-        f'<tr><td colspan="2" style="color:#94a3b8;padding:8px 0 0 0;font-size:11px;line-height:1.45;">{line3}</td></tr>'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line3}</td></tr>'
         "</table></div></div>"
     )
 
@@ -206,7 +206,7 @@ def _html_stat_pitch(
         '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
         f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{line1}</td></tr>'
         f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line2}</td></tr>'
-        f'<tr><td colspan="2" style="color:#94a3b8;padding:8px 0 0 0;font-size:11px;line-height:1.45;">{line3}</td></tr>'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line3}</td></tr>'
         "</table></div></div>"
     )
 
