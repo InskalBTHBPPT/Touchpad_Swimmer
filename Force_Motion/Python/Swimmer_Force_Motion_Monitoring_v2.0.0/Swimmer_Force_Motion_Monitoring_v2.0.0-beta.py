@@ -80,6 +80,7 @@ Dependensi Python
 - ``PySide6`` — antarmuka Qt6.
 - ``pyqtgraph`` — plot deret waktu.
 - ``pyserial`` — komunikasi serial.
+- ``numpy``, ``scipy`` — spektrum frekuensi di tab Analisa (FFT / Welch).
 
 Berkas terkait di folder yang sama
 ===================================
@@ -410,6 +411,7 @@ class MainWindow(QMainWindow):
                 border-color: #60a5fa;
             }
             QCheckBox::indicator:disabled { background: #2d3643; border-color: #4b5563; }
+            QRadioButton { color: #e5e7eb; spacing: 8px; }
             QTabWidget::pane {
                 border: 1px solid #374151;
                 border-radius: 8px;

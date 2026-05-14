@@ -1,5 +1,8 @@
 """
-Tab **Analisa (satu berkas)** — muat satu CSV rekaman Live, plot, ekstremum, ekspor statistik.
+Tab **Analisa (satu berkas)** — muat satu CSV rekaman Live, plot waktu + spektrum frekuensi,
+ekstremum, ekspor statistik.
+
+Spektrum: **FFT** (NumPy) atau **Welch PSD** (SciPy). Dependensi tambahan: ``numpy``, ``scipy``.
 
 Nanti analisis banyak berkas dapat ditambahkan sebagai tab terpisah tanpa mempengaruhi kelas ini.
 """
@@ -7,24 +10,29 @@ Nanti analisis banyak berkas dapat ditambahkan sebagai tab terpisah tanpa mempen
 from __future__ import annotations
 
 import csv
+import statistics
 from collections.abc import Callable
 from datetime import datetime
 from html import escape
 from pathlib import Path
 
+import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QVBoxLayout,
     QWidget,
 )
+from scipy import signal
 
 from live_csv_io import parse_logged_csv
 
@@ -188,6 +196,103 @@ def make_three_stack_plots() -> tuple[
     return force_w, roll_w, pitch_w, force_c, roll_c, pitch_c
 
 
+def _estimate_sample_rate_hz(ts: list[float]) -> float:
+    """Perkiraan fs dari median Δt antar sampel (robust untuk jitter kecil)."""
+    if len(ts) < 2:
+        return 1.0
+    dts: list[float] = []
+    for i in range(len(ts) - 1):
+        dt = float(ts[i + 1]) - float(ts[i])
+        if dt > 1e-9:
+            dts.append(dt)
+    if not dts:
+        return 1.0
+    dt_med = statistics.median(dts)
+    return 1.0 / dt_med if dt_med > 1e-12 else 1.0
+
+
+def _spectrum_fft_bins(y: list[float], fs_hz: float) -> tuple[np.ndarray, np.ndarray]:
+    """Frekuensi (Hz) dan magnitudo satu sisi (DC dihilangkan dari plot)."""
+    x = np.asarray(y, dtype=np.float64)
+    n = int(x.size)
+    if n < 2 or fs_hz <= 0:
+        return np.array([]), np.array([])
+    x = x - np.mean(x)
+    win = np.hanning(n)
+    xw = x * win
+    spec = np.abs(np.fft.rfft(xw))
+    freqs = np.fft.rfftfreq(n, d=1.0 / fs_hz)
+    wsum = float(np.sum(win))
+    if wsum > 1e-12:
+        spec = spec / wsum
+    if spec.size > 1:
+        spec[1:-1] *= 2.0
+    return freqs[1:], spec[1:]
+
+
+def _spectrum_welch_bins(y: list[float], fs_hz: float) -> tuple[np.ndarray, np.ndarray]:
+    """Welch PSD (linear); skip f≈0 untuk plot."""
+    x = np.asarray(y, dtype=np.float64)
+    n = int(x.size)
+    if n < 4 or fs_hz <= 0:
+        return np.array([]), np.array([])
+    x = x - np.mean(x)
+    nperseg = min(max(8, n // 4), 1024, n)
+    if nperseg > n:
+        nperseg = n
+    if nperseg < 4:
+        return np.array([]), np.array([])
+    nover = min(nperseg // 2, nperseg - 1)
+    f, pxx = signal.welch(
+        x,
+        fs=fs_hz,
+        window="hann",
+        nperseg=nperseg,
+        noverlap=nover,
+        scaling="density",
+        detrend=False,
+    )
+    if f.size > 1:
+        return f[1:], pxx[1:]
+    return np.array([]), np.array([])
+
+
+def make_analyze_time_spectrum_row(
+    *,
+    time_title: str,
+    time_left: str,
+    spectrum_title: str,
+    line_pen: str,
+    spectrum_pen: str,
+) -> tuple[pg.PlotWidget, pg.PlotDataItem, pg.PlotWidget, pg.PlotDataItem]:
+    """Satu baris tab Analisa: plot waktu (kiri) + plot spektrum (kanan)."""
+    time_w = pg.PlotWidget()
+    time_w.setLabel("left", time_left, color="#e5e7eb", **{"font-size": "11pt"})
+    time_w.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "11pt"})
+    time_w.setTitle(time_title, color="#e5e7eb", size="11pt")
+    time_w.setBackground("#1f2937")
+    time_w.showGrid(x=False, y=False)
+    time_w.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    time_w.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    time_w.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
+    time_w.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
+    time_c = time_w.plot(pen=pg.mkPen(color=line_pen, width=2))
+
+    spec_w = pg.PlotWidget()
+    spec_w.setLabel("left", "|FFT|", color="#e5e7eb", **{"font-size": "10pt"})
+    spec_w.setLabel("bottom", "Frequency (Hz)", color="#e5e7eb", **{"font-size": "10pt"})
+    spec_w.setTitle(spectrum_title, color="#e5e7eb", size="10pt")
+    spec_w.setBackground("#1f2937")
+    spec_w.showGrid(x=False, y=False)
+    spec_w.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    spec_w.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    spec_w.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
+    spec_w.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
+    spec_c = spec_w.plot(pen=pg.mkPen(color=spectrum_pen, width=2))
+
+    return time_w, time_c, spec_w, spec_c
+
+
 class AnalyzeSingleFileTab(QWidget):
     """Satu CSV rekaman; statistik & plot rekaman — pisahkan dari tab batch nanti."""
 
@@ -206,6 +311,12 @@ class AnalyzeSingleFileTab(QWidget):
         self._statistik_suffix = statistik_file_suffix
         self._themed_stat_message = themed_stat_message
 
+        self._loaded_ts: list[float] | None = None
+        self._loaded_f: list[float] | None = None
+        self._loaded_r: list[float] | None = None
+        self._loaded_p: list[float] | None = None
+        self._fs_hz: float = 1.0
+
         root = QHBoxLayout(self)
         root.setContentsMargins(8, 8, 8, 8)
 
@@ -213,21 +324,44 @@ class AnalyzeSingleFileTab(QWidget):
         plots_layout = QVBoxLayout(plots_panel)
         plots_layout.setContentsMargins(0, 0, 0, 0)
 
-        (
-            self.force_plot_widget,
-            self.roll_plot_widget,
-            self.pitch_plot_widget,
-            self.force_curve,
-            self.roll_curve,
-            self.pitch_curve,
-        ) = make_three_stack_plots()
-        self.force_plot_widget.setTitle("Force Data (Kg) — rekaman", color="#e5e7eb", size="12pt")
-        self.roll_plot_widget.setTitle("Roll Motion (Deg) — rekaman", color="#e5e7eb", size="11pt")
-        self.pitch_plot_widget.setTitle("Pitch Motion (Deg) — rekaman", color="#e5e7eb", size="11pt")
+        self.force_plot_widget, self.force_curve, self.force_spec_plot_widget, self.force_spec_curve = (
+            make_analyze_time_spectrum_row(
+                time_title="Force (Kg) — rekaman",
+                time_left="Force (Kg)",
+                spectrum_title="Force — spektrum",
+                line_pen="#38bdf8",
+                spectrum_pen="#7dd3fc",
+            )
+        )
+        self.roll_plot_widget, self.roll_curve, self.roll_spec_plot_widget, self.roll_spec_curve = (
+            make_analyze_time_spectrum_row(
+                time_title="Roll (°) — rekaman",
+                time_left="Angle (°)",
+                spectrum_title="Roll — spektrum",
+                line_pen="#f59e0b",
+                spectrum_pen="#fcd34d",
+            )
+        )
+        self.pitch_plot_widget, self.pitch_curve, self.pitch_spec_plot_widget, self.pitch_spec_curve = (
+            make_analyze_time_spectrum_row(
+                time_title="Pitch (°) — rekaman",
+                time_left="Angle (°)",
+                spectrum_title="Pitch — spektrum",
+                line_pen="#a78bfa",
+                spectrum_pen="#c4b5fd",
+            )
+        )
 
-        plots_layout.addWidget(self.force_plot_widget, 1)
-        plots_layout.addWidget(self.roll_plot_widget, 1)
-        plots_layout.addWidget(self.pitch_plot_widget, 1)
+        for tw, sw in (
+            (self.force_plot_widget, self.force_spec_plot_widget),
+            (self.roll_plot_widget, self.roll_spec_plot_widget),
+            (self.pitch_plot_widget, self.pitch_spec_plot_widget),
+        ):
+            row = QHBoxLayout()
+            row.setSpacing(6)
+            row.addWidget(tw, 3)
+            row.addWidget(sw, 2)
+            plots_layout.addLayout(row, 1)
 
         right_panel = QWidget(self)
         right_layout = QVBoxLayout(right_panel)
@@ -248,6 +382,24 @@ class AnalyzeSingleFileTab(QWidget):
         self.meta_label.setTextFormat(Qt.TextFormat.RichText)
         self.meta_label.setText(_html_load_placeholder())
         load_group.layout().addWidget(self.meta_label)
+
+        settings_group = QGroupBox("Analisa Setting", self)
+        settings_inner = QVBoxLayout(settings_group)
+        settings_inner.setContentsMargins(12, 14, 12, 14)
+        settings_inner.setSpacing(8)
+        settings_caption = QLabel("Metode spektrum frekuensi:", self)
+        settings_caption.setStyleSheet("color: #94a3b8; font-size: 10pt;")
+        settings_inner.addWidget(settings_caption)
+        self._radio_fft = QRadioButton("FFT", self)
+        self._radio_welch = QRadioButton("Welch PSD", self)
+        self._radio_fft.setChecked(True)
+        self._spectrum_method_group = QButtonGroup(self)
+        self._spectrum_method_group.setExclusive(True)
+        self._spectrum_method_group.addButton(self._radio_fft, 0)
+        self._spectrum_method_group.addButton(self._radio_welch, 1)
+        self._spectrum_method_group.idClicked.connect(self._on_spectrum_method_changed)
+        settings_inner.addWidget(self._radio_fft)
+        settings_inner.addWidget(self._radio_welch)
 
         self.stats_group = QGroupBox("", self)
         stats_inner = QVBoxLayout(self.stats_group)
@@ -284,11 +436,59 @@ class AnalyzeSingleFileTab(QWidget):
         self._stats_snapshot: dict[str, float] | None = None
 
         right_layout.addWidget(load_group, 0)
+        right_layout.addWidget(settings_group, 0)
         right_layout.addWidget(self.stats_group, 0)
         right_layout.addStretch(1)
 
         root.addWidget(plots_panel, 4)
         root.addWidget(right_panel, 1)
+
+        self._clear_spectrum_plots()
+
+    def _clear_spectrum_plots(self) -> None:
+        self.force_spec_curve.setData([], [])
+        self.roll_spec_curve.setData([], [])
+        self.pitch_spec_curve.setData([], [])
+
+    def _on_spectrum_method_changed(self, _id: int) -> None:
+        self._refresh_spectrum_plots()
+
+    def _refresh_spectrum_plots(self) -> None:
+        if self._loaded_ts is None or self._loaded_f is None:
+            self._clear_spectrum_plots()
+            return
+        ts = self._loaded_ts
+        fs = _estimate_sample_rate_hz(ts)
+        self._fs_hz = fs
+        use_welch = self._radio_welch.isChecked()
+        y_left = "PSD (lin.)" if use_welch else "|FFT| (norm.)"
+        for sw in (
+            self.force_spec_plot_widget,
+            self.roll_spec_plot_widget,
+            self.pitch_spec_plot_widget,
+        ):
+            sw.setLabel("left", y_left, color="#e5e7eb", **{"font-size": "10pt"})
+
+        def _one(y: list[float], curve: pg.PlotDataItem) -> None:
+            if use_welch:
+                fq, mag = _spectrum_welch_bins(y, fs)
+            else:
+                fq, mag = _spectrum_fft_bins(y, fs)
+            if fq.size == 0:
+                curve.setData([], [])
+                return
+            curve.setData(fq, mag)
+
+        _one(self._loaded_f, self.force_spec_curve)
+        _one(self._loaded_r, self.roll_spec_curve)
+        _one(self._loaded_p, self.pitch_spec_curve)
+
+        for sw in (
+            self.force_spec_plot_widget,
+            self.roll_spec_plot_widget,
+            self.pitch_spec_plot_widget,
+        ):
+            sw.getViewBox().autoRange()
 
     def load_csv(self) -> None:
         start_dir = str(self._datalog_dir) if self._datalog_dir.is_dir() else str(self._datalog_dir.parent)
@@ -313,6 +513,12 @@ class AnalyzeSingleFileTab(QWidget):
         self.force_curve.setData(ts_list, f_list)
         self.roll_curve.setData(ts_list, r_list)
         self.pitch_curve.setData(ts_list, p_list)
+
+        self._loaded_ts = ts_list
+        self._loaded_f = f_list
+        self._loaded_r = r_list
+        self._loaded_p = p_list
+        self._refresh_spectrum_plots()
 
         self.meta_label.setText(_html_load_block(swimmer, stroke, path.name))
 
