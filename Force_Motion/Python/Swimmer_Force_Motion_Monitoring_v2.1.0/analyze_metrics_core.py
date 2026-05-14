@@ -1,8 +1,8 @@
 """
-Perhitungan metrik rekaman (waktu + spektrum) dipakai bersama tab Analisa.
+Perhitungan metrik rekaman (waktu + spektrum) untuk **Analisa multifile** (v2.1.0).
 
-Tab **Analisa multifile** memanggil ``compute_recording_metrics`` agar konsisten
-dengan logika spektrum FFT / Welch seperti tab satu berkas.
+``compute_recording_metrics`` memakai definisi FFT / Welch yang selaras dengan
+implementasi spektrum di tab **Analisa** satu berkas (``analyze_single_file_tab``).
 """
 
 from __future__ import annotations

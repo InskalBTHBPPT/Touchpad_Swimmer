@@ -10,10 +10,11 @@ Bandingan dengan **v2.0.0** (`Swimmer_Force_Motion_Monitoring_v2.0.0/`).
 
 ### Ditambahkan
 
-- **Tab Analisa multifile** — hingga **5** berkas CSV Live sekaligus; tampilan **tabel** (bukan plot) dengan header multi-baris (nama perenang, gaya, nama file, baris *Value*).
-- **Tombol** *Add file* / *Simpan tabel ke CSV*; **dropdown metode spektrum** (FFT / Welch PSD) mengisi ulang semua kolom saat diganti.
-- **Folder `TableMultiFile/`** — ekspor tabel `ddmmyy_HHMM_TableMultiFile.csv` (UTF-8), struktur baris mengikuti tampilan tabel.
-- **Modul** `analyze_metrics_core.py`, `analyze_multi_file_tab.py`.
+- **Tab Analisa multifile** — hingga **5** berkas CSV Live; **tabel** perbandingan dengan header multi-baris (nama perenang, gaya, nama file, *Value*); teks sel data **rata tengah**.
+- **Baris kontrol** — *Add file*; *Simpan tabel ke CSV* (tombol abu-abu); *Plot data* (hijau) di samping simpan; *Hapus kolom* + combo + *Clear tabel* (merah); baris **Metode spektrum** (FFT / Welch) memuat ulang semua kolom.
+- **Jendela plot** (`MultiFilePlotDialog`) — non-modal; dropdown **Metrik** dan **Gaya plot** di dalam jendela (diagram batang, **garis + penanda** default, titik saja; pyqtgraph).
+- **Folder `TableMultiFile/`** — ekspor `ddmmyy_HHMM_TableMultiFile.csv` (UTF-8), struktur baris mengikuti tabel.
+- **Modul** `analyze_metrics_core.py`, `analyze_multi_file_tab.py`; manual **v2.1.0** (MD/PDF).
 
 ---
 

@@ -21,8 +21,8 @@ Dependensi tambahan (selain GUI): ``numpy``, ``scipy``.
 Fungsi modul ``make_three_stack_plots`` membangun tiga ``PlotWidget`` deret waktu
 dengan gaya konsisten; dipakai jendela utama saat menyusun tab Live.
 
-Analisis banyak berkas dapat ditambahkan sebagai tab terpisah tanpa mengubah
-kontrak kelas ini secara besar.
+Tab **Analisa multifile** (hingga lima berkas) adalah tab terpisah; kelas ini
+tetap fokus satu berkas tanpa mengubah kontraknya.
 """
 
 from __future__ import annotations

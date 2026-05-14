@@ -1,6 +1,8 @@
 """
-Tab **Analisa multifile** — bandingkan hingga lima rekaman CSV Live dalam satu tabel,
-opsi hapus kolom, dan **plot perbandingan** di jendela terpisah (pyqtgraph).
+Tab **Analisa multifile** — bandingkan hingga lima rekaman CSV Live dalam satu tabel
+(``QTableWidget``), opsi **hapus kolom** (``Clear tabel``), **simpan tabel** ke
+``TableMultiFile/``, dan **plot perbandingan** di ``MultiFilePlotDialog`` (pilihan
+metrik + gaya: batang / garis+penanda / titik; default garis+penanda).
 """
 
 from __future__ import annotations

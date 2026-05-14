@@ -5,15 +5,20 @@ Versi modul ini: **2.1.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.1.0
 
 Changelog (2.0.0 → 2.1.0)
 ==========================
-- **Tab Analisa multifile** — perbandingan hingga **lima** berkas log sekaligus dalam
-  ``QTableWidget`` (header multi-baris: nama perenang, gaya, nama file, *Value*).
-- **Kontrol** — baris tombol **Add file** / **Simpan tabel ke CSV**; baris **Metode
-  spektrum** (FFT / Welch PSD) sama semangatnya dengan tab Analisa satu berkas;
-  perubahan metode menghitung ulang semua kolom.
-- **Modul** — ``analyze_metrics_core.py`` (perhitungan metrik bersama);
-  ``analyze_multi_file_tab.py`` (UI tabel).
-- **Ekspor tabel** — folder ``TableMultiFile/``, nama berkas cap waktu +
-  sufiks ``_TableMultiFile.csv``; isi CSV mengikuti baris tabel (header multi-baris).
+- **Tab Analisa multifile** — hingga **lima** berkas CSV dalam **tabel** (header
+  multi-baris: nama perenang, gaya, nama file, *Value*); isi angka **rata tengah**
+  pada sel data.
+- **Kontrol baris pertama** — **Add file**; **Simpan tabel ke CSV** (tombol abu-abu);
+  **Plot data** (hijau) di samping simpan; blok **Hapus kolom** + combo + **Clear
+  tabel** (merah); baris kedua **Metode spektrum** (FFT / Welch) mengisi ulang
+  tabel.
+- **Jendela plot** (``MultiFilePlotDialog``, non-modal) — pilihan **Metrik** dan
+  **Gaya plot** di dalam jendela: diagram batang, **garis + penanda** (default),
+  atau titik saja (pyqtgraph).
+- **Modul** — ``analyze_metrics_core.py`` (``compute_recording_metrics`` + spektrum);
+  ``analyze_multi_file_tab.py`` (tabel + dialog plot).
+- **Ekspor** — folder ``TableMultiFile/``, berkas ``…_TableMultiFile.csv`` mengikuti
+  baris tabel (header multi-baris).
 
 Changelog (v1.0.0 → v2.0.0)
 ==============================
@@ -44,8 +49,9 @@ Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
 2. **Analisa** — muat satu CSV hasil tab Live, plot waktu dengan marker ekstremum,
    **plot spektrum** (FFT / Welch), ringkasan statistik (termasuk frekuensi dominan),
    dan ekspor ringkasan ke ``DataStatistik/``.
-3. **Analisa multifile** — hingga lima CSV; ringkasan metrik per berkas dalam tabel
-   (tanpa plot); simpan tabel ke ``TableMultiFile/``.
+3. **Analisa multifile** — hingga lima CSV; ringkasan metrik dalam **tabel**;
+   **plot perbandingan** opsional di **jendela terpisah** (metrik & gaya plot dipilih
+   di jendela); **Clear tabel** per kolom atau semua; simpan tabel ke ``TableMultiFile/``.
 
 Arsitektur ringkas
 ===================
@@ -117,7 +123,7 @@ Berkas terkait di folder yang sama
 - ``live_csv_io.py`` — header + parser CSV rekaman Live.
 - ``analyze_single_file_tab.py`` — widget tab Analisa (satu berkas).
 - ``analyze_metrics_core.py`` — perhitungan metrik rekaman + spektrum (dipakai multifile).
-- ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel).
+- ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel + jendela plot).
 - ``UserManual_Force_Motion_v2.1.0.md`` — manual pengguna (Markdown).
 - ``UserManual_Force_Motion_v2.1.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
 - ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +

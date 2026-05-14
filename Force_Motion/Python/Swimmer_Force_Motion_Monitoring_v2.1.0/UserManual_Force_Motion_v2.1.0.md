@@ -140,6 +140,11 @@ Setelah berhasil dimuat:
 
 ## 5. Tab Analisa multifile
 
+### 5.0 Batang alat
+
+- **Baris pertama** (kiri ke kanan): **Add file** (biru) → **Simpan tabel ke CSV** (abu-abu) → **Plot data** (hijau) → *ruang fleksibel* → label **Hapus kolom** + combo + **Clear tabel** (merah).
+- **Baris kedua:** **Metode spektrum** (FFT / Welch PSD); mengubahnya menghitung ulang semua kolom tabel.
+
 ### 5.1 Add file dan batas berkas
 
 - Tombol **Add file** membuka dialog pilih CSV rekaman (default folder `DataLog/`).
