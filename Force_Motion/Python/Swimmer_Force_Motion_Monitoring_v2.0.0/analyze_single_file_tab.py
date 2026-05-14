@@ -102,19 +102,18 @@ def _html_tstart_placeholder() -> str:
     return (
         '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
         '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
-        "T Start: —"
+        "TimeStamp Start pada — s"
         "</p></div>"
     )
 
 
 def _html_stat_tstart(t_start_s: float) -> str:
-    """Waktu paling awal di kolom TimeStamp CSV (min), gaya strip seperti kartu kanal."""
+    """Waktu paling awal di kolom TimeStamp CSV (min), satu baris dalam kartu strip."""
     return (
         '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
         '<div style="border-left:3px solid #64748b;padding-left:10px;">'
-        '<div style="color:#94a3b8;font-weight:700;font-size:10px;letter-spacing:0.12em;">T START</div>'
-        '<div style="margin-top:8px;color:#f8fafc;font-size:13px;font-weight:600;">'
-        f"T Start: {_he(f'{t_start_s:.2f}')} s"
+        '<div style="color:#f8fafc;font-size:13px;font-weight:600;line-height:1.5;">'
+        f"TimeStamp Start pada {_he(f'{t_start_s:.2f}')} s"
         "</div></div></div>"
     )
 
@@ -452,7 +451,7 @@ class AnalyzeSingleFileTab(QWidget):
         self.meta_label.setText(_html_load_placeholder())
         load_group.layout().addWidget(self.meta_label)
 
-        settings_group = QGroupBox("Analisa Setting", self)
+        settings_group = QGroupBox("", self)
         settings_inner = QVBoxLayout(settings_group)
         settings_inner.setContentsMargins(12, 14, 12, 14)
         settings_inner.setSpacing(8)
