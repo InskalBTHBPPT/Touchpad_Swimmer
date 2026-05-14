@@ -72,8 +72,9 @@ penulisan header rekaman). Tab analisis banyak berkas dapat ditambahkan terpisah
 nanti.
 
 Tombol **Simpan statistik** menulis CSV ke ``DataStatistik/`` dengan nama
-``<nama_file_log>_DataStaistik.csv`` (tanpa dialog Save As), berisi meta + tabel
-metrik (lihat juga manual pengguna).
+``<nama_file_log>_DataStatistik.csv`` (tanpa dialog Save As), berisi meta baris
+``Timestampstart (s)``, tabel metrik ekstremum, lalu blok frekuensi dominan per
+saluran (lihat juga manual pengguna).
 
 Dependensi Python
 ==================
@@ -136,8 +137,8 @@ from live_csv_io import LIVE_CSV_DATA_HEADER
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATALOG_DIR = SCRIPT_DIR / "DataLog"
 DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
-# Sufiks nama file ekspor statistik (sesuai permintaan): <nama_file_log>_DataStaistik.csv
-STATISTIK_FILE_SUFFIX = "_DataStaistik"
+# Sufiks nama file ekspor statistik (sesuai permintaan): <nama_file_log>_DataStatistik.csv
+STATISTIK_FILE_SUFFIX = "_DataStatistik"
 
 APP_NAME = "Swimmer Force Motion Monitoring"
 APP_VERSION = "1.0.0"

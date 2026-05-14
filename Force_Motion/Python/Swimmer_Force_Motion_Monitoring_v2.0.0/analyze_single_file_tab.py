@@ -510,7 +510,7 @@ class AnalyzeSingleFileTab(QWidget):
         self._stat_texts: list[tuple[pg.PlotWidget, pg.TextItem]] = []
         self._spec_peak_artists: list[tuple[pg.PlotWidget, pg.ScatterPlotItem, pg.TextItem]] = []
         self._export_ctx: dict[str, str] | None = None
-        self._stats_snapshot: dict[str, float] | None = None
+        self._stats_snapshot: dict[str, float | str | None] | None = None
 
         right_layout.addWidget(load_group, 0)
         right_layout.addWidget(settings_group, 0)
@@ -886,6 +886,7 @@ class AnalyzeSingleFileTab(QWidget):
         )
 
         self._stats_snapshot = {
+            "timestamp_start_s": float(t_start),
             "force_max_kg": float(v_fmax),
             "force_max_t_s": float(t_fmax),
             "roll_min_deg": float(r_list[i_rmin]),
@@ -896,15 +897,30 @@ class AnalyzeSingleFileTab(QWidget):
             "pitch_min_t_s": float(ts_list[i_pmin]),
             "pitch_max_deg": float(p_list[i_pmax]),
             "pitch_max_t_s": float(ts_list[i_pmax]),
+            "dominant_hz_force": peak_f,
+            "dominant_hz_roll": peak_r,
+            "dominant_hz_pitch": peak_p,
+            "spectrum_method": method_label,
         }
         self.save_stats_btn.setEnabled(self._export_ctx is not None)
 
     @staticmethod
-    def _write_statistik_csv(path: Path, ctx: dict[str, str], snap: dict[str, float]) -> None:
+    def _csv_dominant_hz_cell(v: float | str | None) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, str):
+            return v
+        return f"{float(v):.6g}"
+
+    @staticmethod
+    def _write_statistik_csv(
+        path: Path, ctx: dict[str, str], snap: dict[str, float | str | None]
+    ) -> None:
         exported_at = datetime.now().isoformat(timespec="seconds")
         swimmer = ctx["swimmer"]
         stroke = ctx["stroke"]
         source_file = ctx["source_file"]
+        method = str(snap["spectrum_method"])
 
         with path.open("w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
@@ -912,6 +928,10 @@ class AnalyzeSingleFileTab(QWidget):
             w.writerow(["Gaya_Renang", stroke])
             w.writerow(["Waktu_Ekspor_Statistik", exported_at])
             w.writerow(["Berkas_Sumber", source_file])
+            w.writerow([])
+            w.writerow(
+                ["Timestampstart (s)", f"{float(snap['timestamp_start_s']):.6g}"]
+            )
             w.writerow([])
             w.writerow(["Metrik", "Nilai", "Satuan", "Waktu (s)"])
             w.writerow(
@@ -952,6 +972,30 @@ class AnalyzeSingleFileTab(QWidget):
                     f"{snap['pitch_max_deg']:.6g}",
                     "deg",
                     f"{snap['pitch_max_t_s']:.6g}",
+                ]
+            )
+            w.writerow([])
+            w.writerow([])
+            w.writerow(["Metrik", "Frekuensi Dominan (Hz)", "Metode"])
+            w.writerow(
+                [
+                    "Force",
+                    AnalyzeSingleFileTab._csv_dominant_hz_cell(snap["dominant_hz_force"]),
+                    method,
+                ]
+            )
+            w.writerow(
+                [
+                    "Roll",
+                    AnalyzeSingleFileTab._csv_dominant_hz_cell(snap["dominant_hz_roll"]),
+                    method,
+                ]
+            )
+            w.writerow(
+                [
+                    "Pitch",
+                    AnalyzeSingleFileTab._csv_dominant_hz_cell(snap["dominant_hz_pitch"]),
+                    method,
                 ]
             )
 
