@@ -1,9 +1,11 @@
+# Terabaikan di mana pun muncul (subfolder baru tetap “ketangkap”)
+.pio/
+.vscode/
+DataLog/
+__pycache__/
+DataTable/
+DataStatistik/
+TableMultiFile/
+
 Touchpad_Timer_Pressure/Image/
-Touchpad_Timer_Pressure/Python/DataLog/
-Touchpad_Timer_Pressure/Python/DataTable/
-Touchpad_Timer_Pressure/Python/__pycache__/
-Force_Motion/Python/DataLog/
-Force_Motion/Python/__pycache__/
-Force_Motion/Python/DataStatistik/
-Force_Motion/PlatformIO/ArduinoFramework/ESP32-C3-Supermini/Generate_TimeSeries_3_Random_data/.pio/
-Force_Motion/PlatformIO/ArduinoFramework/ESP32-C3-Supermini/Generate_TimeSeries_3_Random_data/.vscode/
+Image/
