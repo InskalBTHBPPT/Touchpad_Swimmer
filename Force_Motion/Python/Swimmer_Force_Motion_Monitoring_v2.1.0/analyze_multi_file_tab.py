@@ -201,6 +201,9 @@ class AnalyzeMultiFileTab(QWidget):
             it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         else:
             it.setForeground(QColor("#e5e7eb"))
+            it.setTextAlignment(
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+            )
         return it
 
     def _on_add_file(self) -> None:
