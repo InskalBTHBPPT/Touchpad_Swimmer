@@ -1,7 +1,19 @@
 """
 Swimmer Force Motion Monitoring — aplikasi desktop (PySide6 + pyqtgraph).
 
-Versi modul ini: **2.0.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.0.0.py``).
+Versi modul ini: **2.1.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.1.0.py``).
+
+Changelog (2.0.0 → 2.1.0)
+==========================
+- **Tab Analisa multifile** — perbandingan hingga **lima** berkas log sekaligus dalam
+  ``QTableWidget`` (header multi-baris: nama perenang, gaya, nama file, *Value*).
+- **Kontrol** — baris tombol **Add file** / **Simpan tabel ke CSV**; baris **Metode
+  spektrum** (FFT / Welch PSD) sama semangatnya dengan tab Analisa satu berkas;
+  perubahan metode menghitung ulang semua kolom.
+- **Modul** — ``analyze_metrics_core.py`` (perhitungan metrik bersama);
+  ``analyze_multi_file_tab.py`` (UI tabel).
+- **Ekspor tabel** — folder ``TableMultiFile/``, nama berkas cap waktu +
+  sufiks ``_TableMultiFile.csv``; isi CSV mengikuti baris tabel (header multi-baris).
 
 Changelog (v1.0.0 → v2.0.0)
 ==============================
@@ -16,7 +28,7 @@ Changelog (v1.0.0 → v2.0.0)
   awal deret) serta blok tambahan **Frekuensi Dominan (Hz)** per saluran dengan
   kolom **Metode** (FFT / Welch PSD).
 - **Antarmuka:** dialog *themed* untuk pesan simpan statistik / About; referensi
-  manual pengguna memakai berkas **v2.0.0** (lihat konstanta ``USER_MANUAL_*``).
+  manual pengguna memakai berkas **v2.1.0** (lihat konstanta ``USER_MANUAL_*``).
 
 Ringkasan fungsi
 ==================
@@ -24,14 +36,16 @@ Aplikasi memantau **beban (force, kg)** dan **orientasi gerak (roll & pitch, der
 secara *real-time* dari perangkat keras yang mengirim data lewat **port serial USB**
 dalam format **teks CSV**: satu baris per sampel, empat kolom numerik dipisahkan koma.
 
-Dua tab utama:
+Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
 
 1. **Live** — koneksi serial, plot tiga deret waktu, indikator nilai terakhir, rekaman
    ke berkas CSV di folder ``DataLog/``, opsi menggeser kolom waktu di CSV ke nol
    per sesi **Start Log**, serta tombol **About** / **Help**.
-2. **Analisa** — muat CSV hasil tab Live, plot waktu dengan marker ekstremum,
+2. **Analisa** — muat satu CSV hasil tab Live, plot waktu dengan marker ekstremum,
    **plot spektrum** (FFT / Welch), ringkasan statistik (termasuk frekuensi dominan),
    dan ekspor ringkasan ke ``DataStatistik/``.
+3. **Analisa multifile** — hingga lima CSV; ringkasan metrik per berkas dalam tabel
+   (tanpa plot); simpan tabel ke ``TableMultiFile/``.
 
 Arsitektur ringkas
 ===================
@@ -84,8 +98,7 @@ Analisa & statistik (satu berkas)
 Tab **Analisa** diimplementasikan sebagai ``AnalyzeSingleFileTab`` di berkas
 ``analyze_single_file_tab.py``: satu CSV rekaman, plot, ekstremum, ekspor.
 Parsing format CSV Live ada di ``live_csv_io.parse_logged_csv`` (dipakai bersama
-penulisan header rekaman). Tab analisis banyak berkas dapat ditambahkan terpisah
-nanti.
+penulisan header rekaman). **Analisa multifile** di ``analyze_multi_file_tab.py``.
 
 Tombol **Simpan statistik** menulis CSV ke ``DataStatistik/`` dengan nama
 ``<nama_file_log>_DataStatistik.csv`` (tanpa dialog Save As), berisi meta baris
@@ -103,8 +116,10 @@ Berkas terkait di folder yang sama
 ===================================
 - ``live_csv_io.py`` — header + parser CSV rekaman Live.
 - ``analyze_single_file_tab.py`` — widget tab Analisa (satu berkas).
-- ``UserManual_Force_Motion_v2.0.0.md`` — manual pengguna (Markdown).
-- ``UserManual_Force_Motion_v2.0.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
+- ``analyze_metrics_core.py`` — perhitungan metrik rekaman + spektrum (dipakai multifile).
+- ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel).
+- ``UserManual_Force_Motion_v2.1.0.md`` — manual pengguna (Markdown).
+- ``UserManual_Force_Motion_v2.1.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
 - ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +
   ``xhtml2pdf``), berada di folder induk ``Force_Motion/Python`` (bukan di folder
   skrip v2 ini); pola sama seperti proyek Touchpad_Timer_Pressure.
@@ -147,6 +162,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from analyze_multi_file_tab import AnalyzeMultiFileTab
 from analyze_single_file_tab import AnalyzeSingleFileTab, make_three_stack_plots
 from live_csv_io import LIVE_CSV_DATA_HEADER
 
@@ -154,13 +170,14 @@ from live_csv_io import LIVE_CSV_DATA_HEADER
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATALOG_DIR = SCRIPT_DIR / "DataLog"
 DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
+TABLE_MULTIFILE_DIR = SCRIPT_DIR / "TableMultiFile"
 # Sufiks nama file ekspor statistik (sesuai permintaan): <nama_file_log>_DataStatistik.csv
 STATISTIK_FILE_SUFFIX = "_DataStatistik"
 
 APP_NAME = "Swimmer Force Motion Monitoring"
-APP_VERSION = "2.0.0"
-USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v2.0.0.md"
-USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v2.0.0.pdf"
+APP_VERSION = "2.1.0"
+USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v2.1.0.md"
+USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v2.1.0.pdf"
 
 STROKE_STYLES = [
     "Gaya Bebas",
@@ -387,7 +404,7 @@ class MainWindow(QMainWindow):
         live_layout.addWidget(plots_panel, 4)
         live_layout.addWidget(right_panel, 1)
 
-        # ---------- Tab Analisa (satu berkas CSV; multi-file = tab terpisah nanti) ----------
+        # ---------- Tab Analisa (satu berkas) + tab Analisa multifile ----------
         self.analyze_single_file_tab = AnalyzeSingleFileTab(
             datalog_dir=DATALOG_DIR,
             datastatistik_dir=DATASTATISTIK_DIR,
@@ -396,8 +413,16 @@ class MainWindow(QMainWindow):
             parent=self,
         )
 
+        self.analyze_multi_file_tab = AnalyzeMultiFileTab(
+            datalog_dir=DATALOG_DIR,
+            table_multi_file_dir=TABLE_MULTIFILE_DIR,
+            themed_stat_message=self._show_statistik_message_box,
+            parent=self,
+        )
+
         self.tab_widget.addTab(live_tab, "Live")
         self.tab_widget.addTab(self.analyze_single_file_tab, "Analisa")
+        self.tab_widget.addTab(self.analyze_multi_file_tab, "Analisa multifile")
 
         self._apply_styles(controls, indicators)
 
@@ -566,8 +591,8 @@ class MainWindow(QMainWindow):
                 f"{_path_text_for_dialog(pdf)}\n\n"
                 "Untuk membuat PDF dari Markdown, dari folder Force_Motion/Python jalankan:\n"
                 "  python md_to_pdf_Force_Motion.py "
-                f"-i Swimmer_Force_Motion_Monitoring_v2.0.0/{USER_MANUAL_MD.name} "
-                f"-o Swimmer_Force_Motion_Monitoring_v2.0.0/{USER_MANUAL_PDF.name}\n\n"
+                f"-i Swimmer_Force_Motion_Monitoring_v2.1.0/{USER_MANUAL_MD.name} "
+                f"-o Swimmer_Force_Motion_Monitoring_v2.1.0/{USER_MANUAL_PDF.name}\n\n"
                 f"(Sesuaikan -i/-o jika Anda menjalankan skrip dari lokasi lain.)",
             )
             return

@@ -4,6 +4,19 @@ Catatan perubahan antar versi aplikasi **Swimmer Force Motion Monitoring** (fold
 
 ---
 
+## [2.1.0] — 2026-05-14
+
+Bandingan dengan **v2.0.0** (`Swimmer_Force_Motion_Monitoring_v2.0.0/`).
+
+### Ditambahkan
+
+- **Tab Analisa multifile** — hingga **5** berkas CSV Live sekaligus; tampilan **tabel** (bukan plot) dengan header multi-baris (nama perenang, gaya, nama file, baris *Value*).
+- **Tombol** *Add file* / *Simpan tabel ke CSV*; **dropdown metode spektrum** (FFT / Welch PSD) mengisi ulang semua kolom saat diganti.
+- **Folder `TableMultiFile/`** — ekspor tabel `ddmmyy_HHMM_TableMultiFile.csv` (UTF-8), struktur baris mengikuti tampilan tabel.
+- **Modul** `analyze_metrics_core.py`, `analyze_multi_file_tab.py`.
+
+---
+
 ## [2.0.0] — 2026-05-14
 
 Bandingan dengan **v1.0.0** (`Swimmer_Force_Motion_Monitoring_v1.0.0.py`).
