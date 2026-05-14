@@ -33,7 +33,7 @@ Aplikasi memiliki **tiga tab**:
 
 - **Live** — koneksi serial, plot waktu-nyata, indikator nilai terakhir, rekaman CSV, opsi timestamp CSV, tombol **About** dan **Help**.
 - **Analisa** — muat **satu** file CSV hasil rekaman Live, plot waktu penuh dengan marker ekstremum, **tiga plot spektrum** (FFT atau Welch PSD), kartu statistik (termasuk **frekuensi dominan** per kanal), ekspor ringkasan ke `DataStatistik/`.
-- **Analisa multifile** — hingga **lima** berkas CSV sekaligus; hasil ringkasan metrik ditampilkan dalam **tabel** (bukan plot); simpan tabel ke folder `TableMultiFile/`; metode spektrum (FFT / Welch) mengisi ulang semua kolom.
+- **Analisa multifile** — hingga **lima** berkas CSV sekaligus; ringkasan metrik dalam **tabel**; **plot perbandingan** (jendela terpisah, pyqtgraph); simpan tabel ke `TableMultiFile/`; metode spektrum (FFT / Welch) mengisi ulang semua kolom.
 
 Modul pendukung di folder yang sama:
 
@@ -156,7 +156,18 @@ Setelah berhasil dimuat:
 - Empat baris paling atas setiap kolom data: nama perenang, gaya renang, nama file, lalu baris label **Value**.
 - Kolom pertama (**Metrik**) memuat label baris: timestamp start, ekstremum force/roll/pitch beserta timestamp, frekuensi dominan per saluran, serta baris **Metode spektrum frekuensi**.
 
-### 5.4 Simpan tabel ke CSV
+### 5.4 Hapus kolom
+
+- Pilih **Kolom 1** … **Kolom 5** atau **Semua kolom**, lalu **Clear tabel** (tombol merah) untuk mengeluarkan berkas dari daftar dan memperbarui tabel.
+
+### 5.5 Plot perbandingan
+
+- Tombol hijau **Plot data** membuka **jendela terpisah** (non-modal).
+- Di jendela tersebut: dropdown **Metrik** (force/roll/pitch ekstremum dan frekuensi dominan per saluran), dropdown **Gaya plot** — **Diagram batang** (default), **Garis + penanda**, atau **Titik saja**.
+- Sumbu X = urutan kolom/berkas (label tick mengikuti nama perenang atau nama file); data selalu mengikuti **Metode spektrum** yang dipilih di tab (FFT / Welch).
+- Mengganti metrik atau gaya memperbarui gambar secara langsung.
+
+### 5.6 Simpan tabel ke CSV
 
 - Tombol **Simpan tabel ke CSV** menulis berkas ke folder **`TableMultiFile/`** (tanpa dialog *Save As*).
 - Nama file: `ddmmyy_HHMM_TableMultiFile.csv` (cap waktu lokal + sufiks `_TableMultiFile`).
