@@ -21,14 +21,13 @@ import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QButtonGroup,
+    QComboBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
-    QRadioButton,
     QVBoxLayout,
     QWidget,
 )
@@ -447,27 +446,26 @@ class AnalyzeSingleFileTab(QWidget):
         self.meta_label.setText(_html_load_placeholder())
         load_group.layout().addWidget(self.meta_label)
 
-        settings_group = QGroupBox("", self)
+        settings_group = QGroupBox("Analisa Setting", self)
         settings_inner = QVBoxLayout(settings_group)
         settings_inner.setContentsMargins(12, 14, 12, 14)
         settings_inner.setSpacing(8)
-        settings_caption = QLabel("Metode spektrum frekuensi:", self)
-        settings_caption.setStyleSheet("color: #94a3b8; font-size: 10pt;")
-        settings_inner.addWidget(settings_caption)
-        self._radio_fft = QRadioButton("FFT", self)
-        self._radio_welch = QRadioButton("Welch PSD", self)
-        self._radio_fft.setChecked(True)
-        self._spectrum_method_group = QButtonGroup(self)
-        self._spectrum_method_group.setExclusive(True)
-        self._spectrum_method_group.addButton(self._radio_fft, 0)
-        self._spectrum_method_group.addButton(self._radio_welch, 1)
-        self._spectrum_method_group.idClicked.connect(self._on_spectrum_method_changed)
-        radios_row = QHBoxLayout()
-        radios_row.setSpacing(16)
-        radios_row.addWidget(self._radio_fft)
-        radios_row.addWidget(self._radio_welch)
-        radios_row.addStretch(1)
-        settings_inner.addLayout(radios_row)
+        spectrum_method_row = QHBoxLayout()
+        spectrum_method_row.setSpacing(10)
+        spectrum_lbl = QLabel("Metode spektrum:", self)
+        spectrum_lbl.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        self._spectrum_method_combo = QComboBox(self)
+        self._spectrum_method_combo.addItem("FFT", userData=False)
+        self._spectrum_method_combo.addItem("Welch PSD", userData=True)
+        self._spectrum_method_combo.blockSignals(True)
+        self._spectrum_method_combo.setCurrentIndex(0)
+        self._spectrum_method_combo.blockSignals(False)
+        self._spectrum_method_combo.setMinimumWidth(140)
+        self._spectrum_method_combo.currentIndexChanged.connect(self._on_spectrum_method_changed)
+        spectrum_method_row.addWidget(spectrum_lbl, 0)
+        spectrum_method_row.addWidget(self._spectrum_method_combo, 0)
+        spectrum_method_row.addStretch(1)
+        settings_inner.addLayout(spectrum_method_row)
 
         self.stats_group = QGroupBox("", self)
         stats_inner = QVBoxLayout(self.stats_group)
@@ -523,6 +521,14 @@ class AnalyzeSingleFileTab(QWidget):
         root.addWidget(right_panel, 1)
 
         self._clear_spectrum_plots()
+
+    def _spectrum_use_welch(self) -> bool:
+        """True jika metode spektrum = Welch PSD (dropdown)."""
+        idx = self._spectrum_method_combo.currentIndex()
+        if idx < 0:
+            return False
+        data = self._spectrum_method_combo.itemData(idx)
+        return bool(data) if data is not None else False
 
     def _clear_spectrum_peak_markers(self) -> None:
         for plot, sc, ti in self._spec_peak_artists:
@@ -587,7 +593,7 @@ class AnalyzeSingleFileTab(QWidget):
         plot.addItem(ti)
         self._spec_peak_artists.append((plot, sc, ti))
 
-    def _on_spectrum_method_changed(self, _id: int) -> None:
+    def _on_spectrum_method_changed(self, _index: int) -> None:
         self._refresh_spectrum_plots()
         if (
             self._loaded_ts is not None
@@ -610,7 +616,7 @@ class AnalyzeSingleFileTab(QWidget):
         ts = self._loaded_ts
         fs = _estimate_sample_rate_hz(ts)
         self._fs_hz = fs
-        use_welch = self._radio_welch.isChecked()
+        use_welch = self._spectrum_use_welch()
         y_left = "PSD (lin.)" if use_welch else "|FFT| (norm.)"
         for sw in (
             self.force_spec_plot_widget,
@@ -768,7 +774,7 @@ class AnalyzeSingleFileTab(QWidget):
         ts_max = max(ts_list)
         t_start = ts_min
         fs = _estimate_sample_rate_hz(ts_list)
-        use_welch = self._radio_welch.isChecked()
+        use_welch = self._spectrum_use_welch()
         method_label = "Welch PSD" if use_welch else "FFT"
         peak_f = _spectrum_peak_frequency_hz(f_list, fs, use_welch=use_welch)
         peak_r = _spectrum_peak_frequency_hz(r_list, fs, use_welch=use_welch)
