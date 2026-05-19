@@ -1,5 +1,5 @@
 """
-Swimmer_Touchpad_Monitor_v4.0.0-beta.py — NI DAQ Monitor for Touchpad Swimmer
+Swimmer_Touchpad_Monitor_v4.0.0.py — NI DAQ Monitor for Touchpad Swimmer
 ==============================================================================
 Aplikasi desktop real-time untuk akuisisi dan analisis data dua sensor
 touchpad (Pad 1 / Pad 2) menggunakan perangkat NI Data Acquisition (NI DAQ).
@@ -30,7 +30,7 @@ Tab Analisa Data
   - Marker tekanan: hijau (Pad1), kuning (Pad2)
   - Auto range sumbu Y kanan berdasarkan nilai pressure yang dimuat.
 
-Change Log 4.0.0-beta dari 3.1.0
+Change Log 4.0.0 dari 3.1.0
 --------------------------------
 * ChannelDetector: masuk region saat tekanan >= threshold + hysteresis (upper_trip).
 * Tutup region saat tekanan <= threshold - hysteresis (lower_trip), atau paksa tutup
@@ -38,7 +38,7 @@ Change Log 4.0.0-beta dari 3.1.0
 * Tekanan = rata-rata hingga 201 sampel (±100) di sekitar argmax dalam region.
 * Waktu di tabel = timestamp sampel pertama saat melewati upper_trip.
 * Hold Time 10 detik dan re-arm di bawah lower_trip tetap seperti v3.1.0.
-* Manual aplikasi: `UserManual_v4.0.0-beta.md/.pdf`.
+* Manual aplikasi: `UserManual_v4.0.0.md/.pdf`.
 
 Change Log 3.1.0 dari 3.0.3
 ---------------------------
@@ -83,10 +83,10 @@ nidaqmx  (NI-DAQmx Python driver)
 
 Cara Menjalankan
 ----------------
-    python Swimmer_Touchpad_Monitor_v4.0.0-beta.py
+    python Swimmer_Touchpad_Monitor_v4.0.0.py
 
 Penulis  : Tim Pengujian Touchpad Swimmer
-Versi    : 4.0.0-beta
+Versi    : 4.0.0
 """
 
 import collections
@@ -272,24 +272,22 @@ DEFAULT_HYSTERESIS = "0.005"
 DEFAULT_SCALE      = "1.00"
 
 CONFIG_PATH = pathlib.Path(__file__).parent / "config.json"
-USER_MANUAL_PDF = pathlib.Path(__file__).parent / "UserManual_v4.0.0-beta.pdf"
-USER_MANUAL_MD = pathlib.Path(__file__).parent / "UserManual_v4.0.0-beta.md"
+USER_MANUAL_PDF = pathlib.Path(__file__).parent / "UserManual_v4.0.0.pdf"
+USER_MANUAL_MD = pathlib.Path(__file__).parent / "UserManual_v4.0.0.md"
 
-# Ringkasan aplikasi (selaras dengan UserManual_v4.0.0-beta.md — bagian Pendahuluan)
+# Ringkasan aplikasi (selaras dengan UserManual_v4.0.0.md — bagian Pendahuluan)
 _ABOUT_APP_BLURB = (
-    "NI DAQ Monitor Swimmer Touchpad Monitor v3 adalah aplikasi desktop untuk akuisisi dan analisis data dari "
-    "dua sensor touchpad (Pad 1 / Pad 2) yang terhubung ke NI Data Acquisition (NI-DAQ).\n\n"
+    "NI DAQ Monitor Swimmer Touchpad Monitor v4.0.0 adalah aplikasi desktop untuk "
+    "akuisisi dan analisis data dari dua sensor touchpad (Pad 1 / Pad 2) yang "
+    "terhubung ke NI Data Acquisition (NI-DAQ).\n\n"
     "Kedua touchpad dipasang pada garis lintasan kolam renang: satu di sisi dekat blok "
     "start dan satu di sisi jauh (ujung berlawanan pada lintasan yang sama), sehingga "
     "data merekam interaksi perenang di kedua titik tersebut.\n\n"
-    "Aplikasi memantau tegangan keluaran setiap touchpad secara real-time serta mencatat "
-    "waktu ketika perenang menyentuh atau menekan masing-masing pad, dan besar tekanan "
-    "sentuhan dalam kilogram (kg). Tekanan diperoleh dari tegangan saat sentuhan "
-    "dikalikan faktor skala (Kg/Volt) yang dapat diatur per perangkat, bersama parameter "
-    "deteksi lainnya.\n\n"
-    "Aplikasi mendukung pengujian touchpad perenang: tekanan/gaya sentuhan sekaligus "
-    "metrik waktu lintasan (waktu antar-pad / split time) untuk analisis timing race "
-    "dan tempo putaran, tidak hanya fase dorong di satu titik."
+    "Aplikasi memantau tekanan (Kg) secara real-time, mendeteksi sentuhan dengan "
+    "region Schmitt (upper/lower trip), menghitung tekanan dari rata-rata di puncak "
+    "(±100 sampel), dan mencatat waktu serta tekanan ke tabel.\n\n"
+    "Aplikasi mendukung pengujian touchpad perenang: metrik waktu lintasan "
+    "(split time) dan analisis pasca-rekaman, tidak hanya fase dorong di satu titik."
 )
 
 # Jarak valid per gaya renang (sesuai standar kompetisi)
@@ -2143,7 +2141,7 @@ class MainWindow(QMainWindow):
         self._btn_help = QPushButton("❓  Help")
         self._btn_help.setMinimumHeight(32)
         self._btn_help.setToolTip(
-            "Buka panduan pengguna (UserManual_v4.0.0-beta.pdf, atau .md jika PDF tidak ada)"
+            "Buka panduan pengguna (UserManual_v4.0.0.pdf, atau .md jika PDF tidak ada)"
         )
         self._btn_help.clicked.connect(self._on_help)
 
@@ -2267,7 +2265,7 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(dlg)
         lay.setSpacing(10)
 
-        title = QLabel("<b>Swimmer Monitor</b><br>NI DAQ Monitor &nbsp;v4.0.0-beta")
+        title = QLabel("<b>Swimmer Monitor</b><br>NI DAQ Monitor &nbsp;v4.0.0")
         title.setTextFormat(Qt.TextFormat.RichText)
 
         body = QLabel(_ABOUT_APP_BLURB)

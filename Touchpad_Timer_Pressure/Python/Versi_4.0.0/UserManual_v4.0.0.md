@@ -1,6 +1,6 @@
 # User Manual — NI DAQ Monitor (Touchpad Swimmer)
-**Versi:** 4.0.0-beta  
-**File Aplikasi:** `Swimmer_Touchpad_Monitor_v4.0.0-beta.py`  
+**Versi:** 4.0.0  
+**File Aplikasi:** `Swimmer_Touchpad_Monitor_v4.0.0.py`  
 **Platform:** Windows 10/11  
 **Terakhir diperbarui:** Mei 2026
 
@@ -31,7 +31,7 @@
 
 ## 1. Pendahuluan
 
-**NI DAQ Monitor Swimmer Touchpad Monitor v4.0.0-beta** adalah aplikasi desktop untuk **akuisisi dan analisis data** dari dua sensor touchpad (**Pad 1** / **Pad 2**) yang terhubung ke perangkat **NI Data Acquisition (NI-DAQ)**. Masing-masing touchpad dipasang pada **garis lintasan** kolam renang: satu di sisi **dekat blok start** dan satu di sisi **jauh** (ujung berlawanan pada lintasan yang sama), sehingga data merekam interaksi perenang di kedua titik tersebut.
+**NI DAQ Monitor Swimmer Touchpad Monitor v4.0.0** adalah aplikasi desktop untuk **akuisisi dan analisis data** dari dua sensor touchpad (**Pad 1** / **Pad 2**) yang terhubung ke perangkat **NI Data Acquisition (NI-DAQ)**. Masing-masing touchpad dipasang pada **garis lintasan** kolam renang: satu di sisi **dekat blok start** dan satu di sisi **jauh** (ujung berlawanan pada lintasan yang sama), sehingga data merekam interaksi perenang di kedua titik tersebut.
 
 Aplikasi membaca **tegangan keluaran** touchpad dari NI-DAQ, lalu pada jalur Live mengonversi data tersebut secara langsung menjadi **tekanan dalam kilogram (Kg)** menggunakan **faktor skala (Kg/Volt)**. Grafik Live, deteksi sentuhan, tabel hasil, dan CSV Log menggunakan nilai tekanan yang sudah diskalakan.
 
@@ -43,7 +43,7 @@ Aplikasi mendukung **pengujian touchpad perenang** (*swimmer touchpad testing*) 
 - Ekspor data tekanan ke CSV dengan metadata perenang (Nama, Gaya, Jarak)
 - Analisis data pasca-rekaman: overlay plot CSV Log dan analisis split time
 
-**Perubahan utama v4.0.0-beta (detektor):**
+**Perubahan utama v4.0.0 (detektor):**
 - Masuk region saat tekanan **≥ threshold + hysteresis** (upper trip).
 - Tutup region saat tekanan **≤ threshold − hysteresis** (lower trip, inklusif), atau **paksa tutup setelah 5 detik**.
 - Tekanan tercatat = rata-rata hingga **201 sampel** (±100) di sekitar **puncak** dalam region.
@@ -97,11 +97,11 @@ Struktur folder:
 
 ```
 Touchpad_Timer_Pressure/Python/
-├── Versi_4.0.0-beta/
-│   ├── Swimmer_Touchpad_Monitor_v4.0.0-beta.py ← File aplikasi utama
+├── Versi_4.0.0/
+│   ├── Swimmer_Touchpad_Monitor_v4.0.0.py ← File aplikasi utama
 │   ├── config.json                             ← Konfigurasi tersimpan
-│   ├── UserManual_v4.0.0-beta.md               ← Dokumen ini
-│   ├── UserManual_v4.0.0-beta.pdf              ← Versi PDF dokumen ini
+│   ├── UserManual_v4.0.0.md               ← Dokumen ini
+│   ├── UserManual_v4.0.0.pdf              ← Versi PDF dokumen ini
 │   ├── DataLog/                                ← Folder default log CSV
 │   └── DataTable/                              ← Folder default tabel CSV
 ```
@@ -110,13 +110,13 @@ Touchpad_Timer_Pressure/Python/
 
 ## 4. Menjalankan Aplikasi
 
-Buka terminal / command prompt, arahkan ke folder `Python/Versi_4.0.0-beta/`, lalu jalankan:
+Buka terminal / command prompt, arahkan ke folder `Python/Versi_4.0.0/`, lalu jalankan:
 
 ```bash
-python Swimmer_Touchpad_Monitor_v4.0.0-beta.py
+python Swimmer_Touchpad_Monitor_v4.0.0.py
 ```
 
-Atau klik dua kali file `Swimmer_Touchpad_Monitor_v4.0.0-beta.py` jika Python sudah terkait dengan ekstensi `.py`.
+Atau klik dua kali file `Swimmer_Touchpad_Monitor_v4.0.0.py` jika Python sudah terkait dengan ekstensi `.py`.
 
 ### Regenerasi PDF manual (opsional)
 
@@ -124,7 +124,7 @@ Dari folder `Python/Misc/`, setelah mengubah file `.md` ini:
 
 ```bash
 pip install markdown xhtml2pdf
-python md_to_pdf_xhtml2pdf.py -i ../Versi_4.0.0-beta/UserManual_v4.0.0-beta.md -o ../Versi_4.0.0-beta/UserManual_v4.0.0-beta.pdf
+python md_to_pdf_xhtml2pdf.py -i ../Versi_4.0.0/UserManual_v4.0.0.md -o ../Versi_4.0.0/UserManual_v4.0.0.pdf
 ```
 
 ---
@@ -523,7 +523,7 @@ Detektor menggunakan **Schmitt dua ambang** + **region buffer** + state machine 
                                   argmax → mean ±100 sampel → catat tabel
 ```
 
-**Rumus runtime v4.0.0-beta:**
+**Rumus runtime v4.0.0:**
 - `threshold_kg = threshold_volt × scale`
 - `hysteresis_kg = hysteresis_volt × scale`
 - `upper_trip_kg = threshold_kg + hysteresis_kg` — **masuk** region
@@ -587,4 +587,4 @@ Hapus file `config.json` dan jalankan ulang. Sistem akan menggunakan nilai defau
 
 ---
 
-*Dokumen ini dibuat untuk `Swimmer_Touchpad_Monitor_v4.0.0-beta.py` — NI DAQ Monitor Touchpad Swimmer v4.0.0-beta*
+*Dokumen ini dibuat untuk `Swimmer_Touchpad_Monitor_v4.0.0.py` — NI DAQ Monitor Touchpad Swimmer v4.0.0*
