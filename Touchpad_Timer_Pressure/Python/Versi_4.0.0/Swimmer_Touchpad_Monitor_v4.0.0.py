@@ -16,13 +16,14 @@ Fitur Utama
 * Dialog ringkasan selesai pengukuran saat Stop (lokasi file log + tabel).
 * Info Perenang (Nama, Gaya, Jarak) sebagai metadata header CSV.
 * Tombol Help (buka PDF/MD manual) dan About (ringkasan aplikasi).
-* Antarmuka bertab: "Live Data" dan "Analisa Data".
+* Antarmuka bertab: "Live Data", "Analisa Data", dan "Analisa multifile".
 * Proteksi load CSV pada tab Analisa Data berdasarkan header file.
 
 Tab Analisa Data
 ----------------
 * Muat satu file CSV Log per kali load (dua kurva AI0/AI1).
 * Layout Analisa: atas plot CSV Log; bawah plot split time + tabel (QSplitter).
+* Tab Analisa multifile: sama seperti bagian CSV Table (tanpa CSV Log).
 * Panel kanan: kontrol load + metadata; tabel di samping plot split time.
 * Load CSV Table ke Data Table + plot analisis split time/tekanan.
 * Plot "Split Time & Tekanan per Sentuhan" (dual Y axis):
@@ -99,6 +100,7 @@ import pathlib
 import queue
 import sys
 import threading
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
@@ -271,6 +273,23 @@ ANALISA_TABLE_HEADER_ROWS = 2  # baris header in-cell (No + Pad 1/2) pada tabel 
 ANALISA_CONTROL_PANEL_WIDTH = 300   # lebar panel kontrol kanan (tombol + metadata)
 ANALISA_TABLE_MIN_WIDTH = 280       # lebar minimum tabel di samping plot split time
 DEFAULT_HOLD_TIME = 10.0  # detik minimum di state HOLD sebelum bisa re-arm
+
+
+@dataclass
+class _TableAnalysisPanel:
+    """Widget bundle: plot split time + tabel + label metadata + tombol load."""
+
+    pw_delta: pg.PlotWidget
+    vb_press: pg.ViewBox
+    delta_legend: object
+    press_legend_box: pg.LegendItem
+    tbl_data: QTableWidget
+    lbl_file: QLabel
+    lbl_nama: QLabel
+    lbl_gaya: QLabel
+    lbl_jarak: QLabel
+    lbl_tanggal: QLabel
+    btn_load: QPushButton
 
 DEFAULT_THRESHOLD  = "0.05"
 DEFAULT_HYSTERESIS = "0.005"
@@ -1047,6 +1066,9 @@ class MainWindow(QMainWindow):
         # Tab 2: Analisa Data
         self._tabs.addTab(self._build_analisa_tab(), "Analisa Data")
 
+        # Tab 3: Analisa multifile (CSV Table saja, tanpa CSV Log)
+        self._tabs.addTab(self._build_multifile_tab(), "Analisa multifile")
+
         # Load config.json setelah semua widget selesai dibuat
         cfg = _load_config()
         if cfg is not None:
@@ -1189,23 +1211,20 @@ class MainWindow(QMainWindow):
         "pressure_pad2(kg)",
     )
 
-    def _setup_analisa_data_table(self) -> None:
-        """Buat tabel Analisa: header dua baris (No rowspan + Pad 1/2), data dari baris ke-2."""
-        self._analisa_tbl_data = QTableWidget(ANALISA_TABLE_HEADER_ROWS, 5)
-        self._analisa_tbl_data.horizontalHeader().hide()
-        self._analisa_tbl_data.verticalHeader().hide()
-        self._analisa_tbl_data.setEditTriggers(
-            QTableWidget.EditTrigger.NoEditTriggers
-        )
-        self._analisa_tbl_data.setSelectionBehavior(
-            QTableWidget.SelectionBehavior.SelectRows
-        )
-        self._analisa_tbl_data.setAlternatingRowColors(False)
-        self._analisa_tbl_data.setShowGrid(True)
+    def _setup_analysis_data_table(self, tbl: QTableWidget) -> None:
+        """Header dua baris (No rowspan + Pad 1/2) pada tabel analisis CSV Table."""
+        tbl.setRowCount(ANALISA_TABLE_HEADER_ROWS)
+        tbl.setColumnCount(5)
+        tbl.horizontalHeader().hide()
+        tbl.verticalHeader().hide()
+        tbl.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        tbl.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        tbl.setAlternatingRowColors(False)
+        tbl.setShowGrid(True)
 
-        self._analisa_tbl_data.setSpan(0, 0, 2, 1)  # No — dua baris
-        self._analisa_tbl_data.setSpan(0, 1, 1, 2)  # Pad 1
-        self._analisa_tbl_data.setSpan(0, 3, 1, 2)  # Pad 2
+        tbl.setSpan(0, 0, 2, 1)
+        tbl.setSpan(0, 1, 1, 2)
+        tbl.setSpan(0, 3, 1, 2)
 
         bold = QFont()
         bold.setBold(True)
@@ -1217,7 +1236,7 @@ class MainWindow(QMainWindow):
         )
         no_item.setFont(bold)
         no_item.setFlags(header_only)
-        self._analisa_tbl_data.setItem(0, 0, no_item)
+        tbl.setItem(0, 0, no_item)
 
         for col, text in ((1, "Pad 1"), (3, "Pad 2")):
             item = QTableWidgetItem(text)
@@ -1226,7 +1245,7 @@ class MainWindow(QMainWindow):
             )
             item.setFont(bold)
             item.setFlags(header_only)
-            self._analisa_tbl_data.setItem(0, col, item)
+            tbl.setItem(0, col, item)
 
         row1_labels = {
             1: "Time",
@@ -1241,31 +1260,174 @@ class MainWindow(QMainWindow):
             )
             item.setFont(bold)
             item.setFlags(header_only)
-            self._analisa_tbl_data.setItem(1, col, item)
+            tbl.setItem(1, col, item)
 
-        self._analisa_tbl_data.horizontalHeader().setSectionResizeMode(
+        tbl.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
-        self._analisa_tbl_data.setRowHeight(0, 26)
-        self._analisa_tbl_data.setRowHeight(1, 22)
-        self._analisa_tbl_data.setMinimumWidth(ANALISA_TABLE_MIN_WIDTH)
-        self._analisa_tbl_data.setSizePolicy(
+        tbl.setRowHeight(0, 26)
+        tbl.setRowHeight(1, 22)
+        tbl.setMinimumWidth(ANALISA_TABLE_MIN_WIDTH)
+        tbl.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
         )
-        # Scrollbar bawaan Qt: tampil jika isi tidak muap (vertikal/horizontal).
-        self._analisa_tbl_data.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
-        self._analisa_tbl_data.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        tbl.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        tbl.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+    def _create_table_analysis_panel(self) -> _TableAnalysisPanel:
+        """Buat plot split time, ViewBox tekanan, tabel, dan label metadata."""
+        pw_delta = pg.PlotWidget()
+        pi_delta: pg.PlotItem = pw_delta.getPlotItem()
+        pi_delta.setTitle("Split Time & Tekanan per Sentuhan")
+        pi_delta.setLabel("left", "Δ Time", units="s")
+        pi_delta.setLabel("bottom", "Sentuhan ke-")
+        pi_delta.showGrid(x=True, y=True, alpha=0.3)
+        delta_legend = pi_delta.addLegend(offset=(2, 2))
+
+        pi_delta.showAxis("right")
+        pi_delta.getAxis("right").setLabel("Pressure", units="Kg")
+        vb_press = pg.ViewBox()
+        pi_delta.scene().addItem(vb_press)
+        pi_delta.getAxis("right").linkToView(vb_press)
+        vb_press.setXLink(pi_delta.vb)
+        pi_delta.vb.sigResized.connect(
+            lambda: vb_press.setGeometry(pi_delta.vb.sceneBoundingRect())
         )
 
-        self._update_table_header_colors()
+        press_legend_box = pg.LegendItem()
+        press_legend_box.setParentItem(pi_delta.vb)
+        press_legend_box.anchor(
+            itemPos=(1, 0), parentPos=(1, 0), offset=(-10, 10),
+        )
+
+        tbl_data = QTableWidget()
+        self._setup_analysis_data_table(tbl_data)
+
+        lbl_file = QLabel("(belum ada file)")
+        lbl_file.setWordWrap(True)
+        lbl_file.setStyleSheet("font-style: italic; font-size: 10px;")
+
+        lbl_nama = QLabel("-")
+        lbl_gaya = QLabel("-")
+        lbl_jarak = QLabel("-")
+        lbl_tanggal = QLabel("-")
+        for lbl in (lbl_nama, lbl_gaya, lbl_jarak, lbl_tanggal):
+            lbl.setWordWrap(True)
+
+        btn_load = QPushButton("📂  Load CSV Table")
+        btn_load.setToolTip("Muat satu file CSV Table")
+
+        return _TableAnalysisPanel(
+            pw_delta=pw_delta,
+            vb_press=vb_press,
+            delta_legend=delta_legend,
+            press_legend_box=press_legend_box,
+            tbl_data=tbl_data,
+            lbl_file=lbl_file,
+            lbl_nama=lbl_nama,
+            lbl_gaya=lbl_gaya,
+            lbl_jarak=lbl_jarak,
+            lbl_tanggal=lbl_tanggal,
+            btn_load=btn_load,
+        )
+
+    @staticmethod
+    def _analysis_info_form(
+        lbl_nama: QLabel, lbl_gaya: QLabel,
+        lbl_jarak: QLabel, lbl_tanggal: QLabel,
+    ) -> QFormLayout:
+        form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setSpacing(3)
+        form.addRow("Nama:", lbl_nama)
+        form.addRow("Gaya:", lbl_gaya)
+        form.addRow("Jarak:", lbl_jarak)
+        form.addRow("Tanggal:", lbl_tanggal)
+        return form
+
+    def _build_table_chart_group(self, panel: _TableAnalysisPanel) -> QGroupBox:
+        """Grup plot split time + Data Table (splitter horizontal)."""
+        grp_tbl_data = QGroupBox("Data Table")
+        lay_tbl = QVBoxLayout(grp_tbl_data)
+        lay_tbl.setContentsMargins(4, 4, 4, 4)
+        lay_tbl.addWidget(panel.tbl_data)
+
+        bottom_split = QSplitter(Qt.Orientation.Horizontal)
+        bottom_split.setChildrenCollapsible(False)
+        bottom_split.addWidget(panel.pw_delta)
+        bottom_split.addWidget(grp_tbl_data)
+        bottom_split.setStretchFactor(0, 3)
+        bottom_split.setStretchFactor(1, 1)
+        bottom_split.setSizes([700, ANALISA_TABLE_MIN_WIDTH])
+
+        grp = QGroupBox("CSV Table — Split Time & Data")
+        lay = QVBoxLayout(grp)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.addWidget(bottom_split)
+        return grp
+
+    def _build_table_load_group(
+        self, panel: _TableAnalysisPanel, on_load,
+    ) -> QGroupBox:
+        """Grup kontrol CSV Table: tombol load, nama file, metadata."""
+        panel.btn_load.clicked.connect(on_load)
+        grp_tbl_load = QGroupBox("CSV Table")
+        lay_tl = QVBoxLayout(grp_tbl_load)
+        lay_tl.setSpacing(4)
+        lay_tl.addWidget(panel.btn_load)
+        lay_tl.addWidget(panel.lbl_file)
+        lay_tl.addLayout(
+            self._analysis_info_form(
+                panel.lbl_nama, panel.lbl_gaya,
+                panel.lbl_jarak, panel.lbl_tanggal,
+            )
+        )
+        return grp_tbl_load
+
+    def _build_table_control_sidebar(
+        self,
+        panel: _TableAnalysisPanel,
+        on_load,
+        on_clear,
+        clear_tooltip: str,
+    ) -> tuple[QWidget, QPushButton]:
+        """Panel kanan: load CSV Table, metadata, Clear All."""
+        btn_clear = QPushButton("🗑  Clear All")
+        btn_clear.setToolTip(clear_tooltip)
+        btn_clear.clicked.connect(on_clear)
+
+        load_vbox = QVBoxLayout()
+        load_vbox.setContentsMargins(0, 0, 0, 0)
+        load_vbox.setSpacing(8)
+        load_vbox.addWidget(self._build_table_load_group(panel, on_load))
+        load_vbox.addStretch(1)
+        load_vbox.addWidget(btn_clear)
+
+        load_container = QWidget()
+        load_container.setFixedWidth(ANALISA_CONTROL_PANEL_WIDTH)
+        load_container.setLayout(load_vbox)
+        return load_container, btn_clear
+
+    def _sync_analisa_panel_aliases(self, panel: _TableAnalysisPanel) -> None:
+        """Alias atribut legacy untuk panel Analisa Data (tema, header warna)."""
+        self._analisa_pw_delta = panel.pw_delta
+        self._analisa_vb_press = panel.vb_press
+        self._analisa_delta_legend = panel.delta_legend
+        self._analisa_press_legend_box = panel.press_legend_box
+        self._analisa_tbl_data = panel.tbl_data
+        self._analisa_lbl_tbl_file = panel.lbl_file
+        self._analisa_lbl_tbl_nama = panel.lbl_nama
+        self._analisa_lbl_tbl_gaya = panel.lbl_gaya
+        self._analisa_lbl_tbl_jarak = panel.lbl_jarak
+        self._analisa_lbl_tbl_tanggal = panel.lbl_tanggal
+        self._btn_load_table = panel.btn_load
 
     def _build_analisa_tab(self) -> QWidget:
-        """Bangun tab Analisa: kiri (Log atas, Table+plot+tabel bawah), kanan kontrol."""
+        """Tab Analisa Data: CSV Log (atas) + CSV Table (bawah) + panel kontrol."""
+        self._analisa_panel = self._create_table_analysis_panel()
+        self._sync_analisa_panel_aliases(self._analisa_panel)
 
-        # ── Plot CSV Log (atas) ───────────────────────────────────────────
         self._analisa_pw_log = pg.PlotWidget()
         pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
         pi_log.setTitle("CSV Log Pressure")
@@ -1279,54 +1441,7 @@ class MainWindow(QMainWindow):
         lay_lp.setContentsMargins(4, 4, 4, 4)
         lay_lp.addWidget(self._analisa_pw_log)
 
-        # ── Plot split time + tabel (bawah, satu grup CSV Table) ───────────
-        self._analisa_pw_delta = pg.PlotWidget()
-        pi_delta: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
-        pi_delta.setTitle("Split Time & Tekanan per Sentuhan")
-        pi_delta.setLabel("left", "Δ Time", units="s")
-        pi_delta.setLabel("bottom", "Sentuhan ke-")
-        pi_delta.showGrid(x=True, y=True, alpha=0.3)
-        self._analisa_delta_legend = pi_delta.addLegend(offset=(2, 2))
-
-        pi_delta.showAxis("right")
-        pi_delta.getAxis("right").setLabel("Pressure", units="Kg")
-        self._analisa_vb_press = pg.ViewBox()
-        pi_delta.scene().addItem(self._analisa_vb_press)
-        pi_delta.getAxis("right").linkToView(self._analisa_vb_press)
-        self._analisa_vb_press.setXLink(pi_delta.vb)
-        pi_delta.vb.sigResized.connect(
-            lambda: self._analisa_vb_press.setGeometry(
-                pi_delta.vb.sceneBoundingRect()
-            )
-        )
-
-        self._analisa_press_legend_box = pg.LegendItem()
-        self._analisa_press_legend_box.setParentItem(pi_delta.vb)
-        self._analisa_press_legend_box.anchor(
-            itemPos=(1, 0),
-            parentPos=(1, 0),
-            offset=(-10, 10),
-        )
-
-        self._setup_analisa_data_table()
-
-        grp_tbl_data = QGroupBox("Data Table")
-        lay_tbl = QVBoxLayout(grp_tbl_data)
-        lay_tbl.setContentsMargins(4, 4, 4, 4)
-        lay_tbl.addWidget(self._analisa_tbl_data)
-
-        bottom_split = QSplitter(Qt.Orientation.Horizontal)
-        bottom_split.setChildrenCollapsible(False)
-        bottom_split.addWidget(self._analisa_pw_delta)
-        bottom_split.addWidget(grp_tbl_data)
-        bottom_split.setStretchFactor(0, 3)
-        bottom_split.setStretchFactor(1, 1)
-        bottom_split.setSizes([700, ANALISA_TABLE_MIN_WIDTH])
-
-        grp_table_section = QGroupBox("CSV Table — Split Time & Data")
-        lay_table_sec = QVBoxLayout(grp_table_section)
-        lay_table_sec.setContentsMargins(4, 4, 4, 4)
-        lay_table_sec.addWidget(bottom_split)
+        grp_table_section = self._build_table_chart_group(self._analisa_panel)
 
         chart_split = QSplitter(Qt.Orientation.Vertical)
         chart_split.setChildrenCollapsible(False)
@@ -1336,28 +1451,11 @@ class MainWindow(QMainWindow):
         chart_split.setStretchFactor(1, 1)
         chart_split.setSizes([400, 400])
 
-        # ── Load panel (kanan) ─────────────────────────────────────────────
-        def _info_form(
-            lbl_nama: QLabel, lbl_gaya: QLabel,
-            lbl_jarak: QLabel, lbl_tanggal: QLabel,
-        ) -> QFormLayout:
-            form = QFormLayout()
-            form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-            form.setContentsMargins(0, 0, 0, 0)
-            form.setSpacing(3)
-            form.addRow("Nama:", lbl_nama)
-            form.addRow("Gaya:", lbl_gaya)
-            form.addRow("Jarak:", lbl_jarak)
-            form.addRow("Tanggal:", lbl_tanggal)
-            return form
-
-        # ── Bagian CSV Log ────────────────────────────────────────────────
         self._btn_load_log = QPushButton("📂  Load CSV Log")
         self._btn_load_log.setToolTip(
             "Muat satu file CSV Log (mengganti tampilan log sebelumnya)"
         )
         self._btn_load_log.clicked.connect(self._on_analisa_load_log)
-        btn_load_log = self._btn_load_log
 
         self._analisa_lbl_log_file = QLabel("(belum ada file)")
         self._analisa_lbl_log_file.setWordWrap(True)
@@ -1377,51 +1475,18 @@ class MainWindow(QMainWindow):
         grp_log_load = QGroupBox("CSV Log")
         lay_ll = QVBoxLayout(grp_log_load)
         lay_ll.setSpacing(4)
-        lay_ll.addWidget(btn_load_log)
+        lay_ll.addWidget(self._btn_load_log)
         lay_ll.addWidget(self._analisa_lbl_log_file)
         lay_ll.addLayout(
-            _info_form(
+            self._analysis_info_form(
                 self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
                 self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
             )
         )
 
-        # ── Bagian CSV Table ──────────────────────────────────────────────
-        self._btn_load_table = QPushButton("📂  Load CSV Table")
-        self._btn_load_table.setToolTip("Muat satu file CSV Table")
-        self._btn_load_table.clicked.connect(self._on_analisa_load_table)
-        btn_load_table = self._btn_load_table
-
-        self._analisa_lbl_tbl_file = QLabel("(belum ada file)")
-        self._analisa_lbl_tbl_file.setWordWrap(True)
-        self._analisa_lbl_tbl_file.setStyleSheet("font-style: italic; font-size: 10px;")
-
-        self._analisa_lbl_tbl_nama = QLabel("-")
-        self._analisa_lbl_tbl_gaya = QLabel("-")
-        self._analisa_lbl_tbl_jarak = QLabel("-")
-        self._analisa_lbl_tbl_tanggal = QLabel("-")
-        for lbl in (
-            self._analisa_lbl_tbl_nama, self._analisa_lbl_tbl_gaya,
-            self._analisa_lbl_tbl_jarak, self._analisa_lbl_tbl_tanggal,
-        ):
-            lbl.setWordWrap(True)
-
-        grp_tbl_load = QGroupBox("CSV Table")
-        lay_tl = QVBoxLayout(grp_tbl_load)
-        lay_tl.setSpacing(4)
-        lay_tl.addWidget(btn_load_table)
-        lay_tl.addWidget(self._analisa_lbl_tbl_file)
-        lay_tl.addLayout(
-            _info_form(
-                self._analisa_lbl_tbl_nama, self._analisa_lbl_tbl_gaya,
-                self._analisa_lbl_tbl_jarak, self._analisa_lbl_tbl_tanggal,
-            )
-        )
-
-        # ── Clear All ─────────────────────────────────────────────────────
         self._btn_analisa_clear = QPushButton("🗑  Clear All")
         self._btn_analisa_clear.setToolTip(
-            "Hapus semua plot dan data yang sudah dimuat"
+            "Hapus semua plot dan data yang sudah dimuat di tab ini"
         )
         self._btn_analisa_clear.clicked.connect(self._on_analisa_clear)
 
@@ -1429,7 +1494,11 @@ class MainWindow(QMainWindow):
         load_vbox.setContentsMargins(0, 0, 0, 0)
         load_vbox.setSpacing(8)
         load_vbox.addWidget(grp_log_load)
-        load_vbox.addWidget(grp_tbl_load)
+        load_vbox.addWidget(
+            self._build_table_load_group(
+                self._analisa_panel, self._on_analisa_load_table,
+            )
+        )
         load_vbox.addStretch(1)
         load_vbox.addWidget(self._btn_analisa_clear)
 
@@ -1437,7 +1506,6 @@ class MainWindow(QMainWindow):
         load_container.setFixedWidth(ANALISA_CONTROL_PANEL_WIDTH)
         load_container.setLayout(load_vbox)
 
-        # ── Root layout ────────────────────────────────────────────────────
         root_hbox = QHBoxLayout()
         root_hbox.setContentsMargins(10, 10, 10, 10)
         root_hbox.setSpacing(14)
@@ -1447,9 +1515,31 @@ class MainWindow(QMainWindow):
         root_widget = QWidget()
         root_widget.setLayout(root_hbox)
 
-        # State: list of (filename_stem, curve_ai0, curve_ai1)
         self._analisa_log_curves: list[tuple[str, pg.PlotDataItem, pg.PlotDataItem]] = []
+        self._update_table_header_colors()
+        return root_widget
 
+    def _build_multifile_tab(self) -> QWidget:
+        """Tab Analisa multifile: hanya bagian CSV Table (tanpa CSV Log)."""
+        self._mf_panel = self._create_table_analysis_panel()
+
+        grp_chart = self._build_table_chart_group(self._mf_panel)
+        load_container, self._btn_mf_clear = self._build_table_control_sidebar(
+            self._mf_panel,
+            self._on_mf_load_table,
+            self._on_mf_clear,
+            "Hapus plot dan data CSV Table di tab ini",
+        )
+
+        root_hbox = QHBoxLayout()
+        root_hbox.setContentsMargins(10, 10, 10, 10)
+        root_hbox.setSpacing(14)
+        root_hbox.addWidget(grp_chart, stretch=1)
+        root_hbox.addWidget(load_container, stretch=0)
+
+        root_widget = QWidget()
+        root_widget.setLayout(root_hbox)
+        self._update_table_header_colors()
         return root_widget
 
     # ── Analisa slots ─────────────────────────────────────────────────────────
@@ -1601,17 +1691,25 @@ class MainWindow(QMainWindow):
         self._analisa_lbl_log_file.setText("<br>".join(lines))
 
     def _on_analisa_load_table(self) -> None:
+        self._on_panel_load_table(self._analisa_panel)
+
+    def _on_mf_load_table(self) -> None:
+        self._on_panel_load_table(self._mf_panel)
+
+    def _on_panel_load_table(self, panel: _TableAnalysisPanel) -> None:
         """Buka dialog pilih satu CSV Table, lalu tampilkan dan hitung delta time."""
         initial_dir = self._inp_table_folder.text().strip() or DEFAULT_TABLE_FOLDER
         path, _ = QFileDialog.getOpenFileName(
             self, "Pilih CSV Table", initial_dir, "CSV Files (*.csv);;All Files (*)"
         )
         if path:
-            self._analisa_clear_table_section()
-            self._analisa_load_table_file(pathlib.Path(path))
+            self._clear_table_section(panel)
+            self._load_table_file(panel, pathlib.Path(path))
 
-    def _analisa_load_table_file(self, filepath: pathlib.Path) -> None:
-        """Baca CSV Table, populate tabel analisa, dan plot delta time."""
+    def _load_table_file(
+        self, panel: _TableAnalysisPanel, filepath: pathlib.Path,
+    ) -> None:
+        """Baca CSV Table, populate tabel, dan plot delta time."""
         meta: dict[str, str] = {}
         rows: list[list[str]] = []
 
@@ -1649,15 +1747,13 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Update info perenang dari metadata (table section)
-        self._analisa_lbl_tbl_file.setText(filepath.name)
-        self._analisa_lbl_tbl_nama.setText(meta.get("Nama Perenang", "-"))
-        self._analisa_lbl_tbl_gaya.setText(meta.get("Gaya", "-"))
-        self._analisa_lbl_tbl_jarak.setText(meta.get("Jarak", "-"))
-        self._analisa_lbl_tbl_tanggal.setText(meta.get("Tanggal", "-"))
+        panel.lbl_file.setText(filepath.name)
+        panel.lbl_nama.setText(meta.get("Nama Perenang", "-"))
+        panel.lbl_gaya.setText(meta.get("Gaya", "-"))
+        panel.lbl_jarak.setText(meta.get("Jarak", "-"))
+        panel.lbl_tanggal.setText(meta.get("Tanggal", "-"))
 
-        # Populate QTableWidget dan kumpulkan data untuk plot
-        self._analisa_tbl_data.setRowCount(ANALISA_TABLE_HEADER_ROWS + len(rows))
+        panel.tbl_data.setRowCount(ANALISA_TABLE_HEADER_ROWS + len(rows))
         t1_list:  list[float] = []
         p1_list:  list[float] = []
         t2_list:  list[float] = []
@@ -1671,7 +1767,7 @@ class MainWindow(QMainWindow):
                 item.setTextAlignment(
                     Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
                 )
-                self._analisa_tbl_data.setItem(r, j, item)
+                panel.tbl_data.setItem(r, j, item)
 
             t1 = self._analisa_parse_time_s(row[1] if len(row) > 1 else "")
             t2 = self._analisa_parse_time_s(row[3] if len(row) > 3 else "")
@@ -1693,7 +1789,7 @@ class MainWindow(QMainWindow):
                 t2_list.append(t2)
                 p2_list.append(p2_val)
 
-        self._analisa_compute_and_plot_deltas(t1_list, p1_list, t2_list, p2_list)
+        self._compute_and_plot_deltas(panel, t1_list, p1_list, t2_list, p2_list)
 
     @staticmethod
     def _analisa_parse_time_s(val: str) -> float | None:
@@ -1715,8 +1811,9 @@ class MainWindow(QMainWindow):
         except ValueError:
             return None
 
-    def _analisa_compute_and_plot_deltas(
+    def _compute_and_plot_deltas(
         self,
+        panel: _TableAnalysisPanel,
         t1_list: list[float], p1_list: list[float],
         t2_list: list[float], p2_list: list[float],
     ) -> None:
@@ -1734,7 +1831,7 @@ class MainWindow(QMainWindow):
         events.sort(key=lambda e: e[0])
 
         if not events:
-            self._analisa_clear_delta_plot()
+            self._clear_delta_plot(panel)
             return
 
         # Hitung delta times
@@ -1773,13 +1870,12 @@ class MainWindow(QMainWindow):
             else:
                 x_pr2.append(x); y_pr2.append(p)
 
-        # ── Bersihkan plot ─────────────────────────────────────────────────
-        pi: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
+        pi: pg.PlotItem = panel.pw_delta.getPlotItem()
         pi.clear()
-        self._analisa_vb_press.clear()
+        panel.vb_press.clear()
         try:
-            self._analisa_delta_legend.clear()
-            self._analisa_press_legend_box.clear()
+            panel.delta_legend.clear()
+            panel.press_legend_box.clear()
         except Exception:
             pass
 
@@ -1821,7 +1917,7 @@ class MainWindow(QMainWindow):
         if len(all_press) > 1:
             px = np.array([e[0] for e in all_press])
             py = np.array([e[1] for e in all_press])
-            self._analisa_vb_press.addItem(
+            panel.vb_press.addItem(
                 pg.PlotDataItem(px, py, pen=pg.mkPen("#aaaaaa", width=1.2,
                                                       style=Qt.PenStyle.DashLine))
             )
@@ -1832,13 +1928,12 @@ class MainWindow(QMainWindow):
                 pen=pg.mkPen(None),
                 brush=pg.mkBrush("#39ff14"),  # neon green — Pad1
             )
-            self._analisa_vb_press.addItem(sc_pr1)
-            # Daftarkan ke legend pressure terpisah (kanan atas)
-            self._analisa_press_legend_box.addItem(sc_pr1, "Press Pad1")
+            panel.vb_press.addItem(sc_pr1)
+            panel.press_legend_box.addItem(sc_pr1, "Press Pad1")
             for x, y in zip(x_pr1, y_pr1):
                 txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, -0.3), color="#39ff14")
                 txt.setPos(x, y)
-                self._analisa_vb_press.addItem(txt)
+                panel.vb_press.addItem(txt)
 
         if x_pr2:
             sc_pr2 = pg.ScatterPlotItem(
@@ -1846,16 +1941,14 @@ class MainWindow(QMainWindow):
                 pen=pg.mkPen(None),
                 brush=pg.mkBrush("#ffe600"),  # yellow — Pad2
             )
-            self._analisa_vb_press.addItem(sc_pr2)
-            # Daftarkan ke legend pressure terpisah (kanan atas)
-            self._analisa_press_legend_box.addItem(sc_pr2, "Press Pad2")
+            panel.vb_press.addItem(sc_pr2)
+            panel.press_legend_box.addItem(sc_pr2, "Press Pad2")
             for x, y in zip(x_pr2, y_pr2):
                 txt = pg.TextItem(f"{y:.2f}Kg", anchor=(0.5, 1.4), color="#ffe600")
                 txt.setPos(x, y)
-                self._analisa_vb_press.addItem(txt)
+                panel.vb_press.addItem(txt)
 
-        # Sinkronkan geometri ViewBox sekunder + auto range Y berdasarkan pressure.
-        self._analisa_vb_press.setGeometry(pi.vb.sceneBoundingRect())
+        panel.vb_press.setGeometry(pi.vb.sceneBoundingRect())
         if press_y:
             y_min_raw = min(press_y)
             y_max_raw = max(press_y)
@@ -1871,7 +1964,7 @@ class MainWindow(QMainWindow):
                 y_min = 0.0
             if y_min >= y_max:
                 y_max = y_min + 1.0
-            self._analisa_vb_press.setYRange(y_min, y_max, padding=0)
+            panel.vb_press.setYRange(y_min, y_max, padding=0)
 
         # Pastikan sumbu X bertick integer
         pi.getAxis("bottom").setTicks(
@@ -1893,40 +1986,44 @@ class MainWindow(QMainWindow):
         self._analisa_log_curves.clear()
         self._update_analisa_files_label()
 
-    def _analisa_clear_delta_plot(self) -> None:
+    def _clear_delta_plot(self, panel: _TableAnalysisPanel) -> None:
         """Hapus plot split time, tekanan sekunder, dan legend terkait."""
-        self._analisa_pw_delta.getPlotItem().clear()
-        self._analisa_vb_press.clear()
+        panel.pw_delta.getPlotItem().clear()
+        panel.vb_press.clear()
         try:
-            self._analisa_delta_legend.clear()
-            self._analisa_press_legend_box.clear()
+            panel.delta_legend.clear()
+            panel.press_legend_box.clear()
         except Exception:
             pass
 
-    def _analisa_clear_table_section(self) -> None:
-        """Hapus plot split time dan baris data pada tabel Analisa (header tetap)."""
-        self._analisa_clear_delta_plot()
-        self._analisa_tbl_data.setRowCount(ANALISA_TABLE_HEADER_ROWS)
+    def _clear_table_section(self, panel: _TableAnalysisPanel) -> None:
+        """Hapus plot split time dan baris data tabel (header tetap)."""
+        self._clear_delta_plot(panel)
+        panel.tbl_data.setRowCount(ANALISA_TABLE_HEADER_ROWS)
+
+    def _reset_table_panel_labels(self, panel: _TableAnalysisPanel) -> None:
+        panel.lbl_file.setText("(belum ada file)")
+        for lbl in (
+            panel.lbl_nama, panel.lbl_gaya, panel.lbl_jarak, panel.lbl_tanggal,
+        ):
+            lbl.setText("-")
 
     def _on_analisa_clear(self) -> None:
-        """Hapus semua kurva overlay dan data tabel dari panel analisa."""
+        """Hapus semua kurva overlay dan data tabel dari tab Analisa Data."""
         self._analisa_clear_log_overlay()
-        self._analisa_clear_table_section()
+        self._clear_table_section(self._analisa_panel)
+        self._reset_table_panel_labels(self._analisa_panel)
 
-        # Reset label CSV Log
         for lbl in (
             self._analisa_lbl_log_nama, self._analisa_lbl_log_gaya,
             self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
         ):
             lbl.setText("-")
 
-        # Reset label CSV Table
-        self._analisa_lbl_tbl_file.setText("(belum ada file)")
-        for lbl in (
-            self._analisa_lbl_tbl_nama, self._analisa_lbl_tbl_gaya,
-            self._analisa_lbl_tbl_jarak, self._analisa_lbl_tbl_tanggal,
-        ):
-            lbl.setText("-")
+    def _on_mf_clear(self) -> None:
+        """Hapus plot dan data CSV Table di tab Analisa multifile."""
+        self._clear_table_section(self._mf_panel)
+        self._reset_table_panel_labels(self._mf_panel)
 
     # ── CSV helpers ───────────────────────────────────────────────────────────
     def _on_browse_csv_folder(self) -> None:
@@ -2310,19 +2407,17 @@ class MainWindow(QMainWindow):
                     item.setBackground(QBrush(bg))
                     item.setForeground(QBrush(fg))
 
-        if hasattr(self, "_analisa_tbl_data"):
-            # Header in-cell (sama pola dengan tabel Live): warna sel, bukan QHeaderView
-            analisa_header_cells = [
-                (0, 0),
-                (0, 1),
-                (0, 3),
-                (1, 1),
-                (1, 2),
-                (1, 3),
-                (1, 4),
-            ]
+        analisa_header_cells = [
+            (0, 0), (0, 1), (0, 3), (1, 1), (1, 2), (1, 3), (1, 4),
+        ]
+        for panel in (
+            getattr(self, "_analisa_panel", None),
+            getattr(self, "_mf_panel", None),
+        ):
+            if panel is None:
+                continue
             for row, col in analisa_header_cells:
-                item = self._analisa_tbl_data.item(row, col)
+                item = panel.tbl_data.item(row, col)
                 if item:
                     item.setBackground(QBrush(bg))
                     item.setForeground(QBrush(fg))
@@ -2531,13 +2626,17 @@ class MainWindow(QMainWindow):
         # Qt stylesheet untuk semua widget
         QApplication.instance().setStyleSheet(theme["qt_stylesheet"])
 
-        # pyqtgraph: background & foreground (live + Analisa)
-        for pw in (
-            self._pw_ai0,
-            self._pw_ai1,
-            self._analisa_pw_log,
-            self._analisa_pw_delta,
+        # pyqtgraph: background & foreground (live + Analisa + multifile)
+        plot_widgets = [self._pw_ai0, self._pw_ai1]
+        if hasattr(self, "_analisa_pw_log"):
+            plot_widgets.append(self._analisa_pw_log)
+        for panel in (
+            getattr(self, "_analisa_panel", None),
+            getattr(self, "_mf_panel", None),
         ):
+            if panel is not None:
+                plot_widgets.append(panel.pw_delta)
+        for pw in plot_widgets:
             self._style_plot_widget_theme(pw, theme)
 
         # Warna kurva
@@ -2558,6 +2657,10 @@ class MainWindow(QMainWindow):
         self._btn_load_log.setStyleSheet(bs["load_log"])
         self._btn_load_table.setStyleSheet(bs["load_table"])
         self._btn_analisa_clear.setStyleSheet(bs["clear_analisa"])
+        if hasattr(self, "_mf_panel"):
+            self._mf_panel.btn_load.setStyleSheet(bs["load_table"])
+        if hasattr(self, "_btn_mf_clear"):
+            self._btn_mf_clear.setStyleSheet(bs["clear_analisa"])
 
         # Label tombol tema
         if theme_name == "Dark":
