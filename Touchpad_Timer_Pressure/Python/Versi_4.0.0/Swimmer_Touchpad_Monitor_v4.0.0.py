@@ -1874,6 +1874,7 @@ class MainWindow(QMainWindow):
         self._analisa_pw_delta.getPlotItem().clear()
         self._analisa_vb_press.clear()
         try:
+            self._analisa_delta_legend.clear()
             self._analisa_press_legend_box.clear()
         except Exception:
             pass
@@ -2470,12 +2471,27 @@ class MainWindow(QMainWindow):
         next_theme = "Dark" if self._current_theme == "Light" else "Light"
         self._apply_theme(next_theme)
 
+    def _style_plot_widget_theme(
+        self, pw: pg.PlotWidget, theme: dict[str, str]
+    ) -> None:
+        """Terapkan warna background/axis/title pyqtgraph pada satu PlotWidget."""
+        pw.setBackground(theme["pg_bg"])
+        pi: pg.PlotItem = pw.getPlotItem()
+        for axis_name in ("left", "bottom", "top", "right"):
+            axis = pi.getAxis(axis_name)
+            if axis is not None:
+                axis.setPen(pg.mkPen(color=theme["pg_fg"]))
+                axis.setTextPen(pg.mkPen(color=theme["pg_fg"]))
+        title_item = pi.titleLabel
+        if title_item is not None:
+            title_item.setText(title_item.text, color=theme["pg_fg"])
+
     def _apply_theme(self, theme_name: str) -> None:
         """Terapkan tema "Light" atau "Dark" ke seluruh aplikasi.
 
-        Mengubah: Qt stylesheet global, warna background/foreground pyqtgraph,
-        warna kurva AI0/AI1, warna header tabel, warna tombol aksi, dan label
-        tombol tema.
+        Mengubah: Qt stylesheet global, warna background/foreground pyqtgraph
+        (live + tab Analisa), warna kurva AI0/AI1, warna header tabel, warna
+        tombol aksi, dan label tombol tema.
         """
         theme = _THEMES[theme_name]
         self._current_theme = theme_name
@@ -2483,21 +2499,14 @@ class MainWindow(QMainWindow):
         # Qt stylesheet untuk semua widget
         QApplication.instance().setStyleSheet(theme["qt_stylesheet"])
 
-        # pyqtgraph: background & foreground
-        for pw in (self._pw_ai0, self._pw_ai1):
-            pw.setBackground(theme["pg_bg"])
-            pi: pg.PlotItem = pw.getPlotItem()
-            for axis_name in ("left", "bottom", "top", "right"):
-                axis = pi.getAxis(axis_name)
-                if axis is not None:
-                    axis.setPen(pg.mkPen(color=theme["pg_fg"]))
-                    axis.setTextPen(pg.mkPen(color=theme["pg_fg"]))
-            title_item = pi.titleLabel
-            if title_item is not None:
-                title_item.setText(
-                    title_item.text,
-                    color=theme["pg_fg"],
-                )
+        # pyqtgraph: background & foreground (live + Analisa)
+        for pw in (
+            self._pw_ai0,
+            self._pw_ai1,
+            self._analisa_pw_log,
+            self._analisa_pw_delta,
+        ):
+            self._style_plot_widget_theme(pw, theme)
 
         # Warna kurva
         self._curve_ai0.setPen(pg.mkPen(color=theme["curve_ai0"], width=1))
