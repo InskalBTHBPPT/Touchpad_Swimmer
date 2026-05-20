@@ -241,6 +241,8 @@ Tekan tombol **⚙️ Set Parameter** untuk membuka jendela konfigurasi.
 
 > **Default** = parameter di `config.json` (bisa Anda ubah). **Factory** = bawaan aplikasi sebelum kalibrasi.
 
+> Setiap tombol di atas **kecuali Cancel / ✕** menampilkan dialog konfirmasi **OK** / **Cancel** sebelum aksi dijalankan. **Cancel** pada konfirmasi membatalkan aksi; dialog Set Parameter tetap terbuka.
+
 ---
 
 ## 8. Memulai Akuisisi Data

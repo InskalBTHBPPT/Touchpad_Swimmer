@@ -490,6 +490,7 @@ class ParameterDialog(QDialog):
       Apply             → terapkan nilai dialog ke MainWindow, dialog tetap terbuka
       Cancel / X        → tutup tanpa mengubah apapun di MainWindow
 
+    Keempat tombol aksi di atas meminta konfirmasi OK / Cancel sebelum dijalankan.
     Istilah: "Default" = config.json; "Factory" = nilai bawaan aplikasi di kode.
     """
 
@@ -769,8 +770,26 @@ class ParameterDialog(QDialog):
         mw._inp_intercept1.setText(self._d_intercept[1].text())
         mw._inp_hold1.setText(self._d_hold[1].text())
 
+    def _confirm_action(self, title: str, message: str) -> bool:
+        """Tampilkan dialog konfirmasi OK / Cancel. Return True jika user memilih OK."""
+        btn = QMessageBox.question(
+            self,
+            title,
+            message,
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        return btn == QMessageBox.StandardButton.Ok
+
     def _on_set_as_default(self) -> None:
         """Simpan nilai dialog ke config.json lalu apply ke MainWindow."""
+        if not self._confirm_action(
+            "Set As Default",
+            "Simpan parameter saat ini ke config.json (default persisten) "
+            "dan terapkan ke sistem?\n\n"
+            "File config.json akan ditimpa.",
+        ):
+            return
         cfg = self._build_config_dict()
         try:
             _save_config(cfg)
@@ -787,6 +806,13 @@ class ParameterDialog(QDialog):
 
     def _on_reset_to_default(self) -> None:
         """Isi dialog dari config.json — default persisten (tidak auto-apply ke MainWindow)."""
+        if not self._confirm_action(
+            "Reset to Default",
+            "Muat parameter dari config.json (default persisten) ke dialog?\n\n"
+            "Perubahan di dialog saat ini akan diganti. "
+            "Tekan Apply untuk menerapkan ke sistem.",
+        ):
+            return
         cfg = _load_config()
         if cfg is None:
             QMessageBox.warning(self, "Tidak Ada", "File config.json belum tersedia.")
@@ -795,6 +821,13 @@ class ParameterDialog(QDialog):
 
     def _on_reset_to_factory(self) -> None:
         """Isi dialog dari nilai DEFAULT_* hardcoded (tidak auto-apply ke MainWindow)."""
+        if not self._confirm_action(
+            "Reset to Factory",
+            "Muat nilai default pabrik ke dialog?\n\n"
+            "Perubahan di dialog saat ini akan diganti. "
+            "Tekan Apply untuk menerapkan ke sistem.",
+        ):
+            return
         factory: dict = {
             "ch0": DEFAULT_CH0, "ch1": DEFAULT_CH1,
             "rate": str(DEFAULT_RATE), "buffer": str(DEFAULT_BUFFER),
@@ -811,6 +844,13 @@ class ParameterDialog(QDialog):
         self._fill_dialog_from_config(factory)
 
     def _on_apply(self) -> None:
+        if not self._confirm_action(
+            "Apply",
+            "Terapkan parameter di dialog ini ke jendela utama?\n\n"
+            "Dialog tetap terbuka. Jika akuisisi sedang berjalan, "
+            "nilai baru dipakai setelah Stop lalu Start.",
+        ):
+            return
         self._apply_to_main()
 
 
