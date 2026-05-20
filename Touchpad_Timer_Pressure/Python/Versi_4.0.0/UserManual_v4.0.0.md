@@ -43,7 +43,8 @@ Aplikasi mendukung **pengujian touchpad perenang** (*swimmer touchpad testing*) 
 - Ekspor data tekanan ke CSV dengan metadata perenang (Nama, Gaya, Jarak)
 - Analisis data pasca-rekaman: overlay plot CSV Log dan analisis split time
 
-**Perubahan utama v4.0.0 (detektor):**
+**Perubahan utama v4.0.0 (kalibrasi & detektor):**
+- Konversi tekanan: **pressure (Kg) = scale × voltage (V) + intercept** (regresi linier \(y = mx + c\)); default intercept `0.00` Kg.
 - Masuk region saat tekanan **≥ threshold + hysteresis** (upper trip).
 - Tutup region saat tekanan **≤ threshold − hysteresis** (lower trip, inklusif), atau **paksa tutup setelah 5 detik**.
 - Tekanan tercatat = rata-rata hingga **201 sampel** (±100) di sekitar **puncak** dalam region.
@@ -51,8 +52,8 @@ Aplikasi mendukung **pengujian touchpad perenang** (*swimmer touchpad testing*) 
 - **Delay Time (hold) 10 detik** tetap: deteksi berikutnya hanya setelah hold selesai dan sinyal turun di bawah lower trip.
 
 **Perubahan v3.1.0 (tetap berlaku):**
-- Data Live dikonversi dari Volt ke Kg segera setelah pembacaan DAQ menggunakan nilai **Scale (Kg/Volt)** per channel.
-- Threshold dan hysteresis tetap diinput/disimpan dalam Volt, tetapi dikonversi ke Kg saat runtime sebelum dibandingkan dengan data Live.
+- Data Live: **Kg = scale × V + intercept** per channel (intercept boleh negatif).
+- Threshold (Volt) → Kg: `threshold_volt × scale + intercept`; hysteresis (Volt) → Kg: `hysteresis_volt × scale` (tanpa intercept pada lebar pita).
 - CSV Log menggunakan header `timestamp_s,ai0_kg,ai1_kg` dan menyimpan data tekanan dalam Kg.
 - Plot Live dan overlay CSV Log di tab Analisa menggunakan sumbu Y **Pressure (Kg)**.
 - Loader CSV Log tab Analisa mengharapkan format header v3.1.0.
@@ -219,12 +220,14 @@ Tekan tombol **⚙️ Set Parameter** untuk membuka jendela konfigurasi.
 |---|---|---|
 | **Threshold (Volt)** | Ambang referensi deteksi (pusat Schmitt) | `0.05` V |
 | **Hysteresis (Volt)** | Selisih untuk upper/lower trip | `0.005` V |
-| **Scale (Kg/Volt)** | Faktor konversi tegangan → tekanan | `1.00` |
+| **Scale (Kg/Volt)** | Kemiringan \(m\) regresi linier | `1.00` |
+| **Intercept (Kg)** | Potongan sumbu-Y \(c\) regresi linier | `0.00` |
 | **Delay Time (s)** | Waktu hold minimum (anti-debounce) | `10.0` detik |
 
 > **Catatan:** Parameter detektor bisa diatur berbeda untuk Dev. 0 (Pad 1) dan Dev. 1 (Pad 2).
-> Threshold dan Hysteresis dimasukkan sebagai Volt, lalu dikonversi ke Kg saat Start.
-> Masuk region: **≥ threshold + hysteresis**; tutup/re-arm: **≤ / < threshold − hysteresis**.
+> **Konversi:** `pressure_kg = scale × voltage_v + intercept` (live, plot, CSV log).
+> **Ambang (saat Start):** `threshold_kg = threshold_volt × scale + intercept`; `hysteresis_kg = hysteresis_volt × scale`.
+> Masuk region: **≥ threshold_kg + hysteresis_kg**; tutup/re-arm: **≤ / < threshold_kg − hysteresis_kg**.
 
 ### 7.3 Tombol di Jendela Set Parameter
 
@@ -274,7 +277,7 @@ timestamp_s,ai0_kg,ai1_kg
 ...
 ```
 
-Baris dimulai dengan `#` adalah metadata — dapat diabaikan saat import ke pandas dengan parameter `comment='#'`. Kolom `ai0_kg` dan `ai1_kg` berisi data tekanan yang sudah dikalikan Scale, bukan tegangan mentah.
+Baris dimulai dengan `#` adalah metadata — dapat diabaikan saat import ke pandas dengan parameter `comment='#'`. Kolom `ai0_kg` dan `ai1_kg` berisi tekanan (Kg) hasil `scale × V + intercept`, bukan tegangan mentah.
 
 ---
 
@@ -499,6 +502,7 @@ Tekan **🗑 Clear All** untuk menghapus semua data yang dimuat dan mereset selu
 | Threshold | `0.05` V |
 | Hysteresis | `0.005` V |
 | Scale | `1.00` Kg/V |
+| Intercept | `0.00` Kg |
 | Hold Time | `10.0` detik |
 | Plot Window | `10.0` detik |
 | Plot Refresh | `100` ms (~10 FPS) |
@@ -524,21 +528,28 @@ Detektor menggunakan **Schmitt dua ambang** + **region buffer** + state machine 
 ```
 
 **Rumus runtime v4.0.0:**
-- `threshold_kg = threshold_volt × scale`
-- `hysteresis_kg = hysteresis_volt × scale`
+- `pressure_kg = voltage_v × scale + intercept` — setiap sampel live / CSV log
+- `threshold_kg = threshold_volt × scale + intercept`
+- `hysteresis_kg = hysteresis_volt × scale` (lebar pita; intercept tidak ditambah lagi)
 - `upper_trip_kg = threshold_kg + hysteresis_kg` — **masuk** region
 - `lower_trip_kg = threshold_kg − hysteresis_kg` — **tutup** region & syarat re-arm
 - `time_table = timestamp` sampel pertama `≥ upper_trip`
-- `pressure = mean(buffer[j−100 : j+100])` dengan `j = argmax(buffer)` (dipotong di tepi region)
+- `pressure_tabel = mean(buffer[j−100 : j+100])` dengan `j = argmax(buffer)` (dipotong di tepi region)
 - Jika region > **5 detik** tanpa turun ke lower trip: region **dipaksa tutup** (tetap hitung pressure)
+
+**Contoh numerik** (threshold `0.7` V, hysteresis `0.05` V, scale `10` Kg/V, intercept `−1` Kg):
+- Pita Volt: lower `0.65` V, pusat `0.70` V, upper `0.75` V
+- `threshold_kg = 0.7×10 + (−1) = 6.0` Kg; `hysteresis_kg = 0.05×10 = 0.5` Kg
+- lower trip **5.5** Kg, upper trip **6.5** Kg (sama dengan `0.65×10−1` dan `0.75×10−1`)
 
 **Contoh pengaturan** untuk sensor 0.1 V/Kg dengan noise ±0.003 V:
 
 | Parameter | Nilai | Alasan |
 |---|---|---|
 | Threshold | `0.05` V | Ambang referensi sentuhan |
-| Hysteresis | `0.005` V | Upper trip 0,055 V; lower trip 0,045 V |
-| Scale | `10.0` Kg/V | Konversi 1/sensitivitas |
+| Hysteresis | `0.005` V | Lebar pita di sumbu V |
+| Scale | `10.0` Kg/V | Kemiringan regresi |
+| Intercept | `0.00` Kg | Offset nol (sesuaikan kalibrasi) |
 | Hold Time | `10.0` s | Jarak minimum antar deteksi setelah region selesai |
 
 ---
@@ -566,7 +577,7 @@ Detektor menggunakan **Schmitt dua ambang** + **region buffer** + state machine 
 |---|---|---|
 | Sinyal tampil di grafik tapi tabel kosong | Threshold terlalu tinggi | Turunkan nilai Threshold |
 | Deteksi terus-menerus | Hold Time terlalu kecil | Naikkan Hold Time (min. 5 detik) |
-| Nilai tekanan tidak realistis | Scale salah | Kalibrasi dan sesuaikan Scale |
+| Nilai tekanan tidak realistis | Scale/intercept salah | Kalibrasi regresi \(y = mx + c\) |
 
 ### Plot Analisa tidak tampil setelah Load CSV Table
 

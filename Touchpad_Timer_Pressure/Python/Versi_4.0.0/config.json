@@ -1,4 +1,5 @@
 {
+  "_format_note": "Format konfigurasi file JSON ini berlaku untuk Swimmer Touchpad Monitor v4.0.0 hingga dilakukan perubahan schema tertentu (lihat changelog atau User Manual).",
   "ch0": "Dev1/ai0",
   "ch1": "Dev1/ai1",
   "rate": "500.0",
@@ -12,12 +13,14 @@
     "threshold": "0.02",
     "hysteresis": "0.005",
     "scale": "1.00",
+    "intercept": "0.00",
     "hold": "10.0"
   },
   "dev1": {
     "threshold": "2.5",
     "hysteresis": "0.25",
     "scale": "1.00",
+    "intercept": "0.00",
     "hold": "10.0"
   }
 }

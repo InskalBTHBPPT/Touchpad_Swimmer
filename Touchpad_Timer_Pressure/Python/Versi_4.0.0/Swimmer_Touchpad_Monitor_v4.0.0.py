@@ -32,6 +32,8 @@ Tab Analisa Data
 
 Change Log 4.0.0 dari 3.1.0
 --------------------------------
+* Konversi Volt → Kg: regresi linier y = scale × V + intercept (default intercept 0.00 Kg).
+* Threshold (Volt) → Kg: threshold_volt × scale + intercept; hysteresis (Volt) → Kg: × scale saja.
 * ChannelDetector: masuk region saat tekanan >= threshold + hysteresis (upper_trip).
 * Tutup region saat tekanan <= threshold - hysteresis (lower_trip), atau paksa tutup
   setelah 5 detik (timeout region) — lalu hitung tekanan dari puncak regional.
@@ -42,10 +44,8 @@ Change Log 4.0.0 dari 3.1.0
 
 Change Log 3.1.0 dari 3.0.3
 ---------------------------
-* Jalur Live mengonversi data DAQ dari Volt ke Kg segera setelah pembacaan
-  berdasarkan parameter Scale (Kg/Volt) per channel.
-* Threshold dan hysteresis tetap dimuat/disimpan sebagai Volt, lalu dikonversi
-  ke Kg saat Start sebelum dibandingkan dengan data Live.
+* Jalur Live mengonversi data DAQ dari Volt ke Kg (scale × V + intercept) per channel.
+* Threshold dan hysteresis tetap dimuat/disimpan sebagai Volt; dikonversi ke Kg saat Start.
 * ChannelDetector tidak lagi mengalikan Scale; hasil deteksi adalah rata-rata
   sampel yang sudah dalam Kg.
 * CSV Log memakai header `timestamp_s,ai0_kg,ai1_kg` dan menyimpan data Kg.
@@ -270,6 +270,13 @@ DEFAULT_HOLD_TIME = 10.0  # detik minimum di state HOLD sebelum bisa re-arm
 DEFAULT_THRESHOLD  = "0.05"
 DEFAULT_HYSTERESIS = "0.005"
 DEFAULT_SCALE      = "1.00"
+DEFAULT_INTERCEPT  = "0.00"
+
+
+def _volt_to_kg(voltage: float, scale: float, intercept: float) -> float:
+    """Konversi linier tegangan (V) ke tekanan (Kg): y = scale × V + intercept."""
+    return voltage * scale + intercept
+
 
 CONFIG_PATH = pathlib.Path(__file__).parent / "config.json"
 USER_MANUAL_PDF = pathlib.Path(__file__).parent / "UserManual_v4.0.0.pdf"
@@ -283,9 +290,9 @@ _ABOUT_APP_BLURB = (
     "Kedua touchpad dipasang pada garis lintasan kolam renang: satu di sisi dekat blok "
     "start dan satu di sisi jauh (ujung berlawanan pada lintasan yang sama), sehingga "
     "data merekam interaksi perenang di kedua titik tersebut.\n\n"
-    "Aplikasi memantau tekanan (Kg) secara real-time, mendeteksi sentuhan dengan "
-    "region Schmitt (upper/lower trip), menghitung tekanan dari rata-rata di puncak "
-    "(±100 sampel), dan mencatat waktu serta tekanan ke tabel.\n\n"
+    "Aplikasi memantau tekanan (Kg) secara real-time (konversi scale × V + intercept), "
+    "mendeteksi sentuhan dengan region Schmitt (upper/lower trip), menghitung tekanan "
+    "dari rata-rata di puncak (±100 sampel), dan mencatat waktu serta tekanan ke tabel.\n\n"
     "Aplikasi mendukung pengujian touchpad perenang: metrik waktu lintasan "
     "(split time) dan analisis pasca-rekaman, tidak hanya fase dorong di satu titik."
 )
@@ -328,6 +335,8 @@ class ChannelDetector:
 
     Waktu deteksi (t0) = timestamp sampel pertama saat masuk IN_REGION.
     Tekanan = mean nilai di window ±peak_half_window sekitar argmax buffer region.
+
+    threshold dan hysteresis yang diterima sudah dalam Kg (dari Volt via y = mV + c).
     """
 
     def __init__(
@@ -552,7 +561,7 @@ class ParameterDialog(QDialog):
 
         col_headers = [
             "Threshold\n(Volt)", "Hysteresis\n(Volt)",
-            "Scale\n(Kg/Volt)", "Delay Time\n(s)",
+            "Scale\n(Kg/Volt)", "Intercept\n(Kg)", "Delay Time\n(s)",
         ]
         for col, text in enumerate(col_headers):
             lbl = QLabel(text)
@@ -563,6 +572,7 @@ class ParameterDialog(QDialog):
         self._d_thresh: list[QLineEdit] = []
         self._d_hyst:   list[QLineEdit] = []
         self._d_scale:  list[QLineEdit] = []
+        self._d_intercept: list[QLineEdit] = []
         self._d_hold:   list[QLineEdit] = []
 
         for dev_idx in range(2):
@@ -579,19 +589,21 @@ class ParameterDialog(QDialog):
                 le.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 return le
 
-            t, h, s, d = _inp(), _inp(), _inp(), _inp()
+            t, h, s, ic, d = _inp(), _inp(), _inp(), _inp(), _inp()
             self._d_thresh.append(t)
             self._d_hyst.append(h)
             self._d_scale.append(s)
+            self._d_intercept.append(ic)
             self._d_hold.append(d)
 
             grid.addWidget(t, row, 1)
             grid.addWidget(h, row, 2)
             grid.addWidget(s, row, 3)
-            grid.addWidget(d, row, 4)
+            grid.addWidget(ic, row, 4)
+            grid.addWidget(d, row, 5)
 
         grid.setColumnStretch(0, 0)
-        for c in range(1, 5):
+        for c in range(1, 6):
             grid.setColumnStretch(c, 1)
 
         group.setLayout(grid)
@@ -668,11 +680,13 @@ class ParameterDialog(QDialog):
         self._d_thresh[0].setText(mw._inp_thresh0.text())
         self._d_hyst[0].setText(mw._inp_hyst0.text())
         self._d_scale[0].setText(mw._inp_scale0.text())
+        self._d_intercept[0].setText(mw._inp_intercept0.text())
         self._d_hold[0].setText(mw._inp_hold0.text())
 
         self._d_thresh[1].setText(mw._inp_thresh1.text())
         self._d_hyst[1].setText(mw._inp_hyst1.text())
         self._d_scale[1].setText(mw._inp_scale1.text())
+        self._d_intercept[1].setText(mw._inp_intercept1.text())
         self._d_hold[1].setText(mw._inp_hold1.text())
 
     def _build_config_dict(self) -> dict:
@@ -691,12 +705,14 @@ class ParameterDialog(QDialog):
                 "threshold":  self._d_thresh[0].text(),
                 "hysteresis": self._d_hyst[0].text(),
                 "scale":      self._d_scale[0].text(),
+                "intercept":  self._d_intercept[0].text(),
                 "hold":       self._d_hold[0].text(),
             },
             "dev1": {
                 "threshold":  self._d_thresh[1].text(),
                 "hysteresis": self._d_hyst[1].text(),
                 "scale":      self._d_scale[1].text(),
+                "intercept":  self._d_intercept[1].text(),
                 "hold":       self._d_hold[1].text(),
             },
         }
@@ -719,11 +735,13 @@ class ParameterDialog(QDialog):
         self._d_thresh[0].setText(d0.get("threshold",  DEFAULT_THRESHOLD))
         self._d_hyst[0].setText(d0.get("hysteresis",   DEFAULT_HYSTERESIS))
         self._d_scale[0].setText(d0.get("scale",       DEFAULT_SCALE))
+        self._d_intercept[0].setText(d0.get("intercept",   DEFAULT_INTERCEPT))
         self._d_hold[0].setText(d0.get("hold",         str(DEFAULT_HOLD_TIME)))
         d1 = cfg.get("dev1", {})
         self._d_thresh[1].setText(d1.get("threshold",  DEFAULT_THRESHOLD))
         self._d_hyst[1].setText(d1.get("hysteresis",   DEFAULT_HYSTERESIS))
         self._d_scale[1].setText(d1.get("scale",       DEFAULT_SCALE))
+        self._d_intercept[1].setText(d1.get("intercept",   DEFAULT_INTERCEPT))
         self._d_hold[1].setText(d1.get("hold",         str(DEFAULT_HOLD_TIME)))
 
     def _apply_to_main(self) -> None:
@@ -741,10 +759,12 @@ class ParameterDialog(QDialog):
         mw._inp_thresh0.setText(self._d_thresh[0].text())
         mw._inp_hyst0.setText(self._d_hyst[0].text())
         mw._inp_scale0.setText(self._d_scale[0].text())
+        mw._inp_intercept0.setText(self._d_intercept[0].text())
         mw._inp_hold0.setText(self._d_hold[0].text())
         mw._inp_thresh1.setText(self._d_thresh[1].text())
         mw._inp_hyst1.setText(self._d_hyst[1].text())
         mw._inp_scale1.setText(self._d_scale[1].text())
+        mw._inp_intercept1.setText(self._d_intercept[1].text())
         mw._inp_hold1.setText(self._d_hold[1].text())
 
     def _on_set_as_default(self) -> None:
@@ -776,9 +796,11 @@ class ParameterDialog(QDialog):
             "terminal": DEFAULT_TERMINAL, "vrange": DEFAULT_VOLTAGE_RANGE_DIFF,
             "ts_set": DEFAULT_TS_SET, "ts_display": DEFAULT_TS_DISPLAY,
             "dev0": {"threshold": DEFAULT_THRESHOLD, "hysteresis": DEFAULT_HYSTERESIS,
-                     "scale": DEFAULT_SCALE, "hold": str(DEFAULT_HOLD_TIME)},
+                     "scale": DEFAULT_SCALE, "intercept": DEFAULT_INTERCEPT,
+                     "hold": str(DEFAULT_HOLD_TIME)},
             "dev1": {"threshold": DEFAULT_THRESHOLD, "hysteresis": DEFAULT_HYSTERESIS,
-                     "scale": DEFAULT_SCALE, "hold": str(DEFAULT_HOLD_TIME)},
+                     "scale": DEFAULT_SCALE, "intercept": DEFAULT_INTERCEPT,
+                     "hold": str(DEFAULT_HOLD_TIME)},
         }
         self._fill_dialog_from_config(factory)
 
@@ -947,6 +969,8 @@ class MainWindow(QMainWindow):
         self._detector1: ChannelDetector | None = None
         self._scale0 = 1.0
         self._scale1 = 1.0
+        self._intercept0 = 0.0
+        self._intercept1 = 0.0
         self._table_next_row = [2, 2]  # [pad0, pad1] – baris 0-1 adalah header
 
         max_pts = int(DEFAULT_RATE * PLOT_WINDOW_SEC)
@@ -1045,11 +1069,13 @@ class MainWindow(QMainWindow):
         self._inp_thresh0.setText(d0.get("threshold",  DEFAULT_THRESHOLD))
         self._inp_hyst0.setText(d0.get("hysteresis",   DEFAULT_HYSTERESIS))
         self._inp_scale0.setText(d0.get("scale",       DEFAULT_SCALE))
+        self._inp_intercept0.setText(d0.get("intercept",   DEFAULT_INTERCEPT))
         self._inp_hold0.setText(d0.get("hold",         str(DEFAULT_HOLD_TIME)))
         d1 = cfg.get("dev1", {})
         self._inp_thresh1.setText(d1.get("threshold",  DEFAULT_THRESHOLD))
         self._inp_hyst1.setText(d1.get("hysteresis",   DEFAULT_HYSTERESIS))
         self._inp_scale1.setText(d1.get("scale",       DEFAULT_SCALE))
+        self._inp_intercept1.setText(d1.get("intercept",   DEFAULT_INTERCEPT))
         self._inp_hold1.setText(d1.get("hold",         str(DEFAULT_HOLD_TIME)))
 
     # ── Chart panel ──────────────────────────────────────────────────────────
@@ -1964,7 +1990,7 @@ class MainWindow(QMainWindow):
 
         col_headers = [
             "Threshold\n(Volt)", "Hysteresis\n(Volt)",
-            "Scale\n(Kg/Volt)", "Delay Time\n(s)"
+            "Scale\n(Kg/Volt)", "Intercept\n(Kg)", "Delay Time\n(s)"
         ]
         for col, text in enumerate(col_headers):
             lbl = QLabel(text)
@@ -1985,25 +2011,29 @@ class MainWindow(QMainWindow):
             inp_thresh = _make_param_input(DEFAULT_THRESHOLD)
             inp_hyst   = _make_param_input(DEFAULT_HYSTERESIS)
             inp_scale  = _make_param_input(DEFAULT_SCALE)
+            inp_intercept = _make_param_input(DEFAULT_INTERCEPT)
             inp_hold   = _make_param_input(str(DEFAULT_HOLD_TIME))
             param_grid.addWidget(inp_thresh, row_base, 1)
             param_grid.addWidget(inp_hyst,   row_base, 2)
             param_grid.addWidget(inp_scale,  row_base, 3)
-            param_grid.addWidget(inp_hold,   row_base, 4)
+            param_grid.addWidget(inp_intercept, row_base, 4)
+            param_grid.addWidget(inp_hold,   row_base, 5)
 
             if dev_idx == 0:
                 self._inp_thresh0 = inp_thresh
                 self._inp_hyst0   = inp_hyst
                 self._inp_scale0  = inp_scale
+                self._inp_intercept0 = inp_intercept
                 self._inp_hold0   = inp_hold
             else:
                 self._inp_thresh1 = inp_thresh
                 self._inp_hyst1   = inp_hyst
                 self._inp_scale1  = inp_scale
+                self._inp_intercept1 = inp_intercept
                 self._inp_hold1   = inp_hold
 
         param_grid.setColumnStretch(0, 0)
-        for c in range(1, 5):
+        for c in range(1, 6):
             param_grid.setColumnStretch(c, 1)
 
         # ── Time format radio buttons ────────────────────────────────────────
@@ -2496,16 +2526,23 @@ class MainWindow(QMainWindow):
 
         self._scale0 = _safe_float(self._inp_scale0.text(), 1.0)
         self._scale1 = _safe_float(self._inp_scale1.text(), 1.0)
+        self._intercept0 = _safe_float(self._inp_intercept0.text(), 0.0)
+        self._intercept1 = _safe_float(self._inp_intercept1.text(), 0.0)
+
+        thresh0_v = _safe_float(self._inp_thresh0.text(), 0.05)
+        hyst0_v = _safe_float(self._inp_hyst0.text(), 0.005)
+        thresh1_v = _safe_float(self._inp_thresh1.text(), 0.05)
+        hyst1_v = _safe_float(self._inp_hyst1.text(), 0.005)
 
         self._detector0 = ChannelDetector(
-            threshold=_safe_float(self._inp_thresh0.text(), 0.05) * self._scale0,
-            hysteresis=_safe_float(self._inp_hyst0.text(),  0.005) * self._scale0,
+            threshold=_volt_to_kg(thresh0_v, self._scale0, self._intercept0),
+            hysteresis=hyst0_v * self._scale0,
             sample_rate=rate,
             hold_time=_safe_float(self._inp_hold0.text(),   DEFAULT_HOLD_TIME),
         )
         self._detector1 = ChannelDetector(
-            threshold=_safe_float(self._inp_thresh1.text(), 0.05) * self._scale1,
-            hysteresis=_safe_float(self._inp_hyst1.text(),  0.005) * self._scale1,
+            threshold=_volt_to_kg(thresh1_v, self._scale1, self._intercept1),
+            hysteresis=hyst1_v * self._scale1,
             sample_rate=rate,
             hold_time=_safe_float(self._inp_hold1.text(),   DEFAULT_HOLD_TIME),
         )
@@ -2612,12 +2649,16 @@ class MainWindow(QMainWindow):
         ----------
         ai0, ai1 : list[float]
             Tegangan (Volt) per sampel untuk masing-masing channel.
-            Jalur Live mengonversinya ke Kg sebelum plot dan deteksi.
+            Jalur Live: Kg = scale × V + intercept sebelum plot dan deteksi.
         offset : int
             Indeks sampel pertama di chunk ini (untuk menghitung timestamp relatif).
         """
-        ai0_live = [float(value) * self._scale0 for value in ai0]
-        ai1_live = [float(value) * self._scale1 for value in ai1]
+        ai0_live = [
+            _volt_to_kg(float(value), self._scale0, self._intercept0) for value in ai0
+        ]
+        ai1_live = [
+            _volt_to_kg(float(value), self._scale1, self._intercept1) for value in ai1
+        ]
 
         for i in range(len(ai0)):
             x_val = (offset + i) * self._dt_sample
@@ -2766,16 +2807,18 @@ class MainWindow(QMainWindow):
         self._dd_ts_set.setCurrentText(DEFAULT_TS_SET)
         self._dd_ts_display.setCurrentText(DEFAULT_TS_DISPLAY)
 
-        # Threshold / Hysteresis / Scale / Hold Time – Dev 0
+        # Threshold / Hysteresis / Scale / Intercept / Hold – Dev 0
         self._inp_thresh0.setText(DEFAULT_THRESHOLD)
         self._inp_hyst0.setText(DEFAULT_HYSTERESIS)
         self._inp_scale0.setText(DEFAULT_SCALE)
+        self._inp_intercept0.setText(DEFAULT_INTERCEPT)
         self._inp_hold0.setText(str(DEFAULT_HOLD_TIME))
 
-        # Threshold / Hysteresis / Scale / Hold Time – Dev 1
+        # Threshold / Hysteresis / Scale / Intercept / Hold – Dev 1
         self._inp_thresh1.setText(DEFAULT_THRESHOLD)
         self._inp_hyst1.setText(DEFAULT_HYSTERESIS)
         self._inp_scale1.setText(DEFAULT_SCALE)
+        self._inp_intercept1.setText(DEFAULT_INTERCEPT)
         self._inp_hold1.setText(str(DEFAULT_HOLD_TIME))
 
     def _on_terminal_changed(self, text: str) -> None:
@@ -2804,8 +2847,10 @@ class MainWindow(QMainWindow):
             self._dd_terminal,
             self._dd_vrange,
             self._dd_ts_set,
-            self._inp_thresh0, self._inp_hyst0, self._inp_scale0, self._inp_hold0,
-            self._inp_thresh1, self._inp_hyst1, self._inp_scale1, self._inp_hold1,
+            self._inp_thresh0, self._inp_hyst0, self._inp_scale0, self._inp_intercept0,
+            self._inp_hold0,
+            self._inp_thresh1, self._inp_hyst1, self._inp_scale1, self._inp_intercept1,
+            self._inp_hold1,
         ):
             widget.setEnabled(enabled)
 
