@@ -1391,6 +1391,7 @@ class MainWindow(QMainWindow):
         on_load,
         on_clear,
         clear_tooltip: str,
+        dev_warning: str | None = None,
     ) -> tuple[QWidget, QPushButton]:
         """Panel kanan: load CSV Table, metadata, Clear All."""
         btn_clear = QPushButton("🗑  Clear All")
@@ -1401,6 +1402,13 @@ class MainWindow(QMainWindow):
         load_vbox.setContentsMargins(0, 0, 0, 0)
         load_vbox.setSpacing(8)
         load_vbox.addWidget(self._build_table_load_group(panel, on_load))
+        if dev_warning:
+            lbl_warn = QLabel(dev_warning)
+            lbl_warn.setWordWrap(True)
+            lbl_warn.setStyleSheet(
+                "color: #e65100; font-style: italic; font-size: 11px;"
+            )
+            load_vbox.addWidget(lbl_warn)
         load_vbox.addStretch(1)
         load_vbox.addWidget(btn_clear)
 
@@ -1529,6 +1537,9 @@ class MainWindow(QMainWindow):
             self._on_mf_load_table,
             self._on_mf_clear,
             "Hapus plot dan data CSV Table di tab ini",
+            dev_warning=(
+                "Warning: fitur multifile sedang dalam proses development."
+            ),
         )
 
         root_hbox = QHBoxLayout()
