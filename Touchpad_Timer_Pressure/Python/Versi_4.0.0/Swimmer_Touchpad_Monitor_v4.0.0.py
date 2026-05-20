@@ -10,7 +10,8 @@ Fitur Utama
 * Visualisasi real-time dengan pyqtgraph (jendela 10 detik, refresh ~10 FPS).
 * Deteksi sentuhan otomatis per channel (Schmitt region + peak average + hold-time).
 * Tabel deteksi Live (10 baris per pad, auto-scroll saat penuh).
-* Rekaman Log CSV opsional via checkbox "Record CSV Log saat Start".
+* Rekaman Log CSV opsional via checkbox "Record CSV Log saat Start"
+  (opsional kolom raw Volt: default nonaktif).
 * Autosave CSV tabel per sesi saat ada data sentuhan baru
   (`*_table_*_session.csv`) untuk mitigasi lupa simpan/crash.
 * Dialog ringkasan selesai pengukuran saat Stop (lokasi file log + tabel).
@@ -51,7 +52,7 @@ Change Log 3.1.0 dari 3.0.3
 * Threshold dan hysteresis tetap dimuat/disimpan sebagai Volt; dikonversi ke Kg saat Start.
 * ChannelDetector tidak lagi mengalikan Scale; hasil deteksi adalah rata-rata
   sampel yang sudah dalam Kg.
-* CSV Log memakai header `timestamp_s,ai0_kg,ai1_kg` dan menyimpan data Kg.
+* CSV Log memakai header `timestamp_s,ai0_kg,ai1_kg` (opsional + `ai0_volt,ai1_volt`).
 * Plot Live dan overlay CSV Log pada tab Analisa memakai sumbu Y Pressure (Kg).
 * Manual aplikasi diperbarui ke `UserManual_v3.1.0.md/.pdf`.
 
@@ -455,6 +456,8 @@ class CsvWriter:
     Alur:
       write_chunk() → queue.put() (non-blocking, O(1) di GUI/DAQ thread)
       _worker_loop() → queue.get() → tulis baris CSV (di thread sendiri)
+
+    Jika ``log_raw_volt`` True, header dan baris data menyertakan ai0_volt / ai1_volt.
     """
 
     _SENTINEL = None  # sinyal untuk menghentikan worker loop
@@ -464,34 +467,58 @@ class CsvWriter:
         filepath: pathlib.Path,
         dt_sample: float,
         metadata: dict[str, str] | None = None,
+        *,
+        log_raw_volt: bool = False,
     ) -> None:
         self._filepath = filepath
         self._dt_sample = dt_sample
         self._metadata: dict[str, str] = metadata or {}
+        self._log_raw_volt = log_raw_volt
         self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._worker_loop, daemon=True)
         self._thread.start()
 
     def _worker_loop(self) -> None:
+        header = ["timestamp_s", "ai0_kg", "ai1_kg"]
+        if self._log_raw_volt:
+            header.extend(["ai0_volt", "ai1_volt"])
         with self._filepath.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             for key, val in self._metadata.items():
                 writer.writerow([f"# {key}", val])
-            writer.writerow(["timestamp_s", "ai0_kg", "ai1_kg"])
+            writer.writerow(header)
             while True:
                 item = self._queue.get()
                 if item is self._SENTINEL:
                     break
-                ai0_chunk, ai1_chunk, offset = item
+                if self._log_raw_volt:
+                    ai0_chunk, ai1_chunk, ai0_v, ai1_v, offset = item
+                else:
+                    ai0_chunk, ai1_chunk, offset = item
+                    ai0_v = ai1_v = None
                 for i in range(len(ai0_chunk)):
                     ts = (offset + i) * self._dt_sample
-                    writer.writerow([f"{ts:.6f}", ai0_chunk[i], ai1_chunk[i]])
+                    row = [f"{ts:.6f}", ai0_chunk[i], ai1_chunk[i]]
+                    if self._log_raw_volt:
+                        row.extend([f"{ai0_v[i]:.6f}", f"{ai1_v[i]:.6f}"])
+                    writer.writerow(row)
                 f.flush()
 
     def write_chunk(
-        self, ai0: list, ai1: list, offset: int
+        self,
+        ai0_kg: list,
+        ai1_kg: list,
+        offset: int,
+        *,
+        ai0_volt: list | None = None,
+        ai1_volt: list | None = None,
     ) -> None:
-        self._queue.put((ai0, ai1, offset))
+        if self._log_raw_volt:
+            if ai0_volt is None or ai1_volt is None:
+                raise ValueError("ai0_volt dan ai1_volt wajib saat log_raw_volt=True")
+            self._queue.put((ai0_kg, ai1_kg, ai0_volt, ai1_volt, offset))
+        else:
+            self._queue.put((ai0_kg, ai1_kg, offset))
 
     def close(self) -> None:
         """Flush semua data yang tersisa lalu tutup file."""
@@ -501,6 +528,10 @@ class CsvWriter:
     @property
     def filepath(self) -> pathlib.Path:
         return self._filepath
+
+    @property
+    def log_raw_volt(self) -> bool:
+        return self._log_raw_volt
 
 
 # ─── Parameter Dialog ─────────────────────────────────────────────────────────
@@ -1203,6 +1234,9 @@ class MainWindow(QMainWindow):
         ("#80cbc4", "#ff7043"),  # teal – oranye tua
     ]
     _CSV_LOG_HEADER: tuple[str, ...] = ("timestamp_s", "ai0_kg", "ai1_kg")
+    _CSV_LOG_HEADER_WITH_VOLT: tuple[str, ...] = (
+        "timestamp_s", "ai0_kg", "ai1_kg", "ai0_volt", "ai1_volt",
+    )
     _CSV_TABLE_HEADER: tuple[str, ...] = (
         "no",
         "time_pad1",
@@ -1571,7 +1605,10 @@ class MainWindow(QMainWindow):
                 header = tuple(
                     cell.strip().lower().lstrip("\ufeff") for cell in row
                 )
-                if header[: len(cls._CSV_LOG_HEADER)] == cls._CSV_LOG_HEADER:
+                if (
+                    header[: len(cls._CSV_LOG_HEADER)] == cls._CSV_LOG_HEADER
+                    or header == cls._CSV_LOG_HEADER_WITH_VOLT
+                ):
                     return "log"
                 if header[: len(cls._CSV_TABLE_HEADER)] == cls._CSV_TABLE_HEADER:
                     return "table"
@@ -2312,6 +2349,12 @@ class MainWindow(QMainWindow):
         self._chk_csv = QCheckBox("Record CSV Log saat Start")
         self._chk_csv.setChecked(True)
 
+        self._chk_log_volt = QCheckBox("Sertakan AI0/AI1 raw (Volt) di CSV Log")
+        self._chk_log_volt.setChecked(False)
+        self._chk_log_volt.setToolTip(
+            "Jika aktif saat Start, kolom ai0_volt dan ai1_volt ditambahkan ke file log"
+        )
+
         self._inp_csv_prefix = QLineEdit(DEFAULT_CSV_PREFIX)
 
         csv_folder_row = QWidget()
@@ -2331,6 +2374,7 @@ class MainWindow(QMainWindow):
         self._lbl_csv_preview.setStyleSheet("font-size: 10px; color: gray;")
 
         csv_form.addRow(self._chk_csv)
+        csv_form.addRow(self._chk_log_volt)
         csv_form.addRow("Prefix:", self._inp_csv_prefix)
         csv_form.addRow("Folder:", csv_folder_row)
         csv_form.addRow("File:", self._lbl_csv_preview)
@@ -2761,7 +2805,10 @@ class MainWindow(QMainWindow):
         if self._chk_csv.isChecked():
             csv_path = self._build_csv_filepath(self._t0_nominal)
             self._csv_writer = CsvWriter(
-                csv_path, self._dt_sample, metadata=self._build_swimmer_metadata()
+                csv_path,
+                self._dt_sample,
+                metadata=self._build_swimmer_metadata(),
+                log_raw_volt=self._chk_log_volt.isChecked(),
             )
 
         max_pts = int(rate * PLOT_WINDOW_SEC)
@@ -2791,6 +2838,7 @@ class MainWindow(QMainWindow):
 
         self._set_param_inputs_enabled(False)
         self._chk_csv.setEnabled(False)
+        self._chk_log_volt.setEnabled(False)
         self._inp_csv_prefix.setEnabled(False)
         self._worker.start()
         self._plot_timer.start()
@@ -2830,6 +2878,7 @@ class MainWindow(QMainWindow):
         self._detector1 = None
         self._set_param_inputs_enabled(True)
         self._chk_csv.setEnabled(True)
+        self._chk_log_volt.setEnabled(True)
         self._inp_csv_prefix.setEnabled(True)
         self._btn_start_stop.setText("▶  Start")
         self._set_status(f"Status: Stopped{saved_msg}")
@@ -2879,7 +2928,12 @@ class MainWindow(QMainWindow):
                     self._append_table_row(result1[0], result1[1], channel=1)
 
         if self._csv_writer is not None:
-            self._csv_writer.write_chunk(ai0_live, ai1_live, offset)
+            if self._csv_writer.log_raw_volt:
+                self._csv_writer.write_chunk(
+                    ai0_live, ai1_live, offset, ai0_volt=ai0, ai1_volt=ai1
+                )
+            else:
+                self._csv_writer.write_chunk(ai0_live, ai1_live, offset)
 
         # ── Print ke terminal (dicomment secara default) ───────────────────
         # ts_display = self._dd_ts_display.currentText()
