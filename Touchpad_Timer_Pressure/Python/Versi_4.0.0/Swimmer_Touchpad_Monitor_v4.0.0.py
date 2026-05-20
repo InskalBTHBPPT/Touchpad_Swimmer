@@ -484,11 +484,13 @@ class ParameterDialog(QDialog):
     """Modal dialog untuk mengubah parameter akuisisi dan detektor.
 
     Behaviour:
-      Set As Default   → simpan nilai dialog ke config.json + apply ke MainWindow
-      Reset to Saved   → isi dialog dari config.json (tidak auto-apply)
-      Reset to Factory → isi dialog dari DEFAULT_* hardcoded (tidak auto-apply)
-      Apply            → terapkan nilai dialog ke MainWindow, dialog tetap terbuka
-      Cancel / X       → tutup tanpa mengubah apapun di MainWindow
+      Set As Default    → simpan nilai dialog ke config.json (default persisten) + apply ke MainWindow
+      Reset to Default  → isi dialog dari config.json (default persisten; tidak auto-apply)
+      Reset to Factory  → isi dialog dari DEFAULT_* hardcoded (default pabrik; tidak auto-apply)
+      Apply             → terapkan nilai dialog ke MainWindow, dialog tetap terbuka
+      Cancel / X        → tutup tanpa mengubah apapun di MainWindow
+
+    Istilah: "Default" = config.json; "Factory" = nilai bawaan aplikasi di kode.
     """
 
     def __init__(self, main_window: "MainWindow", parent: QWidget | None = None) -> None:
@@ -618,10 +620,10 @@ class ParameterDialog(QDialog):
         self._btn_set_as_default.setMinimumHeight(32)
         self._btn_set_as_default.clicked.connect(self._on_set_as_default)
 
-        self._btn_reset_saved = QPushButton("↩  Reset to Saved")
-        self._btn_reset_saved.setMinimumHeight(32)
-        self._btn_reset_saved.setEnabled(CONFIG_PATH.exists())
-        self._btn_reset_saved.clicked.connect(self._on_reset_to_saved)
+        self._btn_reset_default = QPushButton("↩  Reset to Default")
+        self._btn_reset_default.setMinimumHeight(32)
+        self._btn_reset_default.setEnabled(CONFIG_PATH.exists())
+        self._btn_reset_default.clicked.connect(self._on_reset_to_default)
 
         btn_reset_factory = QPushButton("↺  Reset to Factory")
         btn_reset_factory.setMinimumHeight(32)
@@ -639,7 +641,7 @@ class ParameterDialog(QDialog):
         btn_apply.clicked.connect(self._on_apply)
 
         row.addWidget(self._btn_set_as_default)
-        row.addWidget(self._btn_reset_saved)
+        row.addWidget(self._btn_reset_default)
         row.addWidget(btn_reset_factory)
         row.addStretch()
         row.addWidget(btn_cancel)
@@ -776,11 +778,15 @@ class ParameterDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Gagal menyimpan config:\n{exc}")
             return
         self._apply_to_main()
-        self._btn_reset_saved.setEnabled(True)
-        QMessageBox.information(self, "Tersimpan", "Parameter berhasil disimpan sebagai default.")
+        self._btn_reset_default.setEnabled(True)
+        QMessageBox.information(
+            self,
+            "Tersimpan",
+            "Parameter disimpan sebagai default (config.json) dan diterapkan ke sistem.",
+        )
 
-    def _on_reset_to_saved(self) -> None:
-        """Isi dialog dari config.json (tidak auto-apply ke MainWindow)."""
+    def _on_reset_to_default(self) -> None:
+        """Isi dialog dari config.json — default persisten (tidak auto-apply ke MainWindow)."""
         cfg = _load_config()
         if cfg is None:
             QMessageBox.warning(self, "Tidak Ada", "File config.json belum tersedia.")

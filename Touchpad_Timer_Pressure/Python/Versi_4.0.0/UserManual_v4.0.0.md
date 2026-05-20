@@ -233,11 +233,13 @@ Tekan tombol **⚙️ Set Parameter** untuk membuka jendela konfigurasi.
 
 | Tombol | Fungsi |
 |---|---|
-| **💾 Set As Default** | Simpan nilai saat ini ke `config.json` dan terapkan ke sistem |
-| **↩ Reset to Saved** | Kembalikan nilai ke yang tersimpan di `config.json` |
-| **↺ Reset to Factory** | Kembalikan nilai ke default pabrik hardcoded |
-| **Apply** | Terapkan nilai ke sistem (dialog tetap terbuka) |
+| **💾 Set As Default** | Simpan nilai saat ini ke `config.json` (default persisten) dan terapkan ke sistem |
+| **↩ Reset to Default** | Muat **default persisten** dari `config.json` ke dialog (perlu **Apply** untuk terapkan) |
+| **↺ Reset to Factory** | Muat **default pabrik** (nilai hardcoded di aplikasi) ke dialog (perlu **Apply**) |
+| **Apply** | Terapkan nilai dialog ke sistem (dialog tetap terbuka) |
 | **Cancel / ✕** | Tutup dialog tanpa perubahan |
+
+> **Default** = parameter di `config.json` (bisa Anda ubah). **Factory** = bawaan aplikasi sebelum kalibrasi.
 
 ---
 
@@ -367,24 +369,24 @@ df_table = pd.read_csv("Ahmad_Bebas_100m_table_20260509_183200_session.csv", com
 
 ## 13. Manajemen Default Parameter
 
-Konfigurasi disimpan di **`config.json`** (folder Python/).
+Konfigurasi **default persisten** disimpan di **`config.json`** (folder `Versi_4.0.0/`). Ini berbeda dari **default pabrik** (nilai `DEFAULT_*` di kode aplikasi).
 
 ### Alur Kerja
 
 ```
 Aplikasi Start
-  └── config.json ada?  → Muat parameter dari config.json
-                tidak?  → Gunakan nilai default pabrik (hardcoded)
+  └── config.json ada?  → Muat default persisten dari config.json
+                tidak?  → Gunakan default pabrik (hardcoded)
 
 [💾 Set As Default] ditekan
-  └── Simpan nilai saat ini → config.json
+  └── Simpan nilai saat ini → config.json (menjadi default persisten)
       Terapkan ke sistem
 
-[↩ Reset to Saved] ditekan
-  └── Muat nilai dari config.json ke dialog (perlu tekan Apply untuk terapkan)
+[↩ Reset to Default] ditekan
+  └── Muat default persisten dari config.json ke dialog (perlu tekan Apply untuk terapkan)
 
 [↺ Reset to Factory] ditekan
-  └── Muat nilai default pabrik ke dialog (perlu tekan Apply untuk terapkan)
+  └── Muat default pabrik ke dialog (perlu tekan Apply untuk terapkan)
 ```
 
 ---
