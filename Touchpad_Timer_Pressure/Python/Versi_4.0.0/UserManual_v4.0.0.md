@@ -409,44 +409,34 @@ Tekan **☀️ Light** / **🌙 Dark** di sudut kanan bawah panel kontrol untuk 
 Tab **Analisa Data** digunakan untuk memvisualisasikan dan menganalisis file CSV hasil rekaman sesi sebelumnya — tanpa perlu perangkat DAQ terhubung.
 
 ```
-┌──────────────────────────────────────────────┬────────────────────────────┐
-│  CSV Log Pressure Overlay (multi-file)       │  ┌─ CSV Log ─────────────┐ │
-│                                              │  │ [📂 Load CSV Log]     │ │
-│                                              │  │ ■■ file1.csv          │ │
-│                                              │  │ Nama: Ahmad           │ │
-│                                              │  │ Gaya: Bebas           │ │
-├──────────────────────────────────────────────│  │ Jarak: 100m           │ │
-│  Split Time & Tekanan per Sentuhan           │  └───────────────────────┘ │
-│  ┌────────────────────────────────────────┐  │  ┌─ CSV Table ───────────┐ │
-│  │ Δ Time (s) ↑        ↑ Pressure (Kg)   │  │  │ [📂 Load CSV Table]  │ │
-│  │            │  biru/merah  □hijau/kuning│  │  │ file_table.csv        │ │
-│  │            └────────────────────────── │  │  │ Nama: Ahmad           │ │
-│  │            Sentuhan ke-                │  │  │ Gaya: Bebas           │ │
-│  └────────────────────────────────────────┘  │  │ Jarak: 100m           │ │
-│                                              │  │ ┌─ Data Table ──────┐ │ │
-│                                              │  │ │ No|Pad1|Pad2|...  │ │ │
-│                                              │  │ └───────────────────┘ │ │
-│                                              │  └───────────────────────┘ │
-│                                              │  [🗑 Clear All]            │
-└──────────────────────────────────────────────┴────────────────────────────┘
+┌──────────────────────────────────────────────┬──────────────────┐
+│  CSV Log Pressure (plot)                     │  CSV Log         │
+│  ─── QSplitter vertikal ───                │  [Load] metadata │
+├──────────────────────────────┬───────────────┤                  │
+│ Split Time & Tekanan (plot)  │  Data Table   │  CSV Table       │
+│  ○ biru/merah  □ hijau/kuning│  (scroll*)    │  [Load] metadata │
+│  ─── QSplitter horizontal ──│               │                  │
+└──────────────────────────────┴───────────────┴──────────────────┘
+                                               [🗑 Clear All]
+* Scrollbar tabel otomatis jika isi tidak muap.
 ```
 
-### 15.1 Load CSV Log (Overlay)
+### 15.1 Load CSV Log
 
 1. Tekan **📂 Load CSV Log**
-2. Pilih satu atau lebih file CSV Log
+2. Pilih **satu** file CSV Log (tampilan log sebelumnya diganti)
 3. File harus memiliki header `timestamp_s,ai0_kg,ai1_kg`
-4. Setiap file ditampilkan sebagai dua kurva pressure overlay:
+4. File ditampilkan sebagai dua kurva pressure:
    - **AI0** = tekanan Pad 1 dalam Kg
    - **AI1** = tekanan Pad 2 dalam Kg
-5. Info Perenang dari file terakhir ditampilkan di panel kanan
-6. Daftar file dimuat ditampilkan dengan kotak warna per file
+5. Info perenang dari file ditampilkan di panel kanan
+6. Nama file dimuat ditampilkan dengan kotak warna AI0/AI1
 
 ### 15.2 Load CSV Table
 
 1. Tekan **📂 Load CSV Table**
 2. Pilih satu file CSV Table
-3. Data ditampilkan di **Data Table** (panel kanan bawah)
+3. Data ditampilkan di **Data Table** (samping plot split time, bagian bawah kiri)
 4. Info Perenang terbaca dari metadata CSV
 5. Plot **"Split Time & Tekanan per Sentuhan"** diperbarui otomatis
 
