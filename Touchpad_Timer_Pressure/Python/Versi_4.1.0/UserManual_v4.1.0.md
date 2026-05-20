@@ -1,6 +1,6 @@
 # User Manual — NI DAQ Monitor (Touchpad Swimmer)
-**Versi:** 4.0.0  
-**File Aplikasi:** `Swimmer_Touchpad_Monitor_v4.0.0.py`  
+**Versi:** 4.1.0  
+**File Aplikasi:** `Swimmer_Touchpad_Monitor_v4.1.0.py`  
 **Platform:** Windows 10/11  
 **Terakhir diperbarui:** Mei 2026
 
@@ -32,7 +32,7 @@
 
 ## 1. Pendahuluan
 
-**NI DAQ Monitor Swimmer Touchpad Monitor v4.0.0** adalah aplikasi desktop untuk **akuisisi dan analisis data** dari dua sensor touchpad (**Pad 1** / **Pad 2**) yang terhubung ke perangkat **NI Data Acquisition (NI-DAQ)**. Masing-masing touchpad dipasang pada **garis lintasan** kolam renang: satu di sisi **dekat blok start** dan satu di sisi **jauh** (ujung berlawanan pada lintasan yang sama), sehingga data merekam interaksi perenang di kedua titik tersebut.
+**NI DAQ Monitor Swimmer Touchpad Monitor v4.1.0** adalah aplikasi desktop untuk **akuisisi dan analisis data** dari dua sensor touchpad (**Pad 1** / **Pad 2**) yang terhubung ke perangkat **NI Data Acquisition (NI-DAQ)**. Masing-masing touchpad dipasang pada **garis lintasan** kolam renang: satu di sisi **dekat blok start** dan satu di sisi **jauh** (ujung berlawanan pada lintasan yang sama), sehingga data merekam interaksi perenang di kedua titik tersebut.
 
 Aplikasi membaca **tegangan keluaran** touchpad dari NI-DAQ, lalu pada jalur Live mengonversi data menjadi **tekanan (Kg)** dengan **scale × V + intercept**. Grafik Live, deteksi sentuhan, tabel hasil, dan CSV Log memakai nilai tekanan yang sudah diskalakan.
 
@@ -42,24 +42,27 @@ Aplikasi mendukung **pengujian touchpad perenang** (*swimmer touchpad testing*) 
 - Deteksi sentuhan otomatis (Schmitt region: upper/lower trip, rata-rata di puncak ±100 sampel, hold 10 s)
 - Pencatatan waktu dan tekanan setiap sentuhan ke tabel
 - Ekspor data tekanan ke CSV dengan metadata perenang (Nama, Gaya, Jarak)
-- Analisis pasca-rekaman: plot CSV Log (satu file per load), analisis split time, tab multifile
-- Dialog Set Parameter dengan konfirmasi OK/Cancel
+- Analisis pasca-rekaman: plot CSV Log (satu file per load), split time, tab multifile
+- Opsional: simpan tegangan mentah (Volt) di CSV Log (v4.1.0)
 
-**Perubahan utama v4.0.0 (kalibrasi, detektor & UI):**
+**Perubahan utama v4.1.0 (CSV Log):**
+- Opsi **«Sertakan AI0/AI1 raw (Volt) di CSV Log»** (default: tidak aktif) menambah kolom `ai0_volt` dan `ai1_volt` ke file log saat Start.
+- Format default tetap 3 kolom data: `timestamp_s`, `ai0_kg`, `ai1_kg`.
+- Tab Analisa tetap memplot tekanan (Kg); kolom Volt diabaikan saat overlay.
+
+**Perubahan utama v4.0.0 (kalibrasi & detektor):**
 - Konversi tekanan: **pressure (Kg) = scale × voltage (V) + intercept** (regresi linier \(y = mx + c\)); default intercept `0.00` Kg.
 - Masuk region saat tekanan **≥ threshold + hysteresis** (upper trip).
 - Tutup region saat tekanan **≤ threshold − hysteresis** (lower trip, inklusif), atau **paksa tutup setelah 5 detik**.
 - Tekanan tercatat = rata-rata hingga **201 sampel** (±100) di sekitar **puncak** dalam region.
 - Waktu di tabel = saat **pertama** melewati upper trip.
 - **Delay Time (hold) 10 detik** tetap: deteksi berikutnya hanya setelah hold selesai dan sinyal turun di bawah lower trip.
-- Tab **Analisa multifile** (CSV Table saja; fitur dalam pengembangan).
-- Layout tab Analisa: **QSplitter**; Load CSV Log **satu file** (bukan multi-overlay).
-- Konfirmasi **OK/Cancel** pada tombol Set Parameter (kecuali Cancel tutup dialog).
+- Tab **Analisa multifile**, layout **QSplitter**, Load CSV Log **satu file**, konfirmasi Set Parameter — lihat v4.0.0.
 
 **Perubahan v3.1.0 (riwayat):**
 - Data Live: **Kg = scale × V** (tanpa intercept).
 - CSV Log: `timestamp_s,ai0_kg,ai1_kg`.
-- Tab Analisa: **overlay multi-file** CSV Log dalam satu plot.
+- Tab Analisa: **overlay multi-file** CSV Log.
 
 ---
 
@@ -101,11 +104,11 @@ Struktur folder:
 
 ```
 Touchpad_Timer_Pressure/Python/
-├── Versi_4.0.0/
-│   ├── Swimmer_Touchpad_Monitor_v4.0.0.py ← File aplikasi utama
+├── Versi_4.1.0/
+│   ├── Swimmer_Touchpad_Monitor_v4.1.0.py ← File aplikasi utama
 │   ├── config.json                             ← Konfigurasi tersimpan
-│   ├── UserManual_v4.0.0.md               ← Dokumen ini
-│   ├── UserManual_v4.0.0.pdf              ← Versi PDF dokumen ini
+│   ├── UserManual_v4.1.0.md               ← Dokumen ini
+│   ├── UserManual_v4.1.0.pdf              ← Versi PDF dokumen ini
 │   ├── DataLog/                                ← Folder default log CSV
 │   └── DataTable/                              ← Folder default tabel CSV
 ```
@@ -114,13 +117,13 @@ Touchpad_Timer_Pressure/Python/
 
 ## 4. Menjalankan Aplikasi
 
-Buka terminal / command prompt, arahkan ke folder `Python/Versi_4.0.0/`, lalu jalankan:
+Buka terminal / command prompt, arahkan ke folder `Python/Versi_4.1.0/`, lalu jalankan:
 
 ```bash
-python Swimmer_Touchpad_Monitor_v4.0.0.py
+python Swimmer_Touchpad_Monitor_v4.1.0.py
 ```
 
-Atau klik dua kali file `Swimmer_Touchpad_Monitor_v4.0.0.py` jika Python sudah terkait dengan ekstensi `.py`.
+Atau klik dua kali file `Swimmer_Touchpad_Monitor_v4.1.0.py` jika Python sudah terkait dengan ekstensi `.py`.
 
 ### Regenerasi PDF manual (opsional)
 
@@ -128,7 +131,7 @@ Dari folder `Python/Misc/`, setelah mengubah file `.md` ini:
 
 ```bash
 pip install markdown xhtml2pdf
-python md_to_pdf_xhtml2pdf.py -i ../Versi_4.0.0/UserManual_v4.0.0.md -o ../Versi_4.0.0/UserManual_v4.0.0.pdf
+python md_to_pdf_xhtml2pdf.py -i ../Versi_4.1.0/UserManual_v4.1.0.md -o ../Versi_4.1.0/UserManual_v4.1.0.pdf
 ```
 
 ---
@@ -149,7 +152,8 @@ Tampilan aplikasi terdiri dari dua tab utama. Tab **Live Data** berisi:
 │                           │  └─────────────────────────────────┘ │
 │  ┌─ Channel AI 1 ──────┐  │  ┌─ Export Log to CSV ─────────────┐ │
 │  │  [Graf real-time]   │  │  │ ☑ Record CSV Log saat Start     │ │
-│  └─────────────────────┘  │  │ Prefix: [Ahmad_Bebas_50m]       │ │
+│  └─────────────────────┘  │  │ ☐ Sertakan AI0/AI1 raw (Volt)   │ │
+│                           │  │ Prefix: [Ahmad_Bebas_50m]       │ │
 │                           │  │ Folder: [DataLog/]  […]         │ │
 │  Status: Stopped          │  │ File:   Ahmad_Bebas_50m_xxx.csv │ │
 │                           │  └─────────────────────────────────┘ │
@@ -267,11 +271,16 @@ Tekan tombol **⚙️ Set Parameter** untuk membuka jendela konfigurasi.
 ### Mengaktifkan Rekaman
 
 1. Centang **☑ Record CSV Log saat Start**
-2. Prefix nama file diisi otomatis dari Info Perenang
-3. Pilih folder tujuan dengan tombol **[…]**
-4. Nama file pratinjau ditampilkan di baris **File:**
+2. *(Opsional)* Centang **☐ Sertakan AI0/AI1 raw (Volt) di CSV Log** jika Anda ingin menyimpan tegangan mentah DAQ bersama tekanan (Kg). Default: **tidak aktif**.
+3. Prefix nama file diisi otomatis dari Info Perenang
+4. Pilih folder tujuan dengan tombol **[…]**
+5. Nama file pratinjau ditampilkan di baris **File:**
+
+> Kedua opsi CSV di atas dikunci selama sesi **Running** (nilai dibaca saat **Start**).
 
 ### Format File Log CSV (dengan Metadata)
+
+**Default (3 kolom data):**
 
 ```csv
 # Nama Perenang,Ahmad Syafii
@@ -284,7 +293,20 @@ timestamp_s,ai0_kg,ai1_kg
 ...
 ```
 
-Baris dimulai dengan `#` adalah metadata — dapat diabaikan saat import ke pandas dengan parameter `comment='#'`. Kolom `ai0_kg` dan `ai1_kg` berisi tekanan (Kg) hasil `scale × V + intercept`, bukan tegangan mentah.
+**Dengan opsi Volt aktif (5 kolom data):**
+
+```csv
+# Nama Perenang,Ahmad Syafii
+# Gaya,Bebas
+# Jarak,100m
+# Tanggal,2026-05-09 18:30:00
+timestamp_s,ai0_kg,ai1_kg,ai0_volt,ai1_volt
+0.000000,0.123450,0.098760,0.051200,0.048100
+0.002000,0.132100,0.101230,0.052000,0.049000
+...
+```
+
+Baris dimulai dengan `#` adalah metadata — dapat diabaikan saat import ke pandas dengan parameter `comment='#'`. Kolom `ai0_kg` dan `ai1_kg` berisi tekanan (Kg) hasil `scale × V + intercept`. Kolom `ai0_volt` dan `ai1_volt` (jika ada) berisi tegangan mentah dari NI-DAQ.
 
 ---
 
@@ -338,6 +360,8 @@ No,Time_Pad1,Pressure_Pad1(Kg),Time_Pad2,Pressure_Pad2(Kg)
 
 ### Log CSV (`DataLog/[Prefix]_YYYYMMDD_HHMMSS.csv`)
 
+Header data minimal: `timestamp_s,ai0_kg,ai1_kg`. Jika opsi Volt aktif saat Start, ditambah `ai0_volt,ai1_volt`.
+
 ```csv
 # Nama Perenang,Ahmad Syafii
 # Gaya,Bebas
@@ -374,7 +398,7 @@ df_table = pd.read_csv("Ahmad_Bebas_100m_table_20260509_183200_session.csv", com
 
 ## 13. Manajemen Default Parameter
 
-Konfigurasi **default persisten** disimpan di **`config.json`** (folder `Versi_4.0.0/`). Ini berbeda dari **default pabrik** (nilai `DEFAULT_*` di kode aplikasi).
+Konfigurasi **default persisten** disimpan di **`config.json`** (folder `Versi_4.1.0/`). Ini berbeda dari **default pabrik** (nilai `DEFAULT_*` di kode aplikasi).
 
 ### Alur Kerja
 
@@ -428,7 +452,7 @@ Tab **Analisa Data** digunakan untuk memvisualisasikan dan menganalisis file CSV
 
 1. Tekan **📂 Load CSV Log**
 2. Pilih **satu** file CSV Log (tampilan log sebelumnya diganti)
-3. File harus memiliki header `timestamp_s,ai0_kg,ai1_kg`
+3. File harus memiliki header `timestamp_s,ai0_kg,ai1_kg` (atau dengan tambahan `ai0_volt,ai1_volt` dari v4.1.0)
 4. File ditampilkan sebagai dua kurva pressure:
    - **AI0** = tekanan Pad 1 dalam Kg
    - **AI1** = tekanan Pad 2 dalam Kg
@@ -488,12 +512,12 @@ Tekan **🗑 Clear All** untuk menghapus semua data yang dimuat di tab **Analisa
 Tab ketiga untuk membandingkan beberapa file **CSV Table** tanpa memuat CSV Log.
 
 1. Buka tab **Analisa multifile**.
-2. Tekan **📂 Load CSV Table** — pilih satu file per kali (perilaku sama seperti bagian CSV Table di tab Analisa Data).
+2. Tekan **📂 Load CSV Table** — pilih satu file per kali.
 3. Plot split time & tekanan serta **Data Table** diperbarui untuk file yang dimuat.
 4. Panel kanan menampilkan metadata perenang dari file.
 5. **🗑 Clear** menghapus plot dan data hanya di tab ini.
 
-> **Peringatan UI:** Saat ini tab menampilkan label bahwa fitur multifile masih dalam pengembangan (belum mendukung overlay banyak file sekaligus seperti CSV Log di v3.1.0).
+> **Peringatan UI:** Tab menampilkan label bahwa fitur multifile masih dalam pengembangan.
 
 ---
 
@@ -538,7 +562,7 @@ Detektor menggunakan **Schmitt dua ambang** + **region buffer** + state machine 
                                   argmax → mean ±100 sampel → catat tabel
 ```
 
-**Rumus runtime v4.0.0:**
+**Rumus runtime (v4.0.0 / v4.1.0):**
 - `pressure_kg = voltage_v × scale + intercept` — setiap sampel live / CSV log
 - `threshold_kg = threshold_volt × scale + intercept`
 - `hysteresis_kg = hysteresis_volt × scale` (lebar pita; intercept tidak ditambah lagi)
@@ -609,4 +633,4 @@ Hapus file `config.json` dan jalankan ulang. Sistem akan menggunakan nilai defau
 
 ---
 
-*Dokumen ini dibuat untuk `Swimmer_Touchpad_Monitor_v4.0.0.py` — NI DAQ Monitor Touchpad Swimmer v4.0.0*
+*Dokumen ini dibuat untuk `Swimmer_Touchpad_Monitor_v4.1.0.py` — NI DAQ Monitor Touchpad Swimmer v4.1.0*
