@@ -22,6 +22,8 @@ Fitur Utama
 Tab Analisa Data
 ----------------
 * Muat satu file CSV Log per kali load (dua kurva AI0/AI1).
+* Layout Analisa: atas plot CSV Log; bawah plot split time + tabel (QSplitter).
+* Panel kanan: kontrol load + metadata; tabel di samping plot split time.
 * Load CSV Table ke Data Table + plot analisis split time/tekanan.
 * Plot "Split Time & Tekanan per Sentuhan" (dual Y axis):
   - Y kiri: Δ Time (s)
@@ -124,6 +126,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QHeaderView,
     QRadioButton,
+    QSplitter,
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -265,6 +268,8 @@ PEAK_HALF_WINDOW = 100    # ± sampel di sekitar puncak regional (hingga 201 tit
 MAX_REGION_SEC = 5.0        # paksa tutup region jika belum turun ke lower_trip
 TABLE_ROWS = 10         # baris data pada tabel
 ANALISA_TABLE_HEADER_ROWS = 2  # baris header in-cell (No + Pad 1/2) pada tabel Analisa
+ANALISA_CONTROL_PANEL_WIDTH = 300   # lebar panel kontrol kanan (tombol + metadata)
+ANALISA_TABLE_MIN_WIDTH = 280       # lebar minimum tabel di samping plot split time
 DEFAULT_HOLD_TIME = 10.0  # detik minimum di state HOLD sebelum bisa re-arm
 
 DEFAULT_THRESHOLD  = "0.05"
@@ -1243,28 +1248,38 @@ class MainWindow(QMainWindow):
         )
         self._analisa_tbl_data.setRowHeight(0, 26)
         self._analisa_tbl_data.setRowHeight(1, 22)
+        self._analisa_tbl_data.setMinimumWidth(ANALISA_TABLE_MIN_WIDTH)
+        self._analisa_tbl_data.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding
+        )
+        # Scrollbar bawaan Qt: tampil jika isi tidak muap (vertikal/horizontal).
+        self._analisa_tbl_data.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self._analisa_tbl_data.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
 
         self._update_table_header_colors()
 
     def _build_analisa_tab(self) -> QWidget:
-        """Bangun tab Analisa Data: chart overlay (kiri) + panel load (kanan)."""
+        """Bangun tab Analisa: kiri (Log atas, Table+plot+tabel bawah), kanan kontrol."""
 
-        # ── Chart panel (kiri) ─────────────────────────────────────────────
+        # ── Plot CSV Log (atas) ───────────────────────────────────────────
         self._analisa_pw_log = pg.PlotWidget()
         pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
-        pi_log.setTitle("CSV Log Pressure — Overlay")
+        pi_log.setTitle("CSV Log Pressure")
         pi_log.setLabel("left", "Pressure", units="Kg")
         pi_log.setLabel("bottom", "Time", units="s")
         pi_log.showGrid(x=True, y=True, alpha=0.3)
         self._analisa_legend = pi_log.addLegend(offset=(10, 10))
 
-        grp_log_plot = QGroupBox("CSV Log Pressure Overlay")
+        grp_log_plot = QGroupBox("CSV Log Pressure")
         lay_lp = QVBoxLayout(grp_log_plot)
         lay_lp.setContentsMargins(4, 4, 4, 4)
         lay_lp.addWidget(self._analisa_pw_log)
 
-        # ── Bottom: scatter delta time (full width) ───────────────────────
-        # Scatter plot delta time
+        # ── Plot split time + tabel (bawah, satu grup CSV Table) ───────────
         self._analisa_pw_delta = pg.PlotWidget()
         pi_delta: pg.PlotItem = self._analisa_pw_delta.getPlotItem()
         pi_delta.setTitle("Split Time & Tekanan per Sentuhan")
@@ -1273,21 +1288,18 @@ class MainWindow(QMainWindow):
         pi_delta.showGrid(x=True, y=True, alpha=0.3)
         self._analisa_delta_legend = pi_delta.addLegend(offset=(2, 2))
 
-        # Sumbu Y sekunder (kanan) untuk Pressure
         pi_delta.showAxis("right")
         pi_delta.getAxis("right").setLabel("Pressure", units="Kg")
         self._analisa_vb_press = pg.ViewBox()
         pi_delta.scene().addItem(self._analisa_vb_press)
         pi_delta.getAxis("right").linkToView(self._analisa_vb_press)
         self._analisa_vb_press.setXLink(pi_delta.vb)
-        # Sinkronkan geometri ViewBox saat ukuran plot berubah
         pi_delta.vb.sigResized.connect(
             lambda: self._analisa_vb_press.setGeometry(
                 pi_delta.vb.sceneBoundingRect()
             )
         )
 
-        # Legend terpisah untuk Pressure — pojok kanan atas
         self._analisa_press_legend_box = pg.LegendItem()
         self._analisa_press_legend_box.setParentItem(pi_delta.vb)
         self._analisa_press_legend_box.anchor(
@@ -1296,23 +1308,33 @@ class MainWindow(QMainWindow):
             offset=(-10, 10),
         )
 
-        bottom_hbox = QHBoxLayout()
-        bottom_hbox.setContentsMargins(4, 4, 4, 4)
-        bottom_hbox.addWidget(self._analisa_pw_delta, stretch=1)
-
-        grp_table_plot = QGroupBox("CSV Table Analysis")
-        grp_table_plot.setLayout(bottom_hbox)
-
-        # Tabel data — dipindah ke load_container (lihat di bawah)
         self._setup_analisa_data_table()
 
-        chart_vbox = QVBoxLayout()
-        chart_vbox.setContentsMargins(0, 0, 0, 0)
-        chart_vbox.setSpacing(8)
-        chart_vbox.addWidget(grp_log_plot, stretch=1)
-        chart_vbox.addWidget(grp_table_plot, stretch=1)
-        chart_container = QWidget()
-        chart_container.setLayout(chart_vbox)
+        grp_tbl_data = QGroupBox("Data Table")
+        lay_tbl = QVBoxLayout(grp_tbl_data)
+        lay_tbl.setContentsMargins(4, 4, 4, 4)
+        lay_tbl.addWidget(self._analisa_tbl_data)
+
+        bottom_split = QSplitter(Qt.Orientation.Horizontal)
+        bottom_split.setChildrenCollapsible(False)
+        bottom_split.addWidget(self._analisa_pw_delta)
+        bottom_split.addWidget(grp_tbl_data)
+        bottom_split.setStretchFactor(0, 3)
+        bottom_split.setStretchFactor(1, 1)
+        bottom_split.setSizes([700, ANALISA_TABLE_MIN_WIDTH])
+
+        grp_table_section = QGroupBox("CSV Table — Split Time & Data")
+        lay_table_sec = QVBoxLayout(grp_table_section)
+        lay_table_sec.setContentsMargins(4, 4, 4, 4)
+        lay_table_sec.addWidget(bottom_split)
+
+        chart_split = QSplitter(Qt.Orientation.Vertical)
+        chart_split.setChildrenCollapsible(False)
+        chart_split.addWidget(grp_log_plot)
+        chart_split.addWidget(grp_table_section)
+        chart_split.setStretchFactor(0, 1)
+        chart_split.setStretchFactor(1, 1)
+        chart_split.setSizes([400, 400])
 
         # ── Load panel (kanan) ─────────────────────────────────────────────
         def _info_form(
@@ -1384,11 +1406,6 @@ class MainWindow(QMainWindow):
         ):
             lbl.setWordWrap(True)
 
-        grp_tbl_data = QGroupBox("Data Table")
-        lay_grp_tbl = QVBoxLayout(grp_tbl_data)
-        lay_grp_tbl.setContentsMargins(4, 4, 4, 4)
-        lay_grp_tbl.addWidget(self._analisa_tbl_data)
-
         grp_tbl_load = QGroupBox("CSV Table")
         lay_tl = QVBoxLayout(grp_tbl_load)
         lay_tl.setSpacing(4)
@@ -1400,7 +1417,6 @@ class MainWindow(QMainWindow):
                 self._analisa_lbl_tbl_jarak, self._analisa_lbl_tbl_tanggal,
             )
         )
-        lay_tl.addWidget(grp_tbl_data, stretch=1)
 
         # ── Clear All ─────────────────────────────────────────────────────
         self._btn_analisa_clear = QPushButton("🗑  Clear All")
@@ -1413,18 +1429,19 @@ class MainWindow(QMainWindow):
         load_vbox.setContentsMargins(0, 0, 0, 0)
         load_vbox.setSpacing(8)
         load_vbox.addWidget(grp_log_load)
-        load_vbox.addWidget(grp_tbl_load, stretch=1)
+        load_vbox.addWidget(grp_tbl_load)
+        load_vbox.addStretch(1)
         load_vbox.addWidget(self._btn_analisa_clear)
 
         load_container = QWidget()
-        load_container.setFixedWidth(380)
+        load_container.setFixedWidth(ANALISA_CONTROL_PANEL_WIDTH)
         load_container.setLayout(load_vbox)
 
         # ── Root layout ────────────────────────────────────────────────────
         root_hbox = QHBoxLayout()
         root_hbox.setContentsMargins(10, 10, 10, 10)
         root_hbox.setSpacing(14)
-        root_hbox.addWidget(chart_container, stretch=1)
+        root_hbox.addWidget(chart_split, stretch=1)
         root_hbox.addWidget(load_container, stretch=0)
 
         root_widget = QWidget()
@@ -1590,6 +1607,7 @@ class MainWindow(QMainWindow):
             self, "Pilih CSV Table", initial_dir, "CSV Files (*.csv);;All Files (*)"
         )
         if path:
+            self._analisa_clear_table_section()
             self._analisa_load_table_file(pathlib.Path(path))
 
     def _analisa_load_table_file(self, filepath: pathlib.Path) -> None:
@@ -1885,11 +1903,15 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+    def _analisa_clear_table_section(self) -> None:
+        """Hapus plot split time dan baris data pada tabel Analisa (header tetap)."""
+        self._analisa_clear_delta_plot()
+        self._analisa_tbl_data.setRowCount(ANALISA_TABLE_HEADER_ROWS)
+
     def _on_analisa_clear(self) -> None:
         """Hapus semua kurva overlay dan data tabel dari panel analisa."""
         self._analisa_clear_log_overlay()
-        self._analisa_clear_delta_plot()
-        self._analisa_tbl_data.setRowCount(ANALISA_TABLE_HEADER_ROWS)
+        self._analisa_clear_table_section()
 
         # Reset label CSV Log
         for lbl in (
