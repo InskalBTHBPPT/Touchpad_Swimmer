@@ -21,7 +21,7 @@ Fitur Utama
 
 Tab Analisa Data
 ----------------
-* Overlay multi-file CSV Log dalam satu plot.
+* Muat satu file CSV Log per kali load (dua kurva AI0/AI1).
 * Load CSV Table ke Data Table + plot analisis split time/tekanan.
 * Plot "Split Time & Tekanan per Sentuhan" (dual Y axis):
   - Y kiri: Δ Time (s)
@@ -1331,7 +1331,9 @@ class MainWindow(QMainWindow):
 
         # ── Bagian CSV Log ────────────────────────────────────────────────
         self._btn_load_log = QPushButton("📂  Load CSV Log")
-        self._btn_load_log.setToolTip("Muat satu atau beberapa file CSV Log untuk di-overlay")
+        self._btn_load_log.setToolTip(
+            "Muat satu file CSV Log (mengganti tampilan log sebelumnya)"
+        )
         self._btn_load_log.clicked.connect(self._on_analisa_load_log)
         btn_load_log = self._btn_load_log
 
@@ -1482,13 +1484,15 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "File Tidak Sesuai", message)
 
     def _on_analisa_load_log(self) -> None:
-        """Buka dialog pilih satu/banyak CSV Log, lalu plot overlay."""
+        """Buka dialog pilih satu CSV Log; ganti tampilan log sebelumnya."""
         initial_dir = self._inp_csv_folder.text().strip() or DEFAULT_CSV_FOLDER
-        paths, _ = QFileDialog.getOpenFileNames(
+        path, _ = QFileDialog.getOpenFileName(
             self, "Pilih CSV Log", initial_dir, "CSV Files (*.csv);;All Files (*)"
         )
-        for path in paths:
-            self._analisa_load_log_file(pathlib.Path(path))
+        if not path:
+            return
+        self._analisa_clear_log_overlay()
+        self._analisa_load_log_file(pathlib.Path(path))
 
     def _analisa_load_log_file(self, filepath: pathlib.Path) -> None:
         """Baca satu CSV Log, update info perenang, dan tambah kurva ke plot."""
@@ -1712,6 +1716,7 @@ class MainWindow(QMainWindow):
         events.sort(key=lambda e: e[0])
 
         if not events:
+            self._analisa_clear_delta_plot()
             return
 
         # Hitung delta times
@@ -1856,9 +1861,8 @@ class MainWindow(QMainWindow):
         )
         pi.setXRange(0, len(delta_x) + 0.5, padding=0)
 
-    def _on_analisa_clear(self) -> None:
-        """Hapus semua kurva overlay dan data tabel dari panel analisa."""
-        # Bersihkan CSV Log overlay
+    def _analisa_clear_log_overlay(self) -> None:
+        """Hapus semua kurva dan legend pada plot CSV Log overlay."""
         pi_log: pg.PlotItem = self._analisa_pw_log.getPlotItem()
         for _stem, c0, c1 in self._analisa_log_curves:
             try:
@@ -1869,8 +1873,10 @@ class MainWindow(QMainWindow):
             pi_log.removeItem(c0)
             pi_log.removeItem(c1)
         self._analisa_log_curves.clear()
+        self._update_analisa_files_label()
 
-        # Bersihkan CSV Table: delta scatter, secondary vb, legend, tabel
+    def _analisa_clear_delta_plot(self) -> None:
+        """Hapus plot split time, tekanan sekunder, dan legend terkait."""
         self._analisa_pw_delta.getPlotItem().clear()
         self._analisa_vb_press.clear()
         try:
@@ -1878,6 +1884,11 @@ class MainWindow(QMainWindow):
             self._analisa_press_legend_box.clear()
         except Exception:
             pass
+
+    def _on_analisa_clear(self) -> None:
+        """Hapus semua kurva overlay dan data tabel dari panel analisa."""
+        self._analisa_clear_log_overlay()
+        self._analisa_clear_delta_plot()
         self._analisa_tbl_data.setRowCount(ANALISA_TABLE_HEADER_ROWS)
 
         # Reset label CSV Log
@@ -1886,7 +1897,6 @@ class MainWindow(QMainWindow):
             self._analisa_lbl_log_jarak, self._analisa_lbl_log_tanggal,
         ):
             lbl.setText("-")
-        self._update_analisa_files_label()
 
         # Reset label CSV Table
         self._analisa_lbl_tbl_file.setText("(belum ada file)")

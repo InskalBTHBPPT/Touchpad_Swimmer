@@ -410,7 +410,7 @@ Tab **Analisa Data** digunakan untuk memvisualisasikan dan menganalisis file CSV
 
 ```
 ┌──────────────────────────────────────────────┬────────────────────────────┐
-│  CSV Log Pressure Overlay (multi-file)       │  ┌─ CSV Log ─────────────┐ │
+│  CSV Log Pressure Overlay                    │  ┌─ CSV Log ─────────────┐ │
 │                                              │  │ [📂 Load CSV Log]     │ │
 │                                              │  │ ■■ file1.csv          │ │
 │                                              │  │ Nama: Ahmad           │ │
@@ -431,16 +431,16 @@ Tab **Analisa Data** digunakan untuk memvisualisasikan dan menganalisis file CSV
 └──────────────────────────────────────────────┴────────────────────────────┘
 ```
 
-### 15.1 Load CSV Log (Overlay)
+### 15.1 Load CSV Log
 
 1. Tekan **📂 Load CSV Log**
-2. Pilih satu atau lebih file CSV Log
+2. Pilih **satu** file CSV Log (tampilan log sebelumnya diganti)
 3. File harus memiliki header `timestamp_s,ai0_kg,ai1_kg`
-4. Setiap file ditampilkan sebagai dua kurva pressure overlay:
+4. File ditampilkan sebagai dua kurva pressure:
    - **AI0** = tekanan Pad 1 dalam Kg
    - **AI1** = tekanan Pad 2 dalam Kg
-5. Info Perenang dari file terakhir ditampilkan di panel kanan
-6. Daftar file dimuat ditampilkan dengan kotak warna per file
+5. Info perenang dari file ditampilkan di panel kanan
+6. Nama file dimuat ditampilkan dengan kotak warna AI0/AI1
 
 ### 15.2 Load CSV Table
 
