@@ -23,7 +23,8 @@ Dependensi:
     pip install PySide6 pyqtgraph pyserial numpy
 
 Manual pengguna:
-    UserManual_Force_Motion_v1.0.08.md / .pdf (folder yang sama dengan skrip)
+    UserManual_Force_Motion_v1.0.08.md / .pdf (mode skrip Python)
+    UserManual_Force_Motion_v1.0.08-e.md / .pdf (mode executable, di-bundle)
 """
 
 import sys
@@ -43,7 +44,7 @@ from PySide6.QtWidgets import (
     QGridLayout, QSpacerItem,
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QThread
-from PySide6.QtGui import QFont, QColor, QPalette, QIcon, QPixmap
+from PySide6.QtGui import QFont, QColor, QPalette
 
 import pyqtgraph as pg
 import serial
@@ -54,16 +55,50 @@ import serial.tools.list_ports
 # ─────────────────────────────────────────────
 APP_NAME    = "Swimmer Force and Motion Monitoring"
 APP_VERSION = "1.0.08"
+EXE_NAME    = f"Swimmer_Force_Motion_Monitoring_v{APP_VERSION}.exe"
 CSV_HEADER_BAT     = "TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg),Battery(%)"
 SERIAL_BAUD_DEFAULT = 115200
 MAX_POINTS  = 1000          # titik maks buffer live plot (safety cap)
 LIVE_WINDOW_S = 10.0       # lebar jendela waktu sumbu-X live plot (detik)
 POLL_INTERVAL_MS   = 50   # ms – interval timer baca serial
 FLUSH_INTERVAL_MS  = 500  # ms – interval flush buffer log ke disk
-DATA_LOG_DIR       = "DataLog"
-STAT_LOG_DIR       = "DataStatistik"
 CSV_HEADER         = "TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)"
 SWIMSTYLES         = ["Bebas", "Dada", "Punggung", "Kupu-kupu", "Monofin","Bifins"]
+
+
+def is_frozen() -> bool:
+    """True jika dijalankan sebagai executable PyInstaller."""
+    return getattr(sys, "frozen", False)
+
+
+def resource_dir() -> str:
+    """Folder aset read-only (manual); ``sys._MEIPASS`` saat frozen."""
+    if is_frozen():
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def app_dir() -> str:
+    """Folder aplikasi untuk data tulis (``DataLog``, ``DataStatistik``)."""
+    if is_frozen():
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def data_log_dir() -> str:
+    """Path absolut folder rekaman CSV."""
+    return os.path.join(app_dir(), "DataLog")
+
+
+def stat_log_dir() -> str:
+    """Path absolut folder ekspor statistik."""
+    return os.path.join(app_dir(), "DataStatistik")
+
+
+def user_manual_basename() -> str:
+    """Nama dasar manual: suffix ``-e`` untuk executable."""
+    suffix = "-e" if is_frozen() else ""
+    return f"UserManual_Force_Motion_v{APP_VERSION}{suffix}"
 
 # ─────────────────────────────────────────────
 #  Palette & style
@@ -574,56 +609,20 @@ class LiveTab(QWidget):
 
         llay.addStretch()
 
-        # — Logo BRIN + UNNES + Copyright —
-        logo_frame = QFrame()
-        logo_frame.setStyleSheet(
+        # — Copyright —
+        copy_frame = QFrame()
+        copy_frame.setStyleSheet(
             f"background:{PANEL_BG}; border:none solid {BORDER_COLOR}; border-radius:6px;"
         )
-        logo_lay = QHBoxLayout(logo_frame)
-        logo_lay.setContentsMargins(8, 6, 8, 6)
-        logo_lay.setSpacing(10)
-        logo_lay.setAlignment(Qt.AlignVCenter)
-
-        LOGO_H = 36  # tinggi tampilan logo
-
-        def _load_logo(path: str, fallback_text: str) -> QLabel:
-            lbl = QLabel()
-            lbl.setAlignment(Qt.AlignCenter)
-            if os.path.isfile(path):
-                pix = QPixmap(path).scaledToHeight(
-                    LOGO_H, Qt.SmoothTransformation
-                )
-                lbl.setPixmap(pix)
-                lbl.setToolTip(fallback_text)
-            else:
-                lbl.setText(fallback_text)
-                lbl.setStyleSheet(
-                    f"color:{ACCENT_CYAN}; font-size:9px; font-weight:bold;"
-                    f"letter-spacing:1px; padding:2px 5px;"
-                    f"border:none solid {BORDER_COLOR}; border-radius:4px;"
-                )
-                lbl.setFixedHeight(LOGO_H)
-            return lbl
-
-        # Letakkan file logo di folder yang sama dengan skrip:
-        #   logo_brin.png  dan  logo_unnes.png
-        _script_dir = os.path.dirname(os.path.abspath(__file__))
-        lbl_brin  = _load_logo(os.path.join(_script_dir, "logo_brin.png"),  "BRIN")
-        lbl_unnes = _load_logo(os.path.join(_script_dir, "logo_unnes.png"), "UNNES")
-
-        # teks copyright
+        copy_lay = QHBoxLayout(copy_frame)
+        copy_lay.setContentsMargins(8, 6, 8, 6)
         lbl_copy = QLabel("© Copyright 2026")
         lbl_copy.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         lbl_copy.setStyleSheet(
             f"color:{TEXT_MUTED}; font-size:11px; letter-spacing:1px; border:none;"
         )
-        lbl_copy.setWordWrap(True)
-
-        logo_lay.addWidget(lbl_brin)
-        logo_lay.addWidget(lbl_unnes)
-        logo_lay.addWidget(lbl_copy, stretch=1)
-
-        llay.addWidget(logo_frame)
+        copy_lay.addWidget(lbl_copy)
+        llay.addWidget(copy_frame)
 
         # — Tombol About / Help —
         btn_about = QPushButton("ℹ  About")
@@ -857,8 +856,8 @@ class LiveTab(QWidget):
         gaya_safe = safe_filename(gaya)
         filename = f"{nama_safe}_{gaya_safe}_{ts_str}.csv"
 
-        ensure_dir(DATA_LOG_DIR)
-        filepath = os.path.join(DATA_LOG_DIR, filename)
+        ensure_dir(data_log_dir())
+        filepath = os.path.join(data_log_dir(), filename)
 
         try:
             self.log_file = open(filepath, "w", encoding="utf-8", newline="")
@@ -936,10 +935,10 @@ class LiveTab(QWidget):
         dlg.exec()
 
     def show_help(self):
-        """Buka manual PDF di folder skrip; fallback dialog teks dari file MD."""
-        _script_dir = os.path.dirname(os.path.abspath(__file__))
-        pdf_path = os.path.join(_script_dir, f"UserManual_Force_Motion_v{APP_VERSION}.pdf")
-        md_path  = os.path.join(_script_dir, f"UserManual_Force_Motion_v{APP_VERSION}.md")
+        """Buka manual PDF (bundle saat exe); fallback dialog teks dari file MD."""
+        base = user_manual_basename()
+        pdf_path = os.path.join(resource_dir(), f"{base}.pdf")
+        md_path  = os.path.join(resource_dir(), f"{base}.md")
         if os.path.isfile(pdf_path):
             import subprocess, platform
             try:
@@ -1172,7 +1171,7 @@ class AnalisaTab(QWidget):
     def load_csv(self):
         """Pilih file CSV log, parse metadata/data, hitung statistik dan FFT."""
         path, _ = QFileDialog.getOpenFileName(
-            self, "Pilih file CSV Log", DATA_LOG_DIR,
+            self, "Pilih file CSV Log", data_log_dir(),
             "CSV Files (*.csv);;All Files (*)"
         )
         if not path:
@@ -1422,9 +1421,9 @@ class AnalisaTab(QWidget):
         """Ekspor ringkasan ekstremum + hasil FFT ke ``DataStatistik/<nama>_DataStaistik.csv``."""
         if not self._csv_path or not self._extrema:
             return
-        ensure_dir(STAT_LOG_DIR)
+        ensure_dir(stat_log_dir())
         base = os.path.splitext(os.path.basename(self._csv_path))[0]
-        out_path = os.path.join(STAT_LOG_DIR, f"{base}_DataStaistik.csv")
+        out_path = os.path.join(stat_log_dir(), f"{base}_DataStaistik.csv")
         try:
             with open(out_path, "w", encoding="utf-8", newline="") as f:
                 f.write(f"Nama Perenang: {self._meta.get('Nama Perenang','')}\n")
@@ -1542,8 +1541,8 @@ class MainWindow(QMainWindow):
 def main():
     """Inisialisasi Qt, tema gelap, folder output, dan jalankan event loop."""
     # Pastikan folder output ada
-    ensure_dir(DATA_LOG_DIR)
-    ensure_dir(STAT_LOG_DIR)
+    ensure_dir(data_log_dir())
+    ensure_dir(stat_log_dir())
 
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
