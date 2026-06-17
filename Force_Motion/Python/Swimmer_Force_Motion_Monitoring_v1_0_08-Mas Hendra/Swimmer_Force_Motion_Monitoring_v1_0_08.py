@@ -1,14 +1,29 @@
 """
-Swimmer Force Motion Monitoring
-================================
-Version : 1.0.0
-File    : Swimmer_Force_Motion_Monitoring_v1.0.0.py
+Swimmer Force and Motion Monitoring
+===================================
 
-Memantau beban (force, kg) dan orientasi gerak (roll & pitch, derajat)
-secara real-time dari perangkat keras via port serial USB.
+Aplikasi desktop PySide6 untuk memantau beban (force, kg) dan orientasi
+gerak (roll & pitch, derajat) secara real-time dari perangkat sensor via
+port serial USB, merekam data ke CSV, serta menganalisis rekaman dengan
+statistik ekstremum dan analisa FFT pada sinyal force.
+
+Versi  : 1.0.08  (``APP_VERSION``)
+Berkas : Swimmer_Force_Motion_Monitoring_v1_0_08.py
+
+Fitur utama:
+    - Tab **Live**: koneksi serial, plot waktu-nyata (jendela 10 s),
+      indikator baterai (kolom ke-5 opsional), rekaman CSV.
+    - Tab **Analisa**: muat CSV log, plot penuh + marker min/max,
+      FFT force (frekuensi dominan, stroke rate, RMS), ekspor statistik.
+
+Format serial (UTF-8, satu baris per sampel, dipisah koma):
+    TimeStamp(s), Force(Kg), Roll(Deg), Pitch(Deg) [, Battery(%)]
 
 Dependensi:
-    pip install PySide6 pyqtgraph pyserial
+    pip install PySide6 pyqtgraph pyserial numpy
+
+Manual pengguna:
+    UserManual_Force_Motion_v1.0.08.md / .pdf (folder yang sama dengan skrip)
 """
 
 import sys
@@ -38,7 +53,7 @@ import serial.tools.list_ports
 #  Konstanta aplikasi
 # ─────────────────────────────────────────────
 APP_NAME    = "Swimmer Force and Motion Monitoring"
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.08"
 CSV_HEADER_BAT     = "TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg),Battery(%)"
 SERIAL_BAUD_DEFAULT = 115200
 MAX_POINTS  = 1000          # titik maks buffer live plot (safety cap)
@@ -239,6 +254,7 @@ QSplitter::handle {{
 # ─────────────────────────────────────────────
 
 def ensure_dir(path: str):
+    """Buat folder ``path`` jika belum ada (tidak error jika sudah ada)."""
     os.makedirs(path, exist_ok=True)
 
 
@@ -248,6 +264,7 @@ def safe_filename(name: str) -> str:
 
 
 def value_label(value: float | None, unit: str = "", decimals: int = 2) -> str:
+    """Format angka untuk label UI; kembalikan em-dash jika ``value`` None."""
     if value is None:
         return "—"
     return f"{value:.{decimals}f} {unit}".strip()
@@ -257,6 +274,8 @@ def value_label(value: float | None, unit: str = "", decimals: int = 2) -> str:
 #  Widget indikator nilai (LCD-style card)
 # ─────────────────────────────────────────────
 class ValueCard(QFrame):
+    """Kartu indikator nilai bergaya LCD (judul, angka besar, satuan)."""
+
     def __init__(self, title: str, unit: str, accent: str = ACCENT_CYAN, parent=None):
         super().__init__(parent)
         self.unit   = unit
@@ -293,6 +312,7 @@ class ValueCard(QFrame):
         lay.addWidget(self.lbl_unit)
 
     def update_value(self, val: float | None, decimals: int = 2):
+        """Perbarui angka tampilan; tampilkan em-dash jika ``val`` None."""
         if val is None:
             self.lbl_value.setText("—")
         else:
@@ -303,6 +323,8 @@ class ValueCard(QFrame):
 #  Status bar sederhana
 # ─────────────────────────────────────────────
 class StatusBar(QLabel):
+    """Bar status bawah jendela dengan metode ``info``, ``ok``, ``warn``, ``err``."""
+
     def __init__(self, parent=None):
         super().__init__("Siap.", parent)
         self.setStyleSheet(
@@ -423,7 +445,7 @@ class BatteryWidget(QWidget):
 #  TAB LIVE
 # ═══════════════════════════════════════════════════════════
 class LiveTab(QWidget):
-    """Tab pemantauan real-time + rekaman CSV."""
+    """Tab pemantauan real-time: serial, plot geser, logging CSV, baterai."""
 
     status_message  = Signal(str, str)   # (level, teks) → StatusBar
     battery_update  = Signal(int)        # battery % → MainWindow BatteryWidget
@@ -662,6 +684,7 @@ class LiveTab(QWidget):
     
     # ─── port refresh ──────────────────────────────────────
     def refresh_ports(self):
+        """Isi ulang combo port dari daftar COM yang terdeteksi sistem."""
         self.cmb_port.clear()
         ports = serial.tools.list_ports.comports()
         for p in sorted(ports, key=lambda x: x.device):
@@ -672,6 +695,7 @@ class LiveTab(QWidget):
     
     # ─── koneksi ───────────────────────────────────────────
     def connect_serial(self):
+        """Buka port serial terpilih dan mulai timer polling data."""
         port = self.cmb_port.currentData()
         if not port:
             self.status_message.emit("err", "Tidak ada port dipilih.")
@@ -691,6 +715,7 @@ class LiveTab(QWidget):
             self.status_message.emit("err", f"Gagal connect: {e}")
 
     def disconnect_serial(self):
+        """Hentikan logging (jika aktif), tutup port, dan kosongkan plot."""
         if self.is_logging:
             self.stop_logging()
         self.timer_poll.stop()
@@ -720,6 +745,7 @@ class LiveTab(QWidget):
 
     # ─── polling serial ────────────────────────────────────
     def poll_serial(self):
+        """Baca byte dari buffer serial, pecah per baris, parse tiap sampel."""
         if not self.serial_port or not self.serial_port.is_open:
             return
         try:
@@ -736,6 +762,7 @@ class LiveTab(QWidget):
             self.disconnect_serial()
 
     def _parse_line(self, raw: bytes):
+        """Decode satu baris CSV serial; update plot, log, dan indikator baterai."""
         try:
             txt = raw.decode("utf-8", errors="replace").strip()
         except Exception:
@@ -807,6 +834,7 @@ class LiveTab(QWidget):
             self.log_buffer.append(f"{log_ts:.4f},{fv:.4f},{rv:.4f},{pv:.4f}\n")
 
     def _max_points(self) -> int:
+        """Baca batas titik buffer dari field UI; minimal 10."""
         try:
             v = int(self.edt_maxpts.text())
             return max(10, v)
@@ -819,6 +847,7 @@ class LiveTab(QWidget):
 
     # ─── logging ───────────────────────────────────────────
     def start_logging(self):
+        """Buat file CSV di ``DataLog/`` dan mulai menulis sampel ke buffer."""
         if self.is_logging:
             return
         nama_raw = self.edt_nama.text().strip() or "Atlet"
@@ -861,6 +890,7 @@ class LiveTab(QWidget):
         self._log_console(f"● Log dimulai: {filepath}")
 
     def stop_logging(self):
+        """Flush buffer tersisa, tutup file log, dan reset state rekaman."""
         if not self.is_logging:
             return
         self.is_logging = False
@@ -875,6 +905,7 @@ class LiveTab(QWidget):
         self._log_console("■ Log dihentikan.")
 
     def flush_log_buffer(self):
+        """Tulis baris tertunda dari ``log_buffer`` ke disk (timer periodik)."""
         if self.log_file and self.log_buffer:
             self.log_file.writelines(self.log_buffer)
             self.log_file.flush()
@@ -905,9 +936,10 @@ class LiveTab(QWidget):
         dlg.exec()
 
     def show_help(self):
-        # Cari PDF manual
-        pdf_path = f"UserManual_Force_Motion_v{APP_VERSION}.pdf"
-        md_path  = f"UserManual_Force_Motion_v{APP_VERSION}.md"
+        """Buka manual PDF di folder skrip; fallback dialog teks dari file MD."""
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        pdf_path = os.path.join(_script_dir, f"UserManual_Force_Motion_v{APP_VERSION}.pdf")
+        md_path  = os.path.join(_script_dir, f"UserManual_Force_Motion_v{APP_VERSION}.md")
         if os.path.isfile(pdf_path):
             import subprocess, platform
             try:
@@ -932,6 +964,8 @@ class LiveTab(QWidget):
 
 # ─── Dialog bantuan fallback ───────────────────────────────
 class HelpDialog(QDialog):
+    """Dialog fallback bantuan: tampilkan isi file Markdown manual jika PDF tidak ada."""
+
     def __init__(self, md_path: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Help – Panduan Singkat")
@@ -965,7 +999,7 @@ class HelpDialog(QDialog):
 #  TAB ANALISA
 # ═══════════════════════════════════════════════════════════
 class AnalisaTab(QWidget):
-    """Tab muat CSV, tampilkan plot + statistik, ekspor ringkasan."""
+    """Tab analisis CSV: plot waktu penuh, statistik, FFT force, ekspor statistik."""
 
     status_message = Signal(str, str)
 
@@ -1136,6 +1170,7 @@ class AnalisaTab(QWidget):
 
     # ─── muat CSV ──────────────────────────────────────────
     def load_csv(self):
+        """Pilih file CSV log, parse metadata/data, hitung statistik dan FFT."""
         path, _ = QFileDialog.getOpenFileName(
             self, "Pilih file CSV Log", DATA_LOG_DIR,
             "CSV Files (*.csv);;All Files (*)"
@@ -1160,6 +1195,7 @@ class AnalisaTab(QWidget):
         self.status_message.emit("ok", f"File dimuat: {os.path.basename(path)}")
 
     def _parse_csv(self, path: str):
+        """Baca metadata baris ``key: value`` lalu baris data empat kolom numerik."""
         self._meta  = {}
         self._t_data, self._f_data, self._r_data, self._p_data = [], [], [], []
         header_found = False
@@ -1201,6 +1237,7 @@ class AnalisaTab(QWidget):
 
     # ─── plot analisa ──────────────────────────────────────
     def _update_plot(self):
+        """Gambar ulang kurva waktu dan scatter marker min/max per kanal."""
         # hapus marker lama
         for m in self._markers:
             m.getViewBox().removeItem(m) if m.scene() else None
@@ -1232,6 +1269,7 @@ class AnalisaTab(QWidget):
 
     # ─── statistik ─────────────────────────────────────────
     def _compute_stats(self):
+        """Hitung min, max, mean untuk force, roll, dan pitch beserta waktu kejadian."""
         e = {}
         def _stats(vals, times, prefix):
             if not vals:
@@ -1251,7 +1289,7 @@ class AnalisaTab(QWidget):
 
     # ─── FFT ───────────────────────────────────────────────
     def _compute_fft(self):
-        """Hitung FFT dari data Force menggunakan numpy."""
+        """Hitung FFT force (window Hanning): frekuensi dominan, SPM, RMS, bandwidth."""
         self._fft_result: dict = {}
         n = len(self._f_data)
         if n < 8:
@@ -1381,6 +1419,7 @@ class AnalisaTab(QWidget):
 
     # ─── simpan statistik ──────────────────────────────────
     def save_statistics(self):
+        """Ekspor ringkasan ekstremum + hasil FFT ke ``DataStatistik/<nama>_DataStaistik.csv``."""
         if not self._csv_path or not self._extrema:
             return
         ensure_dir(STAT_LOG_DIR)
@@ -1434,6 +1473,8 @@ class AnalisaTab(QWidget):
 #  MAIN WINDOW
 # ═══════════════════════════════════════════════════════════
 class MainWindow(QMainWindow):
+    """Jendela utama: header (judul, baterai), tab Live/Analisa, status bar."""
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION}")
@@ -1499,6 +1540,7 @@ class MainWindow(QMainWindow):
 #  ENTRY POINT
 # ═══════════════════════════════════════════════════════════
 def main():
+    """Inisialisasi Qt, tema gelap, folder output, dan jalankan event loop."""
     # Pastikan folder output ada
     ensure_dir(DATA_LOG_DIR)
     ensure_dir(STAT_LOG_DIR)
