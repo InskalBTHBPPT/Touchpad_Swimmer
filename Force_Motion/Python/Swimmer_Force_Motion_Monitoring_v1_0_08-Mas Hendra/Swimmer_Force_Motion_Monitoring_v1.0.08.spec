@@ -36,6 +36,8 @@ a = Analysis(
     datas=[
         ("UserManual_Force_Motion_v1.0.08-e.pdf", "."),
         ("UserManual_Force_Motion_v1.0.08-e.md", "."),
+        ("../../Image/logo_brin.png", "."),
+        ("../../Image/logo_unnes.png", "."),
     ] + pyside6_datas,
     hiddenimports=pyside6_hidden + [
         "pyqtgraph",

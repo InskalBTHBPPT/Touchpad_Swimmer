@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
     QGridLayout, QSpacerItem,
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QThread
-from PySide6.QtGui import QFont, QColor, QPalette
+from PySide6.QtGui import QFont, QColor, QPalette, QPixmap
 
 import pyqtgraph as pg
 import serial
@@ -99,6 +99,20 @@ def user_manual_basename() -> str:
     """Nama dasar manual: suffix ``-e`` untuk executable."""
     suffix = "-e" if is_frozen() else ""
     return f"UserManual_Force_Motion_v{APP_VERSION}{suffix}"
+
+
+def logo_path(filename: str) -> str:
+    """Path logo BRIN/UNNES: bundle exe, folder skrip, atau ``Force_Motion/Image/``."""
+    bundled = os.path.join(resource_dir(), filename)
+    if os.path.isfile(bundled):
+        return bundled
+    image_dir = os.path.normpath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Image")
+    )
+    shared = os.path.join(image_dir, filename)
+    if os.path.isfile(shared):
+        return shared
+    return bundled
 
 # ─────────────────────────────────────────────
 #  Palette & style
@@ -609,20 +623,50 @@ class LiveTab(QWidget):
 
         llay.addStretch()
 
-        # — Copyright —
-        copy_frame = QFrame()
-        copy_frame.setStyleSheet(
+        # — Logo BRIN + UNNES + Copyright —
+        logo_frame = QFrame()
+        logo_frame.setStyleSheet(
             f"background:{PANEL_BG}; border:none solid {BORDER_COLOR}; border-radius:6px;"
         )
-        copy_lay = QHBoxLayout(copy_frame)
-        copy_lay.setContentsMargins(8, 6, 8, 6)
+        logo_lay = QHBoxLayout(logo_frame)
+        logo_lay.setContentsMargins(8, 6, 8, 6)
+        logo_lay.setSpacing(10)
+        logo_lay.setAlignment(Qt.AlignVCenter)
+
+        LOGO_H = 36
+
+        def _load_logo(filename: str, fallback_text: str) -> QLabel:
+            lbl = QLabel()
+            lbl.setAlignment(Qt.AlignCenter)
+            path = logo_path(filename)
+            if os.path.isfile(path):
+                pix = QPixmap(path).scaledToHeight(LOGO_H, Qt.SmoothTransformation)
+                lbl.setPixmap(pix)
+                lbl.setToolTip(fallback_text)
+            else:
+                lbl.setText(fallback_text)
+                lbl.setStyleSheet(
+                    f"color:{ACCENT_CYAN}; font-size:9px; font-weight:bold;"
+                    f"letter-spacing:1px; padding:2px 5px;"
+                    f"border:none solid {BORDER_COLOR}; border-radius:4px;"
+                )
+                lbl.setFixedHeight(LOGO_H)
+            return lbl
+
+        lbl_brin  = _load_logo("logo_brin.png",  "BRIN")
+        lbl_unnes = _load_logo("logo_unnes.png", "UNNES")
+
         lbl_copy = QLabel("© Copyright 2026")
         lbl_copy.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         lbl_copy.setStyleSheet(
             f"color:{TEXT_MUTED}; font-size:11px; letter-spacing:1px; border:none;"
         )
-        copy_lay.addWidget(lbl_copy)
-        llay.addWidget(copy_frame)
+        lbl_copy.setWordWrap(True)
+
+        logo_lay.addWidget(lbl_brin)
+        logo_lay.addWidget(lbl_unnes)
+        logo_lay.addWidget(lbl_copy, stretch=1)
+        llay.addWidget(logo_frame)
 
         # — Tombol About / Help —
         btn_about = QPushButton("ℹ  About")
