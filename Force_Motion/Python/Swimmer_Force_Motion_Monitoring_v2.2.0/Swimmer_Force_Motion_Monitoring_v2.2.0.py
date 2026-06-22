@@ -5,7 +5,8 @@ Versi modul ini: **2.2.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.2.0
 
 Changelog (2.1.0 → 2.2.0)
 ==========================
-- *(Ruang untuk fitur baru v2.2.0 — salinan dasar dari v2.1.0.)*
+- **Tab Live — baterai** — terima kolom kelima ``Baterai(%)`` dari serial (mis. LoRa
+  Receiver); tampilkan di grup **Nilai terakhir**; **tidak** ditulis ke CSV rekaman.
 
 Changelog (2.0.0 → 2.1.0)
 ==========================
@@ -47,8 +48,9 @@ dalam format **teks CSV**: satu baris per sampel, empat kolom numerik dipisahkan
 
 Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
 
-1. **Live** — koneksi serial, plot tiga deret waktu, indikator nilai terakhir, rekaman
-   ke berkas CSV di folder ``DataLog/``, opsi menggeser kolom waktu di CSV ke nol
+1. **Live** — koneksi serial, plot tiga deret waktu, indikator nilai terakhir (force,
+   roll, pitch, **baterai %** jika dikirim perangkat), rekaman ke berkas CSV di folder
+   ``DataLog/`` (empat kolom data saja), opsi menggeser kolom waktu di CSV ke nol
    per sesi **Start Log**, serta tombol **About** / **Help**.
 2. **Analisa** — muat satu CSV hasil tab Live, plot waktu dengan marker ekstremum,
    **plot spektrum** (FFT / Welch), ringkasan statistik (termasuk frekuensi dominan),
@@ -62,7 +64,8 @@ Arsitektur ringkas
 - **GUI**: ``QMainWindow`` + ``QTabWidget``; plot memakai **pyqtgraph** (performa baik
   untuk deret waktu).
 - **Serial**: ``serial.Serial`` + ``QTimer`` periodik (``poll_serial``) membaca buffer
-  byte, memecah per ``\\n``, mendekode UTF-8, mem-parse empat kolom float.
+  byte, memecah per ``\\n``, mendekode UTF-8, mem-parse empat kolom float wajib
+  (kolom kelima baterai opsional, hanya tampilan Live).
 - **Live plot**: tiga ``PlotDataItem``; tiap kanal menyimpan maksimal ``max_points``
   titik (default 100) — jendela geser ~10 s jika laju ~10 sampel/detik.
 - **Logging**: ``toggle_logging`` membuka berkas teks UTF-8; baris data di-buffer
@@ -71,19 +74,25 @@ Arsitektur ringkas
 
 Format baris serial (wajib)
 ============================
-Satu baris (tanpa komentar ``#`` di depan), empat nilai dipisahkan koma, contoh::
+Satu baris (tanpa komentar ``#`` di depan), **empat atau lima** nilai dipisahkan koma.
+Contoh empat kolom (CSV rekaman)::
 
     12.34, 5.6, -1.2, 3.4
 
-Urutan kolom (sama dengan header CSV rekaman):
+Contoh lima kolom (LoRa Receiver — kolom kelima hanya tampilan Live, tidak di-log)::
+
+    12.34, 5.6, -1.2, 3.4, 87
+
+Urutan kolom (empat pertama sama dengan header CSV rekaman):
 
 1. **TimeStamp(s)** — skala detik; biasanya dari *timer* firmware (bukan jam PC).
 2. **Force(Kg)** — beban / gaya (satuan sesuai kalibrasi perangkat).
 3. **Roll(Deg)** — sudut roll.
 4. **Pitch(Deg)** — sudut pitch.
+5. **Baterai(%)** — opsional; persentase baterai transmitter (tab Live saja).
 
-Firmware referensi di repositori ini: proyek PlatformIO
-``Generate_TimeSeries_3_Random_data`` (ESP32) mengirim pola serupa untuk uji.
+Firmware referensi: PlatformIO ``Lora_Receiver_Ori`` (ESP32, 115200 baud) mengirim
+lima kolom; ``Generate_TimeSeries_3_Random_data`` mengirim empat kolom untuk uji.
 
 Format berkas CSV rekaman (tab Live)
 =====================================
@@ -376,23 +385,29 @@ class MainWindow(QMainWindow):
 
         indicators = QGroupBox("Nilai terakhir", self)
         ind_outer = QVBoxLayout(indicators)
-        self.force_label = QLabel("0.00 Kg")
-        self.roll_label = QLabel("0.00°")
-        self.pitch_label = QLabel("0.00°")
-        for w in (self.force_label, self.roll_label, self.pitch_label):
+        ind_outer.setSpacing(6)
+        self.force_label = QLabel("—")
+        self.roll_label = QLabel("—")
+        self.pitch_label = QLabel("—")
+        self.battery_label = QLabel("—")
+        for w in (self.force_label, self.roll_label, self.pitch_label, self.battery_label):
             w.setStyleSheet("color: #e5e7eb; font-weight: bold; font-size: 13pt;")
 
         def _pair(title: str, value_label: QLabel) -> QWidget:
             box = QWidget(self)
             lay = QVBoxLayout(box)
             lay.setContentsMargins(0, 0, 0, 0)
-            lay.addWidget(QLabel(title))
+            lay.setSpacing(2)
+            title_lbl = QLabel(title)
+            title_lbl.setStyleSheet("color: #9ca3af; font-size: 10pt;")
+            lay.addWidget(title_lbl)
             lay.addWidget(value_label)
             return box
 
         ind_outer.addWidget(_pair("Force (Kg)", self.force_label))
         ind_outer.addWidget(_pair("Roll Motion (Deg)", self.roll_label))
         ind_outer.addWidget(_pair("Pitch Motion (Deg)", self.pitch_label))
+        ind_outer.addWidget(_pair("Baterai (%)", self.battery_label))
 
         about_help_row = QHBoxLayout()
         about_help_row.addStretch(1)
@@ -683,6 +698,13 @@ class MainWindow(QMainWindow):
         self.force_curve.setData([], [])
         self.roll_curve.setData([], [])
         self.pitch_curve.setData([], [])
+        self._reset_live_indicators()
+
+    def _reset_live_indicators(self) -> None:
+        self.force_label.setText("—")
+        self.roll_label.setText("—")
+        self.pitch_label.setText("—")
+        self.battery_label.setText("—")
 
     def poll_serial(self) -> None:
         if not self.ser:
@@ -699,16 +721,17 @@ class MainWindow(QMainWindow):
                 if not text or text.startswith("#"):
                     continue
                 parts = [p.strip() for p in text.split(",")]
-                if len(parts) != 4:
+                if len(parts) not in (4, 5):
                     continue
                 try:
                     ts = float(parts[0])
                     force_kg = float(parts[1])
                     roll_deg = float(parts[2])
                     pitch_deg = float(parts[3])
+                    battery_pct = float(parts[4]) if len(parts) == 5 else None
                 except ValueError:
                     continue
-                self.update_live(ts, force_kg, roll_deg, pitch_deg)
+                self.update_live(ts, force_kg, roll_deg, pitch_deg, battery_pct)
                 if self.log_file is not None:
                     ts_log = ts
                     if self.log_ts_zero_checkbox.isChecked():
@@ -727,10 +750,13 @@ class MainWindow(QMainWindow):
         force_kg: float,
         roll_deg: float,
         pitch_deg: float,
+        battery_pct: float | None = None,
     ) -> None:
         self.force_label.setText(f"{force_kg:.2f} Kg")
         self.roll_label.setText(f"{roll_deg:.2f}°")
         self.pitch_label.setText(f"{pitch_deg:.2f}°")
+        if battery_pct is not None:
+            self.battery_label.setText(f"{battery_pct:.0f} %")
 
         self.force_time_data.append(ts)
         self.force_data.append(force_kg)
