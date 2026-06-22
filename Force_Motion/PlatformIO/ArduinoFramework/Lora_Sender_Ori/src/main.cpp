@@ -96,6 +96,45 @@ float getAverageBatteryVoltage(float newSample) {
   return sum / samplesToAverage;
 }
 
+// -------------------- LoRa Binary Payload (12 byte, little-endian) --------------------
+// Offset  Size  Type      Field
+// 0       4     uint32_t  time_ms since start
+// 4       2     int16_t   force × 10
+// 6       2     int16_t   roll × 10 (degrees)
+// 8       2     int16_t   pitch × 10 (degrees, sign inverted as in CSV)
+// 10      1     uint8_t   battery %
+// 11      1     uint8_t   CRC-8 of bytes 0–10 (poly 0x07)
+#define LORA_PAYLOAD_SIZE 12
+
+uint8_t crc8(const uint8_t* data, size_t len) {
+  uint8_t crc = 0;
+  for (size_t i = 0; i < len; i++) {
+    crc ^= data[i];
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      if (crc & 0x80) {
+        crc = (uint8_t)((crc << 1) ^ 0x07);
+      } else {
+        crc <<= 1;
+      }
+    }
+  }
+  return crc;
+}
+
+void buildLoraPayload(uint8_t* buf, uint32_t time_ms, float force, float roll,
+                      float pitch, uint8_t battery) {
+  int16_t force_x10 = (int16_t)lroundf(force * 10.0f);
+  int16_t roll_x10 = (int16_t)lroundf(roll * 10.0f);
+  int16_t pitch_x10 = (int16_t)lroundf(pitch * -10.0f);
+
+  memcpy(&buf[0], &time_ms, sizeof(time_ms));
+  memcpy(&buf[4], &force_x10, sizeof(force_x10));
+  memcpy(&buf[6], &roll_x10, sizeof(roll_x10));
+  memcpy(&buf[8], &pitch_x10, sizeof(pitch_x10));
+  buf[10] = battery;
+  buf[11] = crc8(buf, 11);
+}
+
 // -------------------- Variabel Baru --------------------
 unsigned long lastBatteryTime = 0;
 int lastBatteryPercent = 100; // Inisialisasi awal
@@ -157,7 +196,6 @@ void loop() {
   // 2. Logika Utama (50Hz / 50ms)
   if (currentTime - lastReadTime >= sampleInterval) {
     lastReadTime = currentTime;
-    float elapsedSeconds = (currentTime - startTime) / 1000.0;
 
     if (wt61pc.available()) {
       float roll = normalizeAngle(wt61pc.Angle.X);
@@ -167,19 +205,16 @@ void loop() {
       float berat = scale.get_units(1);
       float force = 5.4315 * (berat * -1);
 
-      // Format data
-      String payload = String(elapsedSeconds, 2)
-                     + "," + String(force, 1)
-                     + "," + String(roll, 1)
-                     + "," + String(pitch*(-1), 1)
-                     + "," + String(lastBatteryPercent); 
+      uint8_t payload[LORA_PAYLOAD_SIZE];
+      uint32_t time_ms = (uint32_t)(currentTime - startTime);
+      buildLoraPayload(payload, time_ms, force, roll, pitch,
+                       (uint8_t)lastBatteryPercent);
 
-      // Kirim via LoRa
       LoRa.beginPacket();
-      LoRa.print(payload);
+      LoRa.write(payload, LORA_PAYLOAD_SIZE);
       LoRa.endPacket();
 
-      Serial.println(payload);
+      // Serial.println — payload biner; decode di receiver
     }
   }
 }
