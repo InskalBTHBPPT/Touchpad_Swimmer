@@ -73,6 +73,7 @@ bool decodeLoraPayload(const uint8_t* buf, float& time_s, float& force,
 // -------------------- Variabel untuk menyimpan data --------------------
 unsigned long packetCount = 0;
 unsigned long lastReceiveTime = 0;
+unsigned long ledOffTime = 0;
 
 // -------------------- Setup --------------------
 void setup() {
@@ -154,8 +155,7 @@ void loop() {
           Serial.println(line);
 
           digitalWrite(LED_PIN, HIGH);
-          delay(50);
-          digitalWrite(LED_PIN, LOW);
+          ledOffTime = millis() + 2;
         } else {
           Serial.println("ERROR: CRC tidak valid");
         }
@@ -163,6 +163,12 @@ void loop() {
     }
   }
   
+  // LED pulsa singkat per paket (non-blocking)
+  if (ledOffTime != 0 && millis() >= ledOffTime) {
+    digitalWrite(LED_PIN, LOW);
+    ledOffTime = 0;
+  }
+
   // Cek timeout - jika tidak ada data dalam 5 detik
   if (millis() - lastReceiveTime > 5000 && packetCount > 0) {
     static unsigned long lastBlink = 0;
@@ -180,6 +186,4 @@ void loop() {
       Serial.println("Menunggu data dari transmitter...");
     }
   }
-  
-  delay(10);
 }
