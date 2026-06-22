@@ -2,7 +2,6 @@
 
 // Baterai tiap detik
 
-#include <Wire.h>
 #include "HX711.h"
 #include <DFRobot_WT61PC.h>
 #include <SPI.h>
@@ -165,14 +164,8 @@ void loop() {
       float pitch = normalizeAngle(wt61pc.Angle.Y);
       //float yaw = normalizeAngle(wt61pc.Angle.Z);
 
-      float berat = scale.get_units(1); 
-       
-      float force_A = 5.4054*(berat); 
-      float force_B = 5.4315*(berat*-1); 
-
-      // Catatan: Anda menggunakan variabel 'force' di payload, 
-      // pastikan ini merujuk ke salah satu force_A atau force_B
-      float force = force_B; 
+      float berat = scale.get_units(1);
+      float force = 5.4315 * (berat * -1);
 
       // Format data
       String payload = String(elapsedSeconds, 2)
