@@ -175,11 +175,11 @@ void loop() {
                      + "," + String(lastBatteryPercent); 
 
       // Kirim via LoRa
-      LoRa.beginPacket();
-      LoRa.print(payload);
-      LoRa.endPacket();
+      // LoRa.beginPacket();
+      // LoRa.print(payload);
+      // LoRa.endPacket();
 
-      //Serial.println(payload);
+      Serial.println(payload);
     }
   }
 }
