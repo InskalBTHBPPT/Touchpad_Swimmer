@@ -214,7 +214,11 @@ void loop() {
       LoRa.write(payload, LORA_PAYLOAD_SIZE);
       LoRa.endPacket();
 
-      // Serial.println — payload biner; decode di receiver
+      char debugLine[48];
+      snprintf(debugLine, sizeof(debugLine), "%.2f,%.1f,%.1f,%.1f,%u",
+               time_ms / 1000.0f, force, roll, pitch * (-1.0f),
+               (unsigned)lastBatteryPercent);
+      Serial.println(debugLine);
     }
   }
 }
