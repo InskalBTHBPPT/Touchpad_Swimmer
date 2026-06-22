@@ -1,7 +1,24 @@
+/**
+ * @file main.cpp
+ * @brief Node pengirim LoRa untuk monitoring perenang (Swimmer Monitoring).
+ *
+ * Membaca load cell (HX711), IMU (WT61PC), dan level baterai, lalu mengirim
+ * telemetri via LoRa SX1278 (433 MHz) dalam format paket biner 12 byte.
+ *
+ * Hardware:
+ *   - HX711:    DOUT=32, SCK=33
+ *   - WT61PC:   UART2 RX=16, TX=17 @ 115200 baud, 50 Hz
+ *   - LoRa:     SPI SCK=18, MISO=19, MOSI=23, SS=5, RST=14, DIO0=26
+ *   - Baterai:  ADC GPIO 12 (voltage divider)
+ *
+ * Sampling: ~50 Hz (50 ms) saat data IMU tersedia; baterai di-update 1 Hz.
+ *
+ * Debug Serial (115200): CSV `waktu,force,roll,pitch,baterai%`
+ *
+ * @see Lora_Receiver_Ori untuk format paket dan decode di sisi penerima.
+ */
+
 #include <Arduino.h>
-
-// Baterai tiap detik
-
 #include "HX711.h"
 #include <DFRobot_WT61PC.h>
 #include <SPI.h>
@@ -54,15 +71,25 @@ unsigned long lastReadTime = 0;
 const int sampleInterval = 50;  // 50Hz sampling
 
 // -------------------- Fungsi Normalisasi --------------------
-float normalizeAngle(float angle) {
-  while (angle > 180.0) angle -= 360.0;
+
+/**
+ * @brief Normalisasi sudut ke rentang [-180°, 180°].
+ * @param angle Sudut dalam derajat.
+ * @return Sudut ternormalisasi.
+ */
+float normalizeAngle(float angle) {  while (angle > 180.0) angle -= 360.0;
   while (angle < -180.0) angle += 360.0;
   return angle;
 }
 
 // -------------------- Estimasi Persentase Baterai --------------------
-float estimatePercentage(float voltage) {
-  if (voltage >= voltageTable[0]) return 100.0;
+
+/**
+ * @brief Interpolasi linear persentase baterai LiPo dari tegangan.
+ * @param voltage Tegangan baterai setelah voltage divider (V).
+ * @return Persentase 0–100.
+ */
+float estimatePercentage(float voltage) {  if (voltage >= voltageTable[0]) return 100.0;
   if (voltage <= voltageTable[numPoints - 1]) return 0.0;
 
   for (int i = 0; i < numPoints - 1; i++) {
@@ -83,8 +110,12 @@ float batteryBuffer[BATTERY_AVG_SAMPLES];
 int batteryIndex = 0;
 bool bufferFilled = false;
 
-float getAverageBatteryVoltage(float newSample) {
-  batteryBuffer[batteryIndex] = newSample;
+/**
+ * @brief Rata-rata bergerak tegangan baterai (10 sampel).
+ * @param newSample Sampel tegangan terbaru (V).
+ * @return Rata-rata tegangan.
+ */
+float getAverageBatteryVoltage(float newSample) {  batteryBuffer[batteryIndex] = newSample;
   batteryIndex = (batteryIndex + 1) % BATTERY_AVG_SAMPLES;
   if (batteryIndex == 0) bufferFilled = true;
 
@@ -106,8 +137,13 @@ float getAverageBatteryVoltage(float newSample) {
 // 11      1     uint8_t   CRC-8 of bytes 0–10 (poly 0x07)
 #define LORA_PAYLOAD_SIZE 12
 
-uint8_t crc8(const uint8_t* data, size_t len) {
-  uint8_t crc = 0;
+/**
+ * @brief Hitung CRC-8 (polynomial 0x07) untuk validasi paket LoRa.
+ * @param data Buffer data.
+ * @param len  Panjang byte yang di-CRC.
+ * @return Nilai CRC-8.
+ */
+uint8_t crc8(const uint8_t* data, size_t len) {  uint8_t crc = 0;
   for (size_t i = 0; i < len; i++) {
     crc ^= data[i];
     for (uint8_t bit = 0; bit < 8; bit++) {
@@ -121,9 +157,21 @@ uint8_t crc8(const uint8_t* data, size_t len) {
   return crc;
 }
 
+/**
+ * @brief Susun paket LoRa biner 12 byte (little-endian).
+ *
+ * Layout: time_ms(4) | force×10(2) | roll×10(2) | pitch×10(2) | bat%(1) | crc8(1)
+ * Pitch disimpan dengan tanda dibalik (sama seperti output CSV).
+ *
+ * @param buf     Buffer keluaran, minimal 12 byte.
+ * @param time_ms Waktu sejak start (ms).
+ * @param force   Gaya hasil konversi load cell.
+ * @param roll    Roll IMU (derajat).
+ * @param pitch   Pitch IMU mentah (derajat, sebelum inversi tanda).
+ * @param battery Persentase baterai 0–100.
+ */
 void buildLoraPayload(uint8_t* buf, uint32_t time_ms, float force, float roll,
-                      float pitch, uint8_t battery) {
-  int16_t force_x10 = (int16_t)lroundf(force * 10.0f);
+                      float pitch, uint8_t battery) {  int16_t force_x10 = (int16_t)lroundf(force * 10.0f);
   int16_t roll_x10 = (int16_t)lroundf(roll * 10.0f);
   int16_t pitch_x10 = (int16_t)lroundf(pitch * -10.0f);
 
@@ -139,9 +187,8 @@ void buildLoraPayload(uint8_t* buf, uint32_t time_ms, float force, float roll,
 unsigned long lastBatteryTime = 0;
 int lastBatteryPercent = 100; // Inisialisasi awal
 
-
-void setup() {
-  Serial.begin(115200);
+/** @brief Inisialisasi sensor, LoRa, dan timer sampling. */
+void setup() {  Serial.begin(115200);
   delay(1000);
 
   // Matikan WiFi dan Bluetooth
@@ -176,9 +223,12 @@ void setup() {
   //Serial.println("Waktu(s),Berat(g),Roll(°),Pitch(°),Baterai(%)");
 }
 
-// -------------------- Loop --------------------
-void loop() {
-  unsigned long currentTime = millis();
+/**
+ * @brief Loop utama: update baterai 1 Hz, sampling sensor ~50 Hz, kirim LoRa.
+ *
+ * Pengiriman hanya saat wt61pc.available(). Force = 5.4315 × (berat × −1).
+ */
+void loop() {  unsigned long currentTime = millis();
 
   // 1. Logika Update Baterai (Setiap 1000ms / 1 detik)
   if (currentTime - lastBatteryTime >= 1000) {

@@ -1,8 +1,28 @@
-#include <Arduino.h>
+/**
+ * @file main.cpp
+ * @brief Node penerima LoRa untuk monitoring perenang (Swimmer Monitoring).
+ *
+ * Menerima paket biner 12 byte dari Lora_Sender_Ori, memvalidasi CRC-8,
+ * lalu mencetak telemetri ke Serial dalam format CSV.
+ *
+ * Hardware:
+ *   - LoRa SX1278: SPI SCK=18, MISO=19, MOSI=23, SS=5, RST=14, DIO0=26
+ *   - LED built-in: GPIO 2 (pulsa non-blocking per paket)
+ *
+ * Output Serial (115200): `waktu,force,roll,pitch,baterai%`
+ *
+ * Format paket biner (little-endian, 12 byte) — harus sama dengan sender:
+ *   [0..3]  uint32_t  time_ms
+ *   [4..5]  int16_t   force × 10
+ *   [6..7]  int16_t   roll × 10
+ *   [8..9]  int16_t   pitch × 10 (tanda sudah dibalik)
+ *   [10]    uint8_t   battery %
+ *   [11]    uint8_t   CRC-8 bytes 0–10 (poly 0x07)
+ *
+ * @see Lora_Sender_Ori/src/main.cpp untuk pembentukan paket.
+ */
 
-// Program Receiver LoRa untuk ESP32
-// Input: paket biner 12 byte dari Lora_Sender_Ori
-// Output format CSV: Waktu(s),Force,Roll(°),Pitch(°),Baterai(%)
+#include <Arduino.h>
 
 #include <SPI.h>
 #include <LoRa.h>
@@ -31,8 +51,13 @@
 // 11      1     uint8_t   CRC-8 of bytes 0–10 (poly 0x07)
 #define LORA_PAYLOAD_SIZE 12
 
-uint8_t crc8(const uint8_t* data, size_t len) {
-  uint8_t crc = 0;
+/**
+ * @brief Hitung CRC-8 (polynomial 0x07) untuk validasi paket LoRa.
+ * @param data Buffer data.
+ * @param len  Panjang byte yang di-CRC.
+ * @return Nilai CRC-8.
+ */
+uint8_t crc8(const uint8_t* data, size_t len) {  uint8_t crc = 0;
   for (size_t i = 0; i < len; i++) {
     crc ^= data[i];
     for (uint8_t bit = 0; bit < 8; bit++) {
@@ -46,9 +71,18 @@ uint8_t crc8(const uint8_t* data, size_t len) {
   return crc;
 }
 
+/**
+ * @brief Decode paket LoRa biner 12 byte ke nilai telemetri.
+ * @param buf     Buffer masukan 12 byte dari LoRa.
+ * @param time_s  Keluaran: waktu sejak start sender (detik).
+ * @param force   Keluaran: gaya.
+ * @param roll    Keluaran: roll (derajat).
+ * @param pitch   Keluaran: pitch (derajat).
+ * @param battery Keluaran: persentase baterai.
+ * @return true jika CRC valid dan decode berhasil.
+ */
 bool decodeLoraPayload(const uint8_t* buf, float& time_s, float& force,
-                       float& roll, float& pitch, uint8_t& battery) {
-  if (crc8(buf, 11) != buf[11]) {
+                       float& roll, float& pitch, uint8_t& battery) {  if (crc8(buf, 11) != buf[11]) {
     return false;
   }
 
@@ -75,9 +109,8 @@ unsigned long packetCount = 0;
 unsigned long lastReceiveTime = 0;
 unsigned long ledOffTime = 0;
 
-// -------------------- Setup --------------------
-void setup() {
-  Serial.begin(115200);
+/** @brief Inisialisasi LoRa, Serial, dan LED indikator. */
+void setup() {  Serial.begin(115200);
   delay(1000);
 
   // LED Indikator
@@ -120,9 +153,13 @@ void setup() {
   }
 }
 
-// -------------------- Loop --------------------
-void loop() {
-  // Cek apakah ada paket LoRa yang masuk
+/**
+ * @brief Loop utama: terima paket LoRa, decode, cetak CSV ke Serial.
+ *
+ * Loop non-blocking (tanpa delay) agar tidak drop paket pada rate ~20 Hz.
+ * LED berkedip 2 ms per paket yang valid; berkedip lambat saat timeout 5 s.
+ */
+void loop() {  // Cek apakah ada paket LoRa yang masuk
   int packetSize = LoRa.parsePacket();
   
   if (packetSize) {
