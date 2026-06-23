@@ -1,6 +1,6 @@
 # Manual Pengguna — Swimmer Force Motion Monitoring v2.2.0
 
-Dokumen ini menjelaskan pemakaian aplikasi desktop **Swimmer Force Motion Monitoring** (berkas utama: `Swimmer_Force_Motion_Monitoring_v2.2.0.py`) untuk memantau beban dan orientasi (roll, pitch) perenang melalui koneksi serial, merekam data ke CSV, serta menganalisis rekaman dengan **spektrum frekuensi**, **perbandingan multi-berkas** dalam tabel, dan ekspor statistik yang diperluas.
+Dokumen ini menjelaskan pemakaian aplikasi desktop **Swimmer Force Motion Monitoring** (berkas utama: `Swimmer_Force_Motion_Monitoring_v2.2.0.py`) untuk memantau beban dan orientasi (roll, pitch) perenang melalui koneksi serial, merekam data ke CSV, menampilkan **baterai transmitter** (opsional) di tab Live, serta menganalisis rekaman dengan **spektrum frekuensi**, **estimasi gap rekaman CSV**, **perbandingan multi-berkas** dalam tabel, dan ekspor statistik yang diperluas.
 
 ---
 
@@ -31,15 +31,15 @@ python Swimmer_Force_Motion_Monitoring_v2.2.0.py
 
 Aplikasi memiliki **tiga tab**:
 
-- **Live** — koneksi serial, plot waktu-nyata, indikator nilai terakhir, rekaman CSV, opsi timestamp CSV, tombol **About** dan **Help**.
-- **Analisa** — muat **satu** file CSV hasil rekaman Live, plot waktu penuh dengan marker ekstremum, **tiga plot spektrum** (FFT atau Welch PSD), kartu statistik (termasuk **frekuensi dominan** per kanal), ekspor ringkasan ke `DataStatistik/`.
+- **Live** — koneksi serial, plot waktu-nyata, indikator nilai terakhir (force, roll, pitch, **baterai %** jika perangkat mengirim kolom kelima), rekaman CSV empat kolom, opsi timestamp CSV, tombol **About** dan **Help**.
+- **Analisa** — muat **satu** file CSV hasil rekaman Live, plot waktu penuh dengan marker ekstremum, **tiga plot spektrum** (FFT atau Welch PSD), kartu statistik (frekuensi dominan, **gap rekaman CSV** Metode A/B), ekspor ringkasan ke `DataStatistik/`.
 - **Analisa multifile** — hingga **lima** berkas CSV sekaligus; ringkasan metrik dalam **tabel**; **plot perbandingan** (jendela terpisah, pyqtgraph); simpan tabel ke `TableMultiFile/`; metode spektrum (FFT / Welch) mengisi ulang semua kolom.
 
 Modul pendukung di folder yang sama:
 
 - `live_csv_io.py` — header data CSV dan `parse_logged_csv` untuk tab Analisa (format sama dengan rekaman Live).
 - `analyze_single_file_tab.py` — implementasi tab Analisa (satu berkas).
-- `analyze_metrics_core.py` — perhitungan metrik + spektrum (dipakai tab multifile).
+- `analyze_metrics_core.py` — perhitungan metrik + spektrum + **gap rekaman CSV** (`compute_gap_loss`).
 - `analyze_multi_file_tab.py` — implementasi tab Analisa multifile.
 
 ---
@@ -60,22 +60,39 @@ Modul pendukung di folder yang sama:
 
 ### 3.3 Format data serial
 
-Setiap baris (diakhiri baris baru `\n`) berisi **tepat empat nilai** dipisahkan koma:
+Setiap baris (diakhiri baris baru `\n`) berisi **empat atau lima** nilai dipisahkan koma. Empat kolom pertama wajib; kolom kelima opsional.
 
-| Kolom | Nama di CSV | Contoh |
-|-------|-------------|--------|
-| 1 | TimeStamp(s) | `12.34` |
-| 2 | Force(Kg) | `5.67` |
-| 3 | Roll(Deg) | `-1.2` |
-| 4 | Pitch(Deg) | `3.4` |
+| Kolom | Nama | Contoh | Catatan |
+|-------|------|--------|---------|
+| 1 | TimeStamp(s) | `12.34` | Waktu dari perangkat (detik) |
+| 2 | Force(Kg) | `5.67` | Beban / gaya |
+| 3 | Roll(Deg) | `-1.2` | Sudut roll |
+| 4 | Pitch(Deg) | `3.4` | Sudut pitch |
+| 5 | Baterai(%) | `87` | Opsional; hanya tampilan Live, **tidak** di-log CSV |
 
-Baris yang diawali `#` diabaikan. Baris yang tidak memiliki empat kolom numerik valid dilewati.
+Contoh empat kolom (generator uji):
+
+```text
+12.34,5.67,-1.2,3.4
+```
+
+Contoh lima kolom (LoRa Receiver, PlatformIO `Lora_Receiver_Ori`):
+
+```text
+12.34,5.6,-1.2,3.4,87
+```
+
+Baris yang diawali `#` diabaikan. Baris dengan kolom selain empat atau lima, atau yang tidak bisa di-parse sebagai angka, dilewati. Baris teks status dari firmware (mis. pesan error) juga diabaikan.
 
 ### 3.4 Plot Live
 
 Tiga plot vertikal: **Force**, **Roll**, **Pitch** terhadap waktu (sumbu X: detik). Jumlah titik ditampung terbatas (jendela geser) agar tampilan tetap ringan.
 
-### 3.5 Start Log / Stop Log
+### 3.5 Indikator baterai (opsional)
+
+Grup **Nilai terakhir** menampilkan **Force**, **Roll**, **Pitch**, dan **Baterai (%)**. Kolom baterai hanya terisi jika firmware mengirim **lima** kolom per baris. Nilai baterai **tidak** disimpan ke file CSV rekaman (`DataLog/`).
+
+### 3.6 Start Log / Stop Log
 
 - **Start Log** hanya aktif jika serial sudah terhubung.
 - Rekaman ditulis ke folder **`DataLog/`** (otomatis dibuat di samping skrip), tanpa dialog *Save As*.
@@ -88,13 +105,13 @@ Struktur awal file CSV rekaman:
 2. Header data: `TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)`
 3. Baris data numerik
 
-### 3.6 Checkbox “TimeStamp CSV mulai 0 saat Start Log”
+### 3.7 Checkbox “TimeStamp CSV mulai 0 saat Start Log”
 
 - **Default:** tidak dicentang → kolom waktu di CSV sama dengan nilai dari perangkat.
 - **Dicentang:** kolom waktu di CSV = waktu serial **dikurangi** timestamp **sampel pertama setelah Start Log** (bukan saat Connect). Baris pertama data mendekati `0` s.
 - Plot Live tetap memakai waktu mentah dari serial.
 
-### 3.7 About dan Help
+### 3.8 About dan Help
 
 - **About** — menampilkan dialog informasi aplikasi dan versi (**2.2.0**).
 - **Help** — membuka berkas **`UserManual_Force_Motion_v2.2.0.pdf`** dengan aplikasi PDF bawaan sistem. Jika PDF belum ada, dialog menjelaskan cara membuatnya (lihat bagian 7).
@@ -106,7 +123,7 @@ Struktur awal file CSV rekaman:
 ### 4.1 Load CSV
 
 - Tekan **Load CSV…** dan pilih file rekaman dari folder `DataLog/` (atau lokasi lain).
-- File harus memiliki metadata dan header data yang sesuai format tab Live (lihat §3.5). Parser memakai `live_csv_io.parse_logged_csv`.
+- File harus memiliki metadata dan header data yang sesuai format tab Live (lihat §3.6). Parser memakai `live_csv_io.parse_logged_csv`.
 
 ### 4.2 Plot waktu dan statistik
 
@@ -114,19 +131,33 @@ Setelah berhasil dimuat:
 
 - Tiga plot menampilkan rekaman penuh.
 - Marker menandai titik ekstrem (force maksimum; roll/pitch min dan max) dengan label waktu.
-- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start** (waktu minimum deret), serta **frekuensi dominan** (Hz) per kanal beserta label metode spektrum (**FFT** atau **Welch PSD**).
+- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start** (waktu minimum deret), **frekuensi dominan** (Hz) per kanal beserta label metode spektrum (**FFT** atau **Welch PSD**), serta kartu **GAP REKAMAN CSV** (lihat §4.4).
 
-### 4.3 Metode spektrum
+### 4.3 Analisa Setting — metode spektrum
 
-- Pilih **FFT** atau **Welch PSD** pada kontrol di area pengaturan Analisa.
+- Pilih **FFT** atau **Welch PSD** pada dropdown **Metode spektrum**.
 - Perubahan metode memperbarui plot spektrum, marker puncak, dan angka frekuensi dominan pada kartu statistik.
 
-### 4.4 Plot spektrum
+### 4.4 Gap rekaman CSV
+
+Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
+
+| Pilihan | Makna singkat |
+|---------|----------------|
+| **Metode A — per gap (lokal)** | Untuk setiap pasangan baris berurutan: jika selisih timestamp `Δt` lebih besar dari **1,5 × median(Δt)**, estimasi sampel hilang = `round(Δt / Δt_nominal) − 1`. Menampilkan **jumlah gap** (berapa kali lubang terdeteksi). |
+| **Metode B — global (ringkas)** | Default. `n_diharapkan = round(durasi / Δt_nominal) + 1`; `n_hilang = max(0, n_diharapkan − n_tercatat)`. Menampilkan **sampel diharapkan**. |
+
+- `Δt_nominal` = **median** selisih `TimeStamp(s)` antar baris (sama dasar dengan estimasi laju sampel untuk spektrum).
+- Kartu **GAP REKAMAN CSV** menampilkan metode, Δt nominal, laju efektif (Hz), sampel tercatat, sampel hilang (estimasi), dan persen hilang.
+- **Tujuan:** mengetahui kualitas rekaman CSV (lubang timestamp), **bukan** diagnosis LoRa atau transfer nirkabel.
+- Mengganti radio langsung menghitung ulang kartu (tanpa reload CSV).
+
+### 4.5 Plot spektrum
 
 - Tiga plot di bawah plot waktu menampilkan spektrum **satu sisi** (komponen DC tidak ditampilkan pada sumbu frekuensi positif).
 - Sumbu Y menyesuaikan label (FFT ternormalisasi vs PSD linear, sesuai implementasi).
 
-### 4.5 Simpan statistik
+### 4.6 Simpan statistik
 
 - Tombol **Simpan statistik** menulis file CSV ke folder **`DataStatistik/`** tanpa dialog penyimpanan.
 - Nama file: `<nama_file_csv_yang_dimuat>_DataStaistik.csv` (sufiks persis seperti di aplikasi).
@@ -134,7 +165,8 @@ Setelah berhasil dimuat:
   - Metadata (nama perenang, gaya renang, waktu ekspor, nama berkas sumber).
   - Baris **`Timestampstart (s)`** + nilai (waktu awal deret, sama dengan yang ditampilkan di panel statistik).
   - Tabel **`Metrik, Nilai, Satuan, Waktu (s)`** untuk ekstremum (force maksimum; roll min/maks; pitch min/maks).
-  - Setelah blok tersebut, dua baris kosong, lalu tabel **`Metrik, Frekuensi Dominan (Hz), Metode`** dengan baris **Force**, **Roll**, **Pitch** (metode sama untuk ketiga saluran pada satu ekspor).
+  - Dua baris kosong, lalu tabel **`Metrik, Frekuensi Dominan (Hz), Metode`** dengan baris **Force**, **Roll**, **Pitch** (metode sama untuk ketiga saluran pada satu ekspor).
+  - Blok **`Gap rekaman CSV (estimasi)`** — metode yang dipilih, Δt nominal, laju sampel efektif, sampel tercatat, sampel hilang, persen hilang; Metode A menyertakan jumlah gap; Metode B menyertakan sampel diharapkan.
 
 ---
 
@@ -218,7 +250,8 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 |---------|----------|
 | Port tidak muncul | Cabut/colok USB, klik **Refresh Ports**, periksa driver (mis. CP210x, CH340). |
 | Connect gagal | Pastikan port tidak dipakai program lain; coba baud yang sesuai firmware. |
-| Plot kosong | Periksa format baris (empat angka, koma); pastikan firmware mengirim newline. |
+| Plot kosong | Periksa format baris (empat atau lima angka, koma); pastikan firmware mengirim newline. |
+| Baterai tampil `—` | Perangkat mungkin hanya mengirim empat kolom; LoRa Receiver mengirim lima kolom. |
 | Load CSV gagal di Analisa | Pastikan file dari tab Live yang sama (metadata + header persis). |
 | Help tidak membuka PDF | Jalankan §7; pastikan `UserManual_Force_Motion_v2.2.0.pdf` ada di folder aplikasi v2.2.0. |
 | Error import `numpy` / `scipy` | Instal dependensi (lihat §1). |
@@ -227,5 +260,5 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 
 ## 9. Versi dokumen
 
-- **Manual:** selaras dengan aplikasi **v2.2.0**.
+- **Manual:** selaras dengan aplikasi **v2.2.0** (baterai Live, gap rekaman CSV Metode A/B).
 - Ringkasan perubahan antar versi ada di `Force_Motion/Python/Changelog.md` dan docstring `Swimmer_Force_Motion_Monitoring_v2.2.0.py`.

@@ -4,6 +4,24 @@ Catatan perubahan antar versi aplikasi **Swimmer Force Motion Monitoring** (fold
 
 ---
 
+## [2.2.0] — 2026-06-23
+
+Bandingan dengan **v2.1.0** (`Swimmer_Force_Motion_Monitoring_v2.1.0/`).
+
+### Ditambahkan
+
+- **Tab Live — baterai** — parser serial menerima baris **empat atau lima** kolom; kolom kelima `Baterai(%)` (mis. dari LoRa Receiver ESP32) ditampilkan di grup **Nilai terakhir**; **tidak** disimpan ke CSV `DataLog/` (rekaman tetap empat kolom data).
+- **Tab Analisa — gap rekaman CSV** — estimasi sampel hilang dari kolom `TimeStamp(s)` sebagai indikator kualitas rekaman (bukan diagnosis LoRa). Radio **Metode A — per gap (lokal)** dan **Metode B — global (ringkas)** di grup **Analisa Setting**; kartu statistik **GAP REKAMAN CSV**; diekspor ke `DataStatistik/` bersama statistik lain.
+- **`analyze_metrics_core.py`** — `compute_gap_loss`, `GapLossStats`, `median_dt_s`, `consecutive_deltas_s`; toleransi gap Metode A: `Δt > 1,5 × median(Δt)`.
+- **Manual v2.2.0** — `UserManual_Force_Motion_v2.2.0.md` / `.pdf` di folder `Swimmer_Force_Motion_Monitoring_v2.2.0/`.
+
+### Diubah
+
+- **Docstring** modul utama v2.2.0 — format serial lima kolom, gap rekaman, changelog 2.1.0 → 2.2.0.
+- **Ekspor `DataStatistik/`** — blok tambahan **Gap rekaman CSV (estimasi)** (metode, Δt nominal, laju efektif, sampel tercatat/hilang, persen; Metode A: jumlah gap; Metode B: sampel diharapkan).
+
+---
+
 ## [2.1.0] — 2026-05-14
 
 Bandingan dengan **v2.0.0** (`Swimmer_Force_Motion_Monitoring_v2.0.0/`).

@@ -6,9 +6,17 @@ Versi modul ini: **2.2.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.2.0
 Changelog (2.1.0 → 2.2.0)
 ==========================
 - **Tab Live — baterai** — terima kolom kelima ``Baterai(%)`` dari serial (mis. LoRa
-  Receiver); tampilkan di grup **Nilai terakhir**; **tidak** ditulis ke CSV rekaman.
-- **Tab Analisa — gap rekaman CSV** — radio **Metode A** (per gap) / **Metode B**
-  (global); estimasi sampel hilang dari timestamp; diekspor ke ``DataStatistik/``.
+  Receiver, 115200 baud); tampilkan di grup **Nilai terakhir**; **tidak** ditulis ke
+  CSV rekaman (``DataLog/`` tetap empat kolom data).
+- **Tab Live — serial** — parser menerima baris **empat atau lima** kolom; sumber
+  empat kolom (uji/generator) tetap didukung.
+- **Tab Analisa — gap rekaman CSV** — estimasi sampel hilang dari kolom ``TimeStamp(s)``
+  (bukan diagnosis LoRa, hanya indikator kualitas rekaman). Radio di **Analisa Setting**:
+  **Metode A** (per gap: jumlahkan ``round(Δt/Δt_nom)−1`` jika Δt > 1,5× median Δt)
+  dan **Metode B** (global: ``n_diharapkan − n_tercatat``). Kartu **GAP REKAMAN CSV**
+  di panel statistik; blok yang sama diekspor ke ``DataStatistik/``.
+- **Modul** — ``analyze_metrics_core.py`` ditambah ``compute_gap_loss``, ``GapLossStats``,
+  ``median_dt_s``; ``estimate_sample_rate_hz`` memakai median Δt bersama.
 
 Changelog (2.0.0 → 2.1.0)
 ==========================
@@ -40,7 +48,8 @@ Changelog (v1.0.0 → v2.0.0)
   awal deret) serta blok tambahan **Frekuensi Dominan (Hz)** per saluran dengan
   kolom **Metode** (FFT / Welch PSD).
 - **Antarmuka:** dialog *themed* untuk pesan simpan statistik / About; referensi
-  manual pengguna memakai berkas **v2.2.0** (lihat konstanta ``USER_MANUAL_*``).
+  manual pengguna memakai berkas **v2.0.0** (lihat konstanta ``USER_MANUAL_*`` di
+  folder ``Swimmer_Force_Motion_Monitoring_v2.0.0/``).
 
 Ringkasan fungsi
 ==================
@@ -55,8 +64,8 @@ Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
    ``DataLog/`` (empat kolom data saja), opsi menggeser kolom waktu di CSV ke nol
    per sesi **Start Log**, serta tombol **About** / **Help**.
 2. **Analisa** — muat satu CSV hasil tab Live, plot waktu dengan marker ekstremum,
-   **plot spektrum** (FFT / Welch), ringkasan statistik (termasuk frekuensi dominan),
-   dan ekspor ringkasan ke ``DataStatistik/``.
+   **plot spektrum** (FFT / Welch), ringkasan statistik (frekuensi dominan,
+   **gap rekaman CSV** Metode A/B), ekspor ringkasan ke ``DataStatistik/``.
 3. **Analisa multifile** — hingga lima CSV; ringkasan metrik dalam **tabel**;
    **plot perbandingan** opsional di **jendela terpisah** (metrik & gaya plot dipilih
    di jendela); **Clear tabel** per kolom atau semua; simpan tabel ke ``TableMultiFile/``.
@@ -123,8 +132,23 @@ penulisan header rekaman). **Analisa multifile** di ``analyze_multi_file_tab.py`
 
 Tombol **Simpan statistik** menulis CSV ke ``DataStatistik/`` dengan nama
 ``<nama_file_log>_DataStatistik.csv`` (tanpa dialog Save As), berisi meta baris
-``Timestampstart (s)``, tabel metrik ekstremum, lalu blok frekuensi dominan per
-saluran (lihat juga manual pengguna).
+``Timestampstart (s)``, tabel metrik ekstremum, blok frekuensi dominan per saluran,
+lalu blok **Gap rekaman CSV** (metode, Δt nominal, sampel tercatat/hilang, persen;
+Metode A menyertakan jumlah gap, Metode B menyertakan sampel diharapkan).
+
+Gap rekaman CSV (tab Analisa)
+==============================
+Fungsi ``compute_gap_loss`` di ``analyze_metrics_core.py``; UI di
+``analyze_single_file_tab.py`` (radio **Metode A — per gap** / **Metode B — global**).
+
+- ``Δt_nominal`` = median selisih ``TimeStamp(s)`` antar baris berurutan (sama dasar
+  dengan estimasi laju sampel untuk spektrum).
+- **Metode A:** untuk setiap pasangan baris, jika ``Δt > 1,5 × Δt_nominal``, tambahkan
+  ``max(0, round(Δt/Δt_nominal) − 1)`` ke total sampel hilang; tampilkan **jumlah gap**.
+- **Metode B:** ``n_diharapkan = round((ts_akhir − ts_awal) / Δt_nominal) + 1``;
+  ``n_hilang = max(0, n_diharapkan − len(ts))``; tampilkan **sampel diharapkan**.
+
+Tujuan: mengetahui kualitas rekaman CSV (lubang timestamp), bukan diagnosis LoRa.
 
 Dependensi Python
 ==================
@@ -137,7 +161,8 @@ Berkas terkait di folder yang sama
 ===================================
 - ``live_csv_io.py`` — header + parser CSV rekaman Live.
 - ``analyze_single_file_tab.py`` — widget tab Analisa (satu berkas).
-- ``analyze_metrics_core.py`` — perhitungan metrik rekaman + spektrum (dipakai multifile).
+- ``analyze_metrics_core.py`` — metrik rekaman, spektrum, **gap rekaman CSV**
+  (``compute_gap_loss``; dipakai tab Analisa + multifile).
 - ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel + jendela plot).
 - ``UserManual_Force_Motion_v2.2.0.md`` — manual pengguna (Markdown).
 - ``UserManual_Force_Motion_v2.2.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
