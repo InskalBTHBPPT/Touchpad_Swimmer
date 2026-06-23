@@ -11,7 +11,8 @@ Fungsi utama
   **Welch PSD** (``scipy.signal.welch``), dipilih lewat ``QComboBox``; estimasi
   laju sampel dari deret TimeStamp; marker puncak pada kurva spektrum.
 - **Panel statistik** (HTML ringan): TimeStamp Start, kartu FORCE / ROLL / PITCH
-  dengan ekstremum + **frekuensi dominan** (konsisten dengan metode spektrum).
+  dengan ekstremum + **frekuensi dominan** (konsisten dengan metode spektrum),
+  kartu **gap rekaman CSV** (Metode A per gap / Metode B global, pilih radio).
 - **Simpan statistik** — menulis ``DataStatistik/<nama_log>_DataStaistik.csv``
   (UTF-8): metadata, ``Timestampstart (s)``, tabel ekstremum, lalu blok frekuensi
   dominan per saluran + kolom metode.
@@ -39,6 +40,7 @@ import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QComboBox,
     QFileDialog,
     QGroupBox,
@@ -46,11 +48,13 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QVBoxLayout,
     QWidget,
 )
 from scipy import signal
 
+from analyze_metrics_core import GAP_LOSS_TOLERANCE_FACTOR, GapLossStats, compute_gap_loss
 from live_csv_io import parse_logged_csv
 
 
@@ -112,6 +116,56 @@ def _html_stat_placeholder() -> str:
         '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
         "Muat CSV dari tab Live untuk menampilkan ringkasan ekstremum (force, roll, pitch)."
         "</p></div>"
+    )
+
+
+def _html_gap_loss_placeholder() -> str:
+    return (
+        '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
+        '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
+        "Estimasi sampel hilang (gap timestamp CSV) — muat CSV untuk menghitung."
+        "</p></div>"
+    )
+
+
+def _html_stat_gap_loss(stats: GapLossStats) -> str:
+    dt_line = (
+        f"Δt nominal: {_he(f'{stats.dt_nominal_s:.4g}')} s "
+        f"({_he(f'{stats.fs_hz:.2f}')} Hz)"
+    )
+    lost_line = (
+        f"Sampel hilang (estimasi): {_he(str(stats.samples_lost))} "
+        f"({_he(f'{stats.loss_pct:.2f}')} %)"
+    )
+    actual_line = f"Sampel tercatat: {_he(str(stats.samples_actual))}"
+    method_line = _he(stats.method_label)
+
+    extra = ""
+    if stats.method_key == "A" and stats.gap_count is not None:
+        extra = (
+            f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">'
+            f"Jumlah gap: {_he(str(stats.gap_count))}</td></tr>"
+        )
+    elif stats.method_key == "B" and stats.samples_expected is not None:
+        extra = (
+            f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">'
+            f"Sampel diharapkan: {_he(str(stats.samples_expected))}</td></tr>"
+        )
+
+    return (
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
+        '<div style="border-left:3px solid #64748b;padding-left:10px;">'
+        '<div style="color:#94a3b8;font-weight:700;font-size:10px;letter-spacing:0.12em;">'
+        "GAP REKAMAN CSV</div>"
+        '<div style="color:#64748b;font-size:9px;margin-top:4px;line-height:1.4;">'
+        "Estimasi kualitas rekaman (bukan diagnosis LoRa).</div>"
+        '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{method_line}</td></tr>'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{dt_line}</td></tr>'
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{actual_line}</td></tr>'
+        f"{extra}"
+        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{lost_line}</td></tr>'
+        "</table></div></div>"
     )
 
 
@@ -485,6 +539,29 @@ class AnalyzeSingleFileTab(QWidget):
         spectrum_method_row.addStretch(1)
         settings_inner.addLayout(spectrum_method_row)
 
+        gap_method_caption = QLabel("Metode gap rekaman CSV:", self)
+        gap_method_caption.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        settings_inner.addWidget(gap_method_caption)
+
+        self._gap_method_group = QButtonGroup(self)
+        self._gap_method_a_radio = QRadioButton("Metode A — per gap (lokal)", self)
+        self._gap_method_b_radio = QRadioButton("Metode B — global (ringkas)", self)
+        self._gap_method_a_radio.setToolTip(
+            "Jumlahkan sampel hilang per lubang Δt antar baris berurutan "
+            f"(gap jika Δt > {GAP_LOSS_TOLERANCE_FACTOR:.1f}× median Δt)."
+        )
+        self._gap_method_b_radio.setToolTip(
+            "Bandingkan jumlah baris aktual dengan perkiraan dari durasi ÷ median Δt."
+        )
+        for rb in (self._gap_method_a_radio, self._gap_method_b_radio):
+            rb.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        self._gap_method_group.addButton(self._gap_method_a_radio, 0)
+        self._gap_method_group.addButton(self._gap_method_b_radio, 1)
+        self._gap_method_b_radio.setChecked(True)
+        self._gap_method_group.idClicked.connect(self._on_gap_loss_method_changed)
+        settings_inner.addWidget(self._gap_method_a_radio)
+        settings_inner.addWidget(self._gap_method_b_radio)
+
         self.stats_group = QGroupBox("", self)
         stats_inner = QVBoxLayout(self.stats_group)
         stats_inner.setContentsMargins(12, 14, 12, 14)
@@ -493,11 +570,13 @@ class AnalyzeSingleFileTab(QWidget):
         self.stat_force_label = QLabel(self)
         self.stat_roll_label = QLabel(self)
         self.stat_pitch_label = QLabel(self)
+        self.stat_gap_loss_label = QLabel(self)
         for lb in (
             self.stat_tstart_label,
             self.stat_force_label,
             self.stat_roll_label,
             self.stat_pitch_label,
+            self.stat_gap_loss_label,
         ):
             lb.setObjectName("AnalyzeRichLabel")
             lb.setWordWrap(True)
@@ -506,11 +585,13 @@ class AnalyzeSingleFileTab(QWidget):
         self.stat_force_label.setText(_html_stat_placeholder())
         self.stat_roll_label.setText(_html_stat_placeholder())
         self.stat_pitch_label.setText(_html_stat_placeholder())
+        self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
 
         stats_inner.addWidget(self.stat_tstart_label)
         stats_inner.addWidget(self.stat_force_label)
         stats_inner.addWidget(self.stat_roll_label)
         stats_inner.addWidget(self.stat_pitch_label)
+        stats_inner.addWidget(self.stat_gap_loss_label)
 
         self.save_stats_btn = QPushButton("Simpan statistik…", self)
         self.save_stats_btn.setObjectName("SaveStatsButton")
@@ -610,6 +691,22 @@ class AnalyzeSingleFileTab(QWidget):
         ti.setPos(lx, my)
         plot.addItem(ti)
         self._spec_peak_artists.append((plot, sc, ti))
+
+    def _gap_loss_method_key(self) -> str:
+        """``A`` = per gap; ``B`` = global."""
+        return "A" if self._gap_method_a_radio.isChecked() else "B"
+
+    def _on_gap_loss_method_changed(self, _button_id: int) -> None:
+        if (
+            self._loaded_ts is not None
+            and self._loaded_f is not None
+            and self._loaded_r is not None
+            and self._loaded_p is not None
+        ):
+            self._clear_stat_markers()
+            self._apply_statistics(
+                self._loaded_ts, self._loaded_f, self._loaded_r, self._loaded_p
+            )
 
     def _on_spectrum_method_changed(self, _index: int) -> None:
         self._refresh_spectrum_plots()
@@ -771,6 +868,7 @@ class AnalyzeSingleFileTab(QWidget):
             self.stat_force_label.setText(_html_stat_placeholder())
             self.stat_roll_label.setText(_html_stat_placeholder())
             self.stat_pitch_label.setText(_html_stat_placeholder())
+            self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
             return
 
         def _argmin_first(vals: list[float]) -> int:
@@ -797,6 +895,12 @@ class AnalyzeSingleFileTab(QWidget):
         peak_f = _spectrum_peak_frequency_hz(f_list, fs, use_welch=use_welch)
         peak_r = _spectrum_peak_frequency_hz(r_list, fs, use_welch=use_welch)
         peak_p = _spectrum_peak_frequency_hz(p_list, fs, use_welch=use_welch)
+
+        gap_stats = compute_gap_loss(ts_list, method=self._gap_loss_method_key())
+        if gap_stats is not None:
+            self.stat_gap_loss_label.setText(_html_stat_gap_loss(gap_stats))
+        else:
+            self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
 
         self.stat_tstart_label.setText(_html_stat_tstart(t_start))
         self.stat_force_label.setText(
@@ -919,6 +1023,14 @@ class AnalyzeSingleFileTab(QWidget):
             "dominant_hz_roll": peak_r,
             "dominant_hz_pitch": peak_p,
             "spectrum_method": method_label,
+            "gap_loss_method": gap_stats.method_label if gap_stats else "",
+            "gap_dt_nominal_s": gap_stats.dt_nominal_s if gap_stats else None,
+            "gap_fs_hz": gap_stats.fs_hz if gap_stats else None,
+            "gap_samples_actual": gap_stats.samples_actual if gap_stats else None,
+            "gap_samples_lost": gap_stats.samples_lost if gap_stats else None,
+            "gap_loss_pct": gap_stats.loss_pct if gap_stats else None,
+            "gap_count": gap_stats.gap_count if gap_stats else None,
+            "gap_samples_expected": gap_stats.samples_expected if gap_stats else None,
         }
         self.save_stats_btn.setEnabled(self._export_ctx is not None)
 
@@ -1016,6 +1128,65 @@ class AnalyzeSingleFileTab(QWidget):
                     method,
                 ]
             )
+            w.writerow([])
+            w.writerow(["Gap rekaman CSV (estimasi)"])
+            w.writerow(["Metrik", "Nilai"])
+            w.writerow(["Metode", str(snap.get("gap_loss_method", ""))])
+            if snap.get("gap_dt_nominal_s") is not None:
+                w.writerow(
+                    [
+                        "Delta_t_nominal",
+                        f"{float(snap['gap_dt_nominal_s']):.6g}",
+                        "s",
+                    ]
+                )
+                w.writerow(
+                    [
+                        "Laju_sampel_efektif",
+                        f"{float(snap['gap_fs_hz']):.6g}",
+                        "Hz",
+                    ]
+                )
+            if snap.get("gap_samples_actual") is not None:
+                w.writerow(
+                    [
+                        "Sampel_tercatat",
+                        str(int(snap["gap_samples_actual"])),
+                        "baris",
+                    ]
+                )
+            if snap.get("gap_samples_expected") is not None:
+                w.writerow(
+                    [
+                        "Sampel_diharapkan",
+                        str(int(snap["gap_samples_expected"])),
+                        "baris",
+                    ]
+                )
+            if snap.get("gap_count") is not None:
+                w.writerow(
+                    [
+                        "Jumlah_gap",
+                        str(int(snap["gap_count"])),
+                        "kejadian",
+                    ]
+                )
+            if snap.get("gap_samples_lost") is not None:
+                w.writerow(
+                    [
+                        "Sampel_hilang_estimasi",
+                        str(int(snap["gap_samples_lost"])),
+                        "sampel",
+                    ]
+                )
+            if snap.get("gap_loss_pct") is not None:
+                w.writerow(
+                    [
+                        "Persen_hilang",
+                        f"{float(snap['gap_loss_pct']):.4g}",
+                        "%",
+                    ]
+                )
 
     def save_statistics_csv(self) -> None:
         if self._export_ctx is None or self._stats_snapshot is None:

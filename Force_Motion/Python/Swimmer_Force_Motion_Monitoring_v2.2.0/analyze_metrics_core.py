@@ -14,19 +14,113 @@ import numpy as np
 from scipy import signal
 
 
-def estimate_sample_rate_hz(ts: list[float]) -> float:
-    """Perkiraan fs dari median Δt antar sampel (robust untuk jitter kecil)."""
-    if len(ts) < 2:
-        return 1.0
+GAP_LOSS_TOLERANCE_FACTOR = 1.5
+
+
+def consecutive_deltas_s(ts: list[float]) -> list[float]:
+    """Selisih TimeStamp(s) antar baris berurutan (hanya Δt > 0)."""
     dts: list[float] = []
     for i in range(len(ts) - 1):
         dt = float(ts[i + 1]) - float(ts[i])
         if dt > 1e-9:
             dts.append(dt)
+    return dts
+
+
+def median_dt_s(ts: list[float]) -> float | None:
+    """Median Δt antar sampel; None jika tidak cukup data."""
+    dts = consecutive_deltas_s(ts)
     if not dts:
+        return None
+    return float(statistics.median(dts))
+
+
+def estimate_sample_rate_hz(ts: list[float]) -> float:
+    """Perkiraan fs dari median Δt antar sampel (robust untuk jitter kecil)."""
+    dt_med = median_dt_s(ts)
+    if dt_med is None or dt_med <= 1e-12:
         return 1.0
-    dt_med = statistics.median(dts)
-    return 1.0 / dt_med if dt_med > 1e-12 else 1.0
+    return 1.0 / dt_med
+
+
+@dataclass(frozen=True)
+class GapLossStats:
+    """Estimasi sampel hilang dari gap timestamp CSV rekaman (bukan diagnosis LoRa)."""
+
+    method_label: str
+    method_key: str
+    dt_nominal_s: float
+    fs_hz: float
+    samples_actual: int
+    samples_lost: int
+    loss_pct: float
+    samples_expected: int | None = None
+    gap_count: int | None = None
+
+
+def compute_gap_loss(
+    ts: list[float],
+    *,
+    method: str = "B",
+    tolerance_factor: float = GAP_LOSS_TOLERANCE_FACTOR,
+) -> GapLossStats | None:
+    """
+    Estimasi sampel hilang pada rekaman CSV.
+
+    - **Metode A** (``method="A"``): per pasangan baris; jika Δt > toleransi × Δt_nominal,
+      ``n_lost = round(Δt/Δt_nom) − 1`` dijumlahkan.
+    - **Metode B** (``method="B"``): global; ``n_expected = round(durasi/Δt_nom)+1``,
+      ``n_lost = max(0, n_expected − n_actual)``.
+
+    ``Δt_nominal`` = median selisih timestamp antar baris berurutan.
+    """
+    if len(ts) < 2:
+        return None
+    dt_nom = median_dt_s(ts)
+    if dt_nom is None or dt_nom <= 1e-12:
+        return None
+
+    fs_hz = 1.0 / dt_nom
+    n_actual = len(ts)
+    key = method.upper()
+    if key not in ("A", "B"):
+        key = "B"
+
+    if key == "A":
+        threshold = dt_nom * tolerance_factor
+        total_lost = 0
+        gap_count = 0
+        for dt in consecutive_deltas_s(ts):
+            if dt > threshold:
+                total_lost += max(0, round(dt / dt_nom) - 1)
+                gap_count += 1
+        n_expected = n_actual + total_lost
+        loss_pct = 100.0 * total_lost / n_expected if n_expected > 0 else 0.0
+        return GapLossStats(
+            method_label="Metode A — per gap",
+            method_key="A",
+            dt_nominal_s=dt_nom,
+            fs_hz=fs_hz,
+            samples_actual=n_actual,
+            samples_lost=total_lost,
+            loss_pct=loss_pct,
+            gap_count=gap_count,
+        )
+
+    duration = float(ts[-1]) - float(ts[0])
+    n_expected = int(round(duration / dt_nom)) + 1
+    total_lost = max(0, n_expected - n_actual)
+    loss_pct = 100.0 * total_lost / n_expected if n_expected > 0 else 0.0
+    return GapLossStats(
+        method_label="Metode B — global",
+        method_key="B",
+        dt_nominal_s=dt_nom,
+        fs_hz=fs_hz,
+        samples_actual=n_actual,
+        samples_lost=total_lost,
+        loss_pct=loss_pct,
+        samples_expected=n_expected,
+    )
 
 
 def spectrum_fft_bins(y: list[float], fs_hz: float) -> tuple[np.ndarray, np.ndarray]:

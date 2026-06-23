@@ -7,6 +7,8 @@ Changelog (2.1.0 → 2.2.0)
 ==========================
 - **Tab Live — baterai** — terima kolom kelima ``Baterai(%)`` dari serial (mis. LoRa
   Receiver); tampilkan di grup **Nilai terakhir**; **tidak** ditulis ke CSV rekaman.
+- **Tab Analisa — gap rekaman CSV** — radio **Metode A** (per gap) / **Metode B**
+  (global); estimasi sampel hilang dari timestamp; diekspor ke ``DataStatistik/``.
 
 Changelog (2.0.0 → 2.1.0)
 ==========================
