@@ -186,18 +186,20 @@ def _html_tstart_placeholder() -> str:
     return (
         '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
         '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
-        "TimeStamp Start pada — s"
+        "TimeStamp Start pada — s<br/>"
+        "TimeStamp Stop pada — s"
         "</p></div>"
     )
 
 
-def _html_stat_tstart(t_start_s: float) -> str:
-    """Waktu paling awal di kolom TimeStamp CSV (min), satu baris dalam kartu strip."""
+def _html_stat_timestamp_range(t_start_s: float, t_stop_s: float) -> str:
+    """Rentang waktu analisa (sampel pertama & terakhir dalam segmen terpilih)."""
     return (
         '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
         '<div style="border-left:3px solid #64748b;padding-left:8px;">'
-        '<div style="color:#f8fafc;font-size:11px;font-weight:600;line-height:1.35;">'
-        f"TimeStamp Start pada {_he(f'{t_start_s:.2f}')} s"
+        '<div style="color:#f8fafc;font-size:11px;font-weight:600;line-height:1.45;">'
+        f"TimeStamp Start pada {_he(f'{t_start_s:.2f}')} s<br/>"
+        f"TimeStamp Stop pada {_he(f'{t_stop_s:.2f}')} s"
         "</div></div></div>"
     )
 
@@ -1134,6 +1136,7 @@ class AnalyzeSingleFileTab(QWidget):
         ts_min = min(ts_list)
         ts_max = max(ts_list)
         t_start = ts_min
+        t_stop = ts_max
         fs = _estimate_sample_rate_hz(ts_list)
         use_welch = self._spectrum_use_welch()
         method_label = "Welch PSD" if use_welch else "FFT"
@@ -1147,7 +1150,7 @@ class AnalyzeSingleFileTab(QWidget):
         else:
             self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
 
-        self.stat_tstart_label.setText(_html_stat_tstart(t_start))
+        self.stat_tstart_label.setText(_html_stat_timestamp_range(t_start, t_stop))
         self.stat_force_label.setText(
             _html_stat_force(v_fmax, t_fmax, peak_f, method_label)
         )
@@ -1254,6 +1257,7 @@ class AnalyzeSingleFileTab(QWidget):
 
         self._stats_snapshot = {
             "timestamp_start_s": float(t_start),
+            "timestamp_stop_s": float(t_stop),
             "force_max_kg": float(v_fmax),
             "force_max_t_s": float(t_fmax),
             "roll_min_deg": float(r_list[i_rmin]),
@@ -1321,6 +1325,9 @@ class AnalyzeSingleFileTab(QWidget):
             w.writerow([])
             w.writerow(
                 ["Timestampstart (s)", f"{float(snap['timestamp_start_s']):.6g}"]
+            )
+            w.writerow(
+                ["Timestampstop (s)", f"{float(snap['timestamp_stop_s']):.6g}"]
             )
             w.writerow([])
             w.writerow(["Metrik", "Nilai", "Satuan", "Waktu (s)"])
