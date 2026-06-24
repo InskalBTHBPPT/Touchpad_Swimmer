@@ -49,6 +49,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QRadioButton,
+    QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -72,6 +74,9 @@ def _path_text_for_dialog(path: Path | str) -> str:
 
 def _he(s: str) -> str:
     return escape(s, quote=False)
+
+
+_STAT_ROW_STYLE = "color:#ffffff;padding:2px 0;line-height:1.35;font-weight:600;font-size:11px;"
 
 
 def _html_load_field(label: str, value: str, *, monospace: bool = False, margin_top: int = 8) -> str:
@@ -140,31 +145,32 @@ def _html_stat_gap_loss(stats: GapLossStats) -> str:
     actual_line = f"Sampel tercatat: {_he(str(stats.samples_actual))}"
     method_line = _he(stats.method_label)
 
+    row_style = _STAT_ROW_STYLE
     extra = ""
     if stats.method_key == "A" and stats.gap_count is not None:
         extra = (
-            f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">'
+            f'<tr><td colspan="2" style="{row_style}">'
             f"Jumlah gap: {_he(str(stats.gap_count))}</td></tr>"
         )
     elif stats.method_key == "B" and stats.samples_expected is not None:
         extra = (
-            f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">'
+            f'<tr><td colspan="2" style="{row_style}">'
             f"Sampel diharapkan: {_he(str(stats.samples_expected))}</td></tr>"
         )
 
     return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
-        '<div style="border-left:3px solid #64748b;padding-left:10px;">'
-        '<div style="color:#94a3b8;font-weight:700;font-size:10px;letter-spacing:0.12em;">'
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
+        '<div style="border-left:3px solid #64748b;padding-left:8px;">'
+        '<div style="color:#94a3b8;font-weight:700;font-size:9px;letter-spacing:0.1em;">'
         "GAP REKAMAN CSV</div>"
-        '<div style="color:#64748b;font-size:9px;margin-top:4px;line-height:1.4;">'
+        '<div style="color:#64748b;font-size:9px;margin-top:2px;line-height:1.3;">'
         "Estimasi kualitas rekaman (bukan diagnosis LoRa).</div>"
-        '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{method_line}</td></tr>'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{dt_line}</td></tr>'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{actual_line}</td></tr>'
+        '<table style="margin-top:4px;font-size:11px;color:#cbd5e1;width:100%;">'
+        f'<tr><td colspan="2" style="{row_style}">{method_line}</td></tr>'
+        f'<tr><td colspan="2" style="{row_style}">{dt_line}</td></tr>'
+        f'<tr><td colspan="2" style="{row_style}">{actual_line}</td></tr>'
         f"{extra}"
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{lost_line}</td></tr>'
+        f'<tr><td colspan="2" style="{row_style}">{lost_line}</td></tr>'
         "</table></div></div>"
     )
 
@@ -181,9 +187,9 @@ def _html_tstart_placeholder() -> str:
 def _html_stat_tstart(t_start_s: float) -> str:
     """Waktu paling awal di kolom TimeStamp CSV (min), satu baris dalam kartu strip."""
     return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
-        '<div style="border-left:3px solid #64748b;padding-left:10px;">'
-        '<div style="color:#f8fafc;font-size:13px;font-weight:600;line-height:1.5;">'
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
+        '<div style="border-left:3px solid #64748b;padding-left:8px;">'
+        '<div style="color:#f8fafc;font-size:11px;font-weight:600;line-height:1.35;">'
         f"TimeStamp Start pada {_he(f'{t_start_s:.2f}')} s"
         "</div></div></div>"
     )
@@ -219,12 +225,12 @@ def _html_stat_force(
     )
     line2 = _html_stat_freq_dominant(peak_hz, method_label)
     return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
-        '<div style="border-left:3px solid #38bdf8;padding-left:10px;">'
-        '<div style="color:#38bdf8;font-weight:700;font-size:10px;letter-spacing:0.12em;">FORCE</div>'
-        '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{line1}</td></tr>'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line2}</td></tr>'
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
+        '<div style="border-left:3px solid #38bdf8;padding-left:8px;">'
+        '<div style="color:#38bdf8;font-weight:700;font-size:9px;letter-spacing:0.1em;">FORCE</div>'
+        '<table style="margin-top:4px;font-size:11px;color:#cbd5e1;width:100%;">'
+        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line1}</td></tr>'
+        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line2}</td></tr>'
         "</table></div></div>"
     )
 
@@ -245,13 +251,13 @@ def _html_stat_roll(
     )
     line3 = _html_stat_freq_dominant(peak_hz, method_label)
     return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
-        '<div style="border-left:3px solid #f59e0b;padding-left:10px;">'
-        '<div style="color:#fbbf24;font-weight:700;font-size:10px;letter-spacing:0.12em;">ROLL</div>'
-        '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{line1}</td></tr>'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line2}</td></tr>'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line3}</td></tr>'
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
+        '<div style="border-left:3px solid #f59e0b;padding-left:8px;">'
+        '<div style="color:#fbbf24;font-weight:700;font-size:9px;letter-spacing:0.1em;">ROLL</div>'
+        '<table style="margin-top:4px;font-size:11px;color:#cbd5e1;width:100%;">'
+        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line1}</td></tr>'
+        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line2}</td></tr>'
+        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line3}</td></tr>'
         "</table></div></div>"
     )
 
@@ -272,15 +278,63 @@ def _html_stat_pitch(
     )
     line3 = _html_stat_freq_dominant(peak_hz, method_label)
     return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:10px 12px 12px 12px;">'
-        '<div style="border-left:3px solid #a78bfa;padding-left:10px;">'
-        '<div style="color:#c4b5fd;font-weight:700;font-size:10px;letter-spacing:0.12em;">PITCH</div>'
-        '<table style="margin-top:8px;font-size:12px;color:#cbd5e1;width:100%;">'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0;line-height:1.5;font-weight:600;">{line1}</td></tr>'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line2}</td></tr>'
-        f'<tr><td colspan="2" style="color:#ffffff;padding:4px 0 0 0;line-height:1.5;font-weight:600;">{line3}</td></tr>'
+        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
+        '<div style="border-left:3px solid #a78bfa;padding-left:8px;">'
+        '<div style="color:#c4b5fd;font-weight:700;font-size:9px;letter-spacing:0.1em;">PITCH</div>'
+        '<table style="margin-top:4px;font-size:11px;color:#cbd5e1;width:100%;">'
+        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line1}</td></tr>'
+        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line2}</td></tr>'
+        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line3}</td></tr>'
         "</table></div></div>"
     )
+
+
+def _configure_plot_widget_for_responsive_layout(
+    plot: pg.PlotWidget,
+    *,
+    min_height: int = 100,
+) -> None:
+    """Izinkan plot menyusut agar jendela muat di layar 1080p (hindari min-height berlebihan)."""
+    plot.setMinimumHeight(min_height)
+    plot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+
+_SCROLL_AREA_STYLE = """
+QScrollArea { background: transparent; border: none; }
+QScrollBar:vertical {
+    background: #1f2937;
+    width: 10px;
+    margin: 2px 0 2px 0;
+}
+QScrollBar::handle:vertical {
+    background: #4b5563;
+    border-radius: 4px;
+    min-height: 28px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar:horizontal {
+    background: #1f2937;
+    height: 10px;
+    margin: 0 2px 0 2px;
+}
+QScrollBar::handle:horizontal {
+    background: #4b5563;
+    border-radius: 4px;
+    min-width: 28px;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+"""
+
+
+def wrap_in_scroll_area(content: QWidget, parent: QWidget | None = None) -> QScrollArea:
+    scroll = QScrollArea(parent)
+    scroll.setWidgetResizable(True)
+    scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+    scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    scroll.setStyleSheet(_SCROLL_AREA_STYLE)
+    scroll.setWidget(content)
+    return scroll
 
 
 def make_three_stack_plots() -> tuple[
@@ -327,6 +381,9 @@ def make_three_stack_plots() -> tuple[
     pitch_w.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
     pitch_w.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
     pitch_c = pitch_w.plot(pen=pg.mkPen(color="#a78bfa", width=2))
+
+    for w in (force_w, roll_w, pitch_w):
+        _configure_plot_widget_for_responsive_layout(w)
 
     return force_w, roll_w, pitch_w, force_c, roll_c, pitch_c
 
@@ -392,6 +449,9 @@ def _spectrum_welch_bins(y: list[float], fs_hz: float) -> tuple[np.ndarray, np.n
     return np.array([]), np.array([])
 
 
+_ANALYZE_PLOT_MIN_HEIGHT = 72
+
+
 def make_analyze_time_spectrum_row(
     *,
     time_title: str,
@@ -402,9 +462,9 @@ def make_analyze_time_spectrum_row(
 ) -> tuple[pg.PlotWidget, pg.PlotDataItem, pg.PlotWidget, pg.PlotDataItem]:
     """Satu baris tab Analisa: plot waktu (kiri) + plot spektrum (kanan)."""
     time_w = pg.PlotWidget()
-    time_w.setLabel("left", time_left, color="#e5e7eb", **{"font-size": "11pt"})
-    time_w.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "11pt"})
-    time_w.setTitle(time_title, color="#e5e7eb", size="11pt")
+    time_w.setLabel("left", time_left, color="#e5e7eb", **{"font-size": "9pt"})
+    time_w.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "9pt"})
+    time_w.setTitle(time_title, color="#e5e7eb", size="9pt")
     time_w.setBackground("#1f2937")
     time_w.showGrid(x=False, y=False)
     time_w.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
@@ -414,9 +474,9 @@ def make_analyze_time_spectrum_row(
     time_c = time_w.plot(pen=pg.mkPen(color=line_pen, width=2))
 
     spec_w = pg.PlotWidget()
-    spec_w.setLabel("left", "|FFT|", color="#e5e7eb", **{"font-size": "10pt"})
-    spec_w.setLabel("bottom", "Frequency (Hz)", color="#e5e7eb", **{"font-size": "10pt"})
-    spec_w.setTitle(spectrum_title, color="#e5e7eb", size="10pt")
+    spec_w.setLabel("left", "|FFT|", color="#e5e7eb", **{"font-size": "9pt"})
+    spec_w.setLabel("bottom", "Frequency (Hz)", color="#e5e7eb", **{"font-size": "9pt"})
+    spec_w.setTitle(spectrum_title, color="#e5e7eb", size="9pt")
     spec_w.setBackground("#1f2937")
     spec_w.showGrid(x=False, y=False)
     spec_w.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
@@ -424,6 +484,9 @@ def make_analyze_time_spectrum_row(
     spec_w.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
     spec_w.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
     spec_c = spec_w.plot(pen=pg.mkPen(color=spectrum_pen, width=2))
+
+    for w in (time_w, spec_w):
+        _configure_plot_widget_for_responsive_layout(w, min_height=_ANALYZE_PLOT_MIN_HEIGHT)
 
     return time_w, time_c, spec_w, spec_c
 
@@ -453,11 +516,14 @@ class AnalyzeSingleFileTab(QWidget):
         self._fs_hz: float = 1.0
 
         root = QHBoxLayout(self)
-        root.setContentsMargins(8, 8, 8, 8)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(6)
 
         plots_panel = QWidget(self)
+        plots_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         plots_layout = QVBoxLayout(plots_panel)
         plots_layout.setContentsMargins(0, 0, 0, 0)
+        plots_layout.setSpacing(4)
 
         self.force_plot_widget, self.force_curve, self.force_spec_plot_widget, self.force_spec_curve = (
             make_analyze_time_spectrum_row(
@@ -492,20 +558,26 @@ class AnalyzeSingleFileTab(QWidget):
             (self.roll_plot_widget, self.roll_spec_plot_widget),
             (self.pitch_plot_widget, self.pitch_spec_plot_widget),
         ):
-            row = QHBoxLayout()
-            row.setSpacing(6)
-            row.addWidget(tw, 3)
-            row.addWidget(sw, 2)
-            plots_layout.addLayout(row, 1)
+            row_widget = QWidget(plots_panel)
+            row_widget.setMinimumHeight(_ANALYZE_PLOT_MIN_HEIGHT)
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(4)
+            row_layout.addWidget(tw, 3)
+            row_layout.addWidget(sw, 2)
+            plots_layout.addWidget(row_widget, 1)
 
-        right_panel = QWidget(self)
-        right_layout = QVBoxLayout(right_panel)
+        right_column = QWidget(self)
+        right_column.setMinimumWidth(260)
+        right_column.setMaximumWidth(380)
+        right_layout = QVBoxLayout(right_column)
         right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(6)
 
         load_group = QGroupBox("", self)
         load_group.setLayout(QVBoxLayout())
-        load_group.layout().setContentsMargins(12, 14, 12, 14)
-        load_group.layout().setSpacing(10)
+        load_group.layout().setContentsMargins(10, 10, 10, 10)
+        load_group.layout().setSpacing(8)
 
         self.load_csv_btn = QPushButton("Load CSV…", self)
         self.load_csv_btn.clicked.connect(self.load_csv)
@@ -520,8 +592,8 @@ class AnalyzeSingleFileTab(QWidget):
 
         settings_group = QGroupBox("Analisa Setting", self)
         settings_inner = QVBoxLayout(settings_group)
-        settings_inner.setContentsMargins(12, 14, 12, 14)
-        settings_inner.setSpacing(8)
+        settings_inner.setContentsMargins(10, 10, 10, 10)
+        settings_inner.setSpacing(6)
         spectrum_method_row = QHBoxLayout()
         spectrum_method_row.setSpacing(10)
         spectrum_lbl = QLabel("Metode spektrum:", self)
@@ -562,10 +634,10 @@ class AnalyzeSingleFileTab(QWidget):
         settings_inner.addWidget(self._gap_method_a_radio)
         settings_inner.addWidget(self._gap_method_b_radio)
 
-        self.stats_group = QGroupBox("", self)
+        self.stats_group = QGroupBox("Statistik", self)
         stats_inner = QVBoxLayout(self.stats_group)
-        stats_inner.setContentsMargins(12, 14, 12, 14)
-        stats_inner.setSpacing(10)
+        stats_inner.setContentsMargins(10, 10, 10, 10)
+        stats_inner.setSpacing(6)
         self.stat_tstart_label = QLabel(self)
         self.stat_force_label = QLabel(self)
         self.stat_roll_label = QLabel(self)
@@ -613,11 +685,24 @@ class AnalyzeSingleFileTab(QWidget):
 
         right_layout.addWidget(load_group, 0)
         right_layout.addWidget(settings_group, 0)
-        right_layout.addWidget(self.stats_group, 0)
-        right_layout.addStretch(1)
 
-        root.addWidget(plots_panel, 4)
-        root.addWidget(right_panel, 1)
+        stats_scroll_body = QWidget(self)
+        stats_scroll_body.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Minimum,
+        )
+        stats_scroll_layout = QVBoxLayout(stats_scroll_body)
+        stats_scroll_layout.setContentsMargins(0, 0, 0, 0)
+        stats_scroll_layout.setSpacing(0)
+        stats_scroll_layout.addWidget(self.stats_group)
+        stats_scroll = wrap_in_scroll_area(stats_scroll_body, self)
+        stats_scroll.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        right_layout.addWidget(stats_scroll, 1)
+
+        self._plots_scroll = wrap_in_scroll_area(plots_panel, self)
+        self._plots_scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        root.addWidget(self._plots_scroll, 4)
+        root.addWidget(right_column, 1)
 
         self._clear_spectrum_plots()
 

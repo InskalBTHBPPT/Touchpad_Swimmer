@@ -188,7 +188,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtGui import QDesktopServices, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -202,6 +202,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QStyle,
     QTabWidget,
     QVBoxLayout,
@@ -209,7 +210,7 @@ from PySide6.QtWidgets import (
 )
 
 from analyze_multi_file_tab import AnalyzeMultiFileTab
-from analyze_single_file_tab import AnalyzeSingleFileTab, make_three_stack_plots
+from analyze_single_file_tab import AnalyzeSingleFileTab, make_three_stack_plots, wrap_in_scroll_area
 from live_csv_io import LIVE_CSV_DATA_HEADER
 
 
@@ -413,28 +414,18 @@ class MainWindow(QMainWindow):
         indicators = QGroupBox("Nilai terakhir", self)
         ind_outer = QVBoxLayout(indicators)
         ind_outer.setSpacing(6)
-        self.force_label = QLabel("—")
-        self.roll_label = QLabel("—")
-        self.pitch_label = QLabel("—")
-        self.battery_label = QLabel("—")
+        live_row_style = "color: #e5e7eb; font-size: 10pt;"
+        self.force_label = QLabel("Force (Kg): —", self)
+        self.roll_label = QLabel("Roll Motion (Deg): —", self)
+        self.pitch_label = QLabel("Pitch Motion (Deg): —", self)
+        self.battery_label = QLabel("Baterai (%): —", self)
         for w in (self.force_label, self.roll_label, self.pitch_label, self.battery_label):
-            w.setStyleSheet("color: #e5e7eb; font-weight: bold; font-size: 13pt;")
+            w.setStyleSheet(live_row_style)
 
-        def _pair(title: str, value_label: QLabel) -> QWidget:
-            box = QWidget(self)
-            lay = QVBoxLayout(box)
-            lay.setContentsMargins(0, 0, 0, 0)
-            lay.setSpacing(2)
-            title_lbl = QLabel(title)
-            title_lbl.setStyleSheet("color: #9ca3af; font-size: 10pt;")
-            lay.addWidget(title_lbl)
-            lay.addWidget(value_label)
-            return box
-
-        ind_outer.addWidget(_pair("Force (Kg)", self.force_label))
-        ind_outer.addWidget(_pair("Roll Motion (Deg)", self.roll_label))
-        ind_outer.addWidget(_pair("Pitch Motion (Deg)", self.pitch_label))
-        ind_outer.addWidget(_pair("Baterai (%)", self.battery_label))
+        ind_outer.addWidget(self.force_label)
+        ind_outer.addWidget(self.roll_label)
+        ind_outer.addWidget(self.pitch_label)
+        ind_outer.addWidget(self.battery_label)
 
         about_help_row = QHBoxLayout()
         about_help_row.addStretch(1)
@@ -453,7 +444,7 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(controls, 0)
         right_layout.addWidget(indicators, 1)
 
-        live_layout.addWidget(plots_panel, 4)
+        live_layout.addWidget(wrap_in_scroll_area(plots_panel, self), 4)
         live_layout.addWidget(right_panel, 1)
 
         # ---------- Tab Analisa (satu berkas) + tab Analisa multifile ----------
@@ -728,10 +719,10 @@ class MainWindow(QMainWindow):
         self._reset_live_indicators()
 
     def _reset_live_indicators(self) -> None:
-        self.force_label.setText("—")
-        self.roll_label.setText("—")
-        self.pitch_label.setText("—")
-        self.battery_label.setText("—")
+        self.force_label.setText("Force (Kg): —")
+        self.roll_label.setText("Roll Motion (Deg): —")
+        self.pitch_label.setText("Pitch Motion (Deg): —")
+        self.battery_label.setText("Baterai (%): —")
 
     def poll_serial(self) -> None:
         if not self.ser:
@@ -779,11 +770,11 @@ class MainWindow(QMainWindow):
         pitch_deg: float,
         battery_pct: float | None = None,
     ) -> None:
-        self.force_label.setText(f"{force_kg:.2f} Kg")
-        self.roll_label.setText(f"{roll_deg:.2f}°")
-        self.pitch_label.setText(f"{pitch_deg:.2f}°")
+        self.force_label.setText(f"Force (Kg): {force_kg:.2f} Kg")
+        self.roll_label.setText(f"Roll Motion (Deg): {roll_deg:.2f}°")
+        self.pitch_label.setText(f"Pitch Motion (Deg): {pitch_deg:.2f}°")
         if battery_pct is not None:
-            self.battery_label.setText(f"{battery_pct:.0f} %")
+            self.battery_label.setText(f"Baterai (%): {battery_pct:.0f} %")
 
         self.force_time_data.append(ts)
         self.force_data.append(force_kg)
@@ -887,8 +878,29 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
 
+def _present_main_window(win: QMainWindow) -> None:
+    """Tampilkan jendela agar muat area kerja layar (hindari setGeometry > available)."""
+    win.setMinimumSize(720, 480)
+    screen = QGuiApplication.primaryScreen()
+    if screen is None:
+        win.showMaximized()
+        return
+    avail = screen.availableGeometry()
+    target_w = min(max(win.width(), 1000), avail.width())
+    target_h = min(max(win.height(), 640), avail.height())
+    if target_w >= avail.width() - 40 and target_h >= avail.height() - 40:
+        win.showMaximized()
+    else:
+        win.resize(target_w, target_h)
+        win.move(
+            avail.x() + max(0, (avail.width() - target_w) // 2),
+            avail.y() + max(0, (avail.height() - target_h) // 2),
+        )
+        win.show()
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = MainWindow()
-    win.showMaximized()
+    _present_main_window(win)
     sys.exit(app.exec())
