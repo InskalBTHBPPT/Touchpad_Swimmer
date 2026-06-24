@@ -64,6 +64,13 @@ from live_csv_io import parse_logged_csv
 MARKER_MIN_COLOR = "#22c55e"
 MARKER_MAX_COLOR = "#ef4444"
 
+_SEGMENT_BRUSH_FORCE = pg.mkBrush(56, 189, 248, 45)
+_SEGMENT_PEN_FORCE = pg.mkPen("#38bdf8", width=1)
+_SEGMENT_BRUSH_ROLL = pg.mkBrush(245, 158, 11, 35)
+_SEGMENT_PEN_ROLL = pg.mkPen("#f59e0b", width=1)
+_SEGMENT_BRUSH_PITCH = pg.mkBrush(167, 139, 250, 35)
+_SEGMENT_PEN_PITCH = pg.mkPen("#a78bfa", width=1)
+
 
 def _path_text_for_dialog(path: Path | str) -> str:
     s = path.as_posix() if isinstance(path, Path) else str(path).replace("\\", "/")
@@ -514,6 +521,10 @@ class AnalyzeSingleFileTab(QWidget):
         self._loaded_r: list[float] | None = None
         self._loaded_p: list[float] | None = None
         self._fs_hz: float = 1.0
+        self._segment_region_force: pg.LinearRegionItem | None = None
+        self._segment_region_roll: pg.LinearRegionItem | None = None
+        self._segment_region_pitch: pg.LinearRegionItem | None = None
+        self._segment_syncing = False
 
         root = QHBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
@@ -610,6 +621,19 @@ class AnalyzeSingleFileTab(QWidget):
         spectrum_method_row.addWidget(self._spectrum_method_combo, 0)
         spectrum_method_row.addStretch(1)
         settings_inner.addLayout(spectrum_method_row)
+
+        segment_caption = QLabel("Segmen waktu (geser pada plot Force):", self)
+        segment_caption.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        settings_inner.addWidget(segment_caption)
+        self.segment_info_label = QLabel("Segmen analisa: —", self)
+        self.segment_info_label.setStyleSheet("color: #9ca3af; font-size: 10pt;")
+        self.segment_info_label.setWordWrap(True)
+        self.segment_info_label.setToolTip(
+            "Geser tepi area biru pada plot Force untuk membatasi segmen analisa. "
+            "Roll dan Pitch menampilkan area yang sama; statistik dan spektrum "
+            "dihitung hanya pada sampel di dalam segmen."
+        )
+        settings_inner.addWidget(self.segment_info_label)
 
         gap_method_caption = QLabel("Metode gap rekaman CSV:", self)
         gap_method_caption.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
@@ -777,43 +801,180 @@ class AnalyzeSingleFileTab(QWidget):
         plot.addItem(ti)
         self._spec_peak_artists.append((plot, sc, ti))
 
+    def _segment_time_bounds(self) -> tuple[float, float] | None:
+        if self._segment_region_force is not None:
+            a, b = self._segment_region_force.getRegion()
+            return min(a, b), max(a, b)
+        if self._loaded_ts:
+            return min(self._loaded_ts), max(self._loaded_ts)
+        return None
+
+    def _slice_loaded_segment(
+        self,
+    ) -> tuple[list[float], list[float], list[float], list[float]] | None:
+        if (
+            self._loaded_ts is None
+            or self._loaded_f is None
+            or self._loaded_r is None
+            or self._loaded_p is None
+        ):
+            return None
+        bounds = self._segment_time_bounds()
+        if bounds is None:
+            return None
+        t_lo, t_hi = bounds
+        ts_out: list[float] = []
+        f_out: list[float] = []
+        r_out: list[float] = []
+        p_out: list[float] = []
+        for t, fv, rv, pv in zip(
+            self._loaded_ts, self._loaded_f, self._loaded_r, self._loaded_p
+        ):
+            if t_lo <= t <= t_hi:
+                ts_out.append(t)
+                f_out.append(fv)
+                r_out.append(rv)
+                p_out.append(pv)
+        return ts_out, f_out, r_out, p_out
+
+    def _setup_segment_regions(self, ts_list: list[float]) -> None:
+        if not ts_list:
+            return
+        t_min = min(ts_list)
+        t_max = max(ts_list)
+
+        if self._segment_region_force is None:
+            self._segment_region_force = pg.LinearRegionItem(
+                values=[t_min, t_max],
+                brush=_SEGMENT_BRUSH_FORCE,
+                movable=True,
+                pen=_SEGMENT_PEN_FORCE,
+            )
+            self._segment_region_force.setZValue(5)
+            self._segment_region_force.sigRegionChanged.connect(
+                self._on_segment_region_changed
+            )
+            self.force_plot_widget.addItem(self._segment_region_force)
+
+            self._segment_region_roll = pg.LinearRegionItem(
+                values=[t_min, t_max],
+                brush=_SEGMENT_BRUSH_ROLL,
+                movable=False,
+                pen=_SEGMENT_PEN_ROLL,
+            )
+            self._segment_region_roll.setZValue(5)
+            self.roll_plot_widget.addItem(self._segment_region_roll)
+
+            self._segment_region_pitch = pg.LinearRegionItem(
+                values=[t_min, t_max],
+                brush=_SEGMENT_BRUSH_PITCH,
+                movable=False,
+                pen=_SEGMENT_PEN_PITCH,
+            )
+            self._segment_region_pitch.setZValue(5)
+            self.pitch_plot_widget.addItem(self._segment_region_pitch)
+        else:
+            self._segment_syncing = True
+            self._segment_region_force.blockSignals(True)
+            self._segment_region_force.setRegion([t_min, t_max])
+            self._segment_region_force.blockSignals(False)
+            self._segment_syncing = False
+            self._sync_mirror_segment_regions(t_min, t_max)
+
+        self._update_segment_info_label(t_min, t_max)
+
+    def _sync_mirror_segment_regions(self, t_lo: float, t_hi: float) -> None:
+        lo, hi = min(t_lo, t_hi), max(t_lo, t_hi)
+        for region in (self._segment_region_roll, self._segment_region_pitch):
+            if region is not None:
+                region.blockSignals(True)
+                region.setRegion([lo, hi])
+                region.blockSignals(False)
+
+    def _update_segment_info_label(self, t_lo: float, t_hi: float) -> None:
+        lo, hi = min(t_lo, t_hi), max(t_lo, t_hi)
+        if self._loaded_ts:
+            full_lo, full_hi = min(self._loaded_ts), max(self._loaded_ts)
+            if abs(lo - full_lo) < 1e-6 and abs(hi - full_hi) < 1e-6:
+                self.segment_info_label.setText("Segmen analisa: seluruh rekaman")
+                return
+        self.segment_info_label.setText(
+            f"Segmen analisa: {lo:.2f} s — {hi:.2f} s (durasi {hi - lo:.2f} s)"
+        )
+
+    def _on_segment_region_changed(self) -> None:
+        if self._segment_syncing or self._segment_region_force is None:
+            return
+        t_lo, t_hi = self._segment_region_force.getRegion()
+        if self._loaded_ts:
+            full_lo, full_hi = min(self._loaded_ts), max(self._loaded_ts)
+            span = full_hi - full_lo
+            eps = max(span * 1e-9, 1e-9)
+            clamped_lo = max(full_lo, min(t_lo, full_hi))
+            clamped_hi = max(full_lo, min(t_hi, full_hi))
+            if clamped_hi - clamped_lo < eps:
+                mid = (clamped_lo + clamped_hi) * 0.5
+                clamped_lo = max(full_lo, mid - eps)
+                clamped_hi = min(full_hi, mid + eps)
+            if abs(clamped_lo - t_lo) > 1e-9 or abs(clamped_hi - t_hi) > 1e-9:
+                self._segment_syncing = True
+                self._segment_region_force.blockSignals(True)
+                self._segment_region_force.setRegion([clamped_lo, clamped_hi])
+                self._segment_region_force.blockSignals(False)
+                self._segment_syncing = False
+                t_lo, t_hi = clamped_lo, clamped_hi
+        self._sync_mirror_segment_regions(t_lo, t_hi)
+        self._update_segment_info_label(t_lo, t_hi)
+        self._reanalyze_current_segment()
+
+    def _reanalyze_current_segment(self) -> None:
+        sliced = self._slice_loaded_segment()
+        if sliced is None:
+            return
+        ts_list, f_list, r_list, p_list = sliced
+        self._clear_stat_markers()
+        if not ts_list:
+            self._stats_snapshot = None
+            self.save_stats_btn.setEnabled(False)
+            self.stat_tstart_label.setText(_html_tstart_placeholder())
+            self.stat_force_label.setText(_html_stat_placeholder())
+            self.stat_roll_label.setText(_html_stat_placeholder())
+            self.stat_pitch_label.setText(_html_stat_placeholder())
+            self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
+            self._clear_spectrum_plots()
+            return
+        self._apply_statistics(ts_list, f_list, r_list, p_list)
+        bounds = self._segment_time_bounds()
+        if bounds is not None and self._stats_snapshot is not None:
+            self._stats_snapshot["segment_start_s"] = float(bounds[0])
+            self._stats_snapshot["segment_end_s"] = float(bounds[1])
+        self._refresh_spectrum_plots()
+
     def _gap_loss_method_key(self) -> str:
         """``A`` = per gap; ``B`` = global."""
         return "A" if self._gap_method_a_radio.isChecked() else "B"
 
     def _on_gap_loss_method_changed(self, _button_id: int) -> None:
-        if (
-            self._loaded_ts is not None
-            and self._loaded_f is not None
-            and self._loaded_r is not None
-            and self._loaded_p is not None
-        ):
-            self._clear_stat_markers()
-            self._apply_statistics(
-                self._loaded_ts, self._loaded_f, self._loaded_r, self._loaded_p
-            )
+        if self._loaded_ts is not None:
+            self._reanalyze_current_segment()
 
     def _on_spectrum_method_changed(self, _index: int) -> None:
-        self._refresh_spectrum_plots()
-        if (
-            self._loaded_ts is not None
-            and self._loaded_f is not None
-            and self._loaded_r is not None
-            and self._loaded_p is not None
-        ):
-            self._clear_stat_markers()
-            self._apply_statistics(
-                self._loaded_ts, self._loaded_f, self._loaded_r, self._loaded_p
-            )
+        self._reanalyze_current_segment()
 
     def _refresh_spectrum_plots(self) -> None:
         self._clear_spectrum_peak_markers()
-        if self._loaded_ts is None or self._loaded_f is None:
+        sliced = self._slice_loaded_segment()
+        if sliced is None:
             self.force_spec_curve.setData([], [])
             self.roll_spec_curve.setData([], [])
             self.pitch_spec_curve.setData([], [])
             return
-        ts = self._loaded_ts
+        ts, f_list, r_list, p_list = sliced
+        if not ts:
+            self.force_spec_curve.setData([], [])
+            self.roll_spec_curve.setData([], [])
+            self.pitch_spec_curve.setData([], [])
+            return
         fs = _estimate_sample_rate_hz(ts)
         self._fs_hz = fs
         use_welch = self._spectrum_use_welch()
@@ -831,9 +992,9 @@ class AnalyzeSingleFileTab(QWidget):
             return _spectrum_fft_bins(y, fs)
 
         channels: list[tuple[pg.PlotWidget, pg.PlotDataItem, list[float]]] = [
-            (self.force_spec_plot_widget, self.force_spec_curve, self._loaded_f),
-            (self.roll_spec_plot_widget, self.roll_spec_curve, self._loaded_r),
-            (self.pitch_spec_plot_widget, self.pitch_spec_curve, self._loaded_p),
+            (self.force_spec_plot_widget, self.force_spec_curve, f_list),
+            (self.roll_spec_plot_widget, self.roll_spec_curve, r_list),
+            (self.pitch_spec_plot_widget, self.pitch_spec_curve, p_list),
         ]
         for plot, curve, ydata in channels:
             fq, mag = compute(ydata)
@@ -878,7 +1039,6 @@ class AnalyzeSingleFileTab(QWidget):
         self._loaded_f = f_list
         self._loaded_r = r_list
         self._loaded_p = p_list
-        self._refresh_spectrum_plots()
 
         self.meta_label.setText(_html_load_block(swimmer, stroke, path.name))
 
@@ -888,8 +1048,8 @@ class AnalyzeSingleFileTab(QWidget):
             "source_file": path.name,
         }
 
-        self._clear_stat_markers()
-        self._apply_statistics(ts_list, f_list, r_list, p_list)
+        self._setup_segment_regions(ts_list)
+        self._reanalyze_current_segment()
 
     def _clear_stat_markers(self) -> None:
         for plot, txt in self._stat_texts:
@@ -1143,6 +1303,21 @@ class AnalyzeSingleFileTab(QWidget):
             w.writerow(["Gaya_Renang", stroke])
             w.writerow(["Waktu_Ekspor_Statistik", exported_at])
             w.writerow(["Berkas_Sumber", source_file])
+            seg_lo = snap.get("segment_start_s")
+            seg_hi = snap.get("segment_end_s")
+            if seg_lo is not None and seg_hi is not None:
+                w.writerow(
+                    [
+                        "Segmen_analisa_start (s)",
+                        f"{float(seg_lo):.6g}",
+                    ]
+                )
+                w.writerow(
+                    [
+                        "Segmen_analisa_finish (s)",
+                        f"{float(seg_hi):.6g}",
+                    ]
+                )
             w.writerow([])
             w.writerow(
                 ["Timestampstart (s)", f"{float(snap['timestamp_start_s']):.6g}"]
