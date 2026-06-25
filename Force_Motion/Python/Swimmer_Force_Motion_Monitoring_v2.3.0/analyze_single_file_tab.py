@@ -314,6 +314,12 @@ def _configure_plot_widget_for_responsive_layout(
     plot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
 
+def _configure_analyze_time_plot_layout(plot: pg.PlotWidget, *, height: int) -> None:
+    """Tinggi tetap per plot Analisa — tiga plot muat tanpa scroll vertikal."""
+    plot.setFixedHeight(height)
+    plot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+
 _SCROLL_AREA_STYLE = """
 QScrollArea { background: transparent; border: none; }
 QScrollBar:vertical {
@@ -464,7 +470,8 @@ def _spectrum_welch_bins(y: list[float], fs_hz: float) -> tuple[np.ndarray, np.n
     return np.array([]), np.array([])
 
 
-_ANALYZE_PLOT_MIN_HEIGHT = 52
+# Tinggi per plot waktu tab Analisa (3× + jarak ≈ muat tanpa scroll di jendela ~700px)
+_ANALYZE_PLOT_HEIGHT = 56
 
 
 def make_analyze_time_plot(
@@ -485,7 +492,7 @@ def make_analyze_time_plot(
     time_w.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
     time_w.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
     time_c = time_w.plot(pen=pg.mkPen(color=line_pen, width=2))
-    _configure_plot_widget_for_responsive_layout(time_w, min_height=_ANALYZE_PLOT_MIN_HEIGHT)
+    _configure_analyze_time_plot_layout(time_w, height=_ANALYZE_PLOT_HEIGHT)
     return time_w, time_c
 
 
@@ -523,7 +530,7 @@ def make_analyze_time_spectrum_row(
     spec_c = spec_w.plot(pen=pg.mkPen(color=spectrum_pen, width=2))
 
     for w in (time_w, spec_w):
-        _configure_plot_widget_for_responsive_layout(w, min_height=_ANALYZE_PLOT_MIN_HEIGHT)
+        _configure_plot_widget_for_responsive_layout(w, min_height=_ANALYZE_PLOT_HEIGHT)
 
     return time_w, time_c, spec_w, spec_c
 
@@ -586,15 +593,17 @@ class AnalyzeSingleFileTab(QWidget):
         )
 
         for tw in (self.force_plot_widget, self.roll_plot_widget, self.pitch_plot_widget):
-            row_widget = QWidget(time_column)
-            row_layout = QVBoxLayout(row_widget)
-            row_layout.setContentsMargins(0, 0, 0, 0)
-            row_layout.addWidget(tw)
-            time_layout.addWidget(row_widget, 1)
+            time_layout.addWidget(tw)
+
+        plot_stack_h = (
+            3 * _ANALYZE_PLOT_HEIGHT + time_layout.spacing() * 2
+        )
+        time_column.setFixedHeight(plot_stack_h)
 
         self.video_panel = AnalyzeVideoPanel(self)
 
         time_scroll = wrap_in_scroll_area(time_column, self)
+        time_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         time_scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
