@@ -8,8 +8,9 @@ Fungsi utama
 - **Plot waktu** penuh untuk Force, Roll, Pitch; **marker** titik ekstrem (min
   hijau / maks merah) dan label waktu pada plot.
 - **Playback video** rekaman kamera tab Live (``.mp4`` pasangan basename CSV) di
-  samping plot waktu; muat otomatis saat **Load CSV** (Fase A — tanpa sinkron
-  timestamp dengan plot).
+  samping plot waktu; muat otomatis saat **Load CSV**. **Sinkron kasar:** garis
+  vertikal playhead pada plot Force/Roll/Pitch mengikuti posisi video
+  (``csv_t ≈ TimeStamp baris pertama + detik video``).
 - Metode **FFT** / **Welch PSD** untuk **frekuensi dominan** di kartu statistik
   (tanpa plot spektrum).
   kartu **gap rekaman CSV** (Metode A per gap / Metode B global, pilih radio).
@@ -589,7 +590,29 @@ class AnalyzeSingleFileTab(QWidget):
         for tw in (self.force_plot_widget, self.roll_plot_widget, self.pitch_plot_widget):
             time_layout.addWidget(tw, 1)
 
+        self._playhead_lines: list[pg.InfiniteLine] = []
+        for plot in (
+            self.force_plot_widget,
+            self.roll_plot_widget,
+            self.pitch_plot_widget,
+        ):
+            playhead = pg.InfiniteLine(
+                pos=0,
+                angle=90,
+                movable=False,
+                pen=pg.mkPen("#f472b6", width=2),
+            )
+            playhead.setZValue(25)
+            playhead.setVisible(False)
+            plot.addItem(playhead)
+            self._playhead_lines.append(playhead)
+
         self.video_panel = AnalyzeVideoPanel(self)
+        self.video_panel.setToolTip(
+            "Sinkron kasar dengan plot: garis vertikal pink = "
+            "TimeStamp awal CSV + posisi video (detik)."
+        )
+        self.video_panel.position_changed.connect(self._on_video_position_changed)
 
         video_scroll = wrap_in_scroll_area(self.video_panel, self)
         video_scroll.setSizePolicy(
@@ -764,6 +787,29 @@ class AnalyzeSingleFileTab(QWidget):
             return False
         data = self._spectrum_method_combo.itemData(idx)
         return bool(data) if data is not None else False
+
+    def _video_sec_to_csv_time(self, video_sec: float) -> float | None:
+        """Sinkron kasar: detik media → sumbu Time (s) pada plot."""
+        if video_sec < 0 or self._loaded_ts is None or self.video_panel.video_path() is None:
+            return None
+        t0 = self._loaded_ts[0]
+        t1 = self._loaded_ts[-1]
+        csv_t = t0 + video_sec
+        return min(t1, max(t0, csv_t))
+
+    def _on_video_position_changed(self, video_sec: float) -> None:
+        if video_sec < 0:
+            for line in self._playhead_lines:
+                line.setVisible(False)
+            return
+        csv_t = self._video_sec_to_csv_time(video_sec)
+        if csv_t is None:
+            for line in self._playhead_lines:
+                line.setVisible(False)
+            return
+        for line in self._playhead_lines:
+            line.setPos(csv_t)
+            line.setVisible(True)
 
     def _segment_time_bounds(self) -> tuple[float, float] | None:
         if self._segment_region_force is not None:
@@ -965,6 +1011,7 @@ class AnalyzeSingleFileTab(QWidget):
             QMessageBox.warning(self, "Load Video", f"Tidak bisa membuka video:\n{path}")
             return
         self._update_meta_label()
+        self._on_video_position_changed(self.video_panel.current_position_s())
 
     def load_csv(self) -> None:
         start_dir = str(self._datalog_dir) if self._datalog_dir.is_dir() else str(self._datalog_dir.parent)
@@ -1007,6 +1054,10 @@ class AnalyzeSingleFileTab(QWidget):
 
         self._setup_segment_regions(ts_list)
         self._reanalyze_current_segment()
+        if video_name is None:
+            self._on_video_position_changed(-1.0)
+        else:
+            self._on_video_position_changed(self.video_panel.current_position_s())
 
     def _clear_stat_markers(self) -> None:
         for plot, txt in self._stat_texts:

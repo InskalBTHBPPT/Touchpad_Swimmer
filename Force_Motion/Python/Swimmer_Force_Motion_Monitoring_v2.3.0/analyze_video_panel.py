@@ -1,7 +1,8 @@
 """
 Panel playback video rekaman tab Live untuk tab Analisa (v2.3.0).
 
-Playback independen dari plot CSV (Fase A — tanpa sinkron timestamp).
+Playback sinkron kasar dengan plot CSV: ``position_changed`` mengirim detik media
+(``csv_t ≈ ts_awal + video_t`` di tab Analisa).
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import cv2
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QGroupBox,
@@ -43,6 +44,8 @@ def _format_time(seconds: float) -> str:
 
 class AnalyzeVideoPanel(QGroupBox):
     """Pemutar video MP4 hasil rekaman kamera tab Live."""
+
+    position_changed = Signal(float)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Rekaman video", parent)
@@ -120,6 +123,7 @@ class AnalyzeVideoPanel(QGroupBox):
         self._preview.setPixmap(QPixmap())
         self._info_label.setText("Video: —")
         self._time_label.setText("00:00.0 / 00:00.0")
+        self.position_changed.emit(-1.0)
 
     def load_video(self, path: Path) -> bool:
         self.clear()
@@ -150,10 +154,19 @@ class AnalyzeVideoPanel(QGroupBox):
         self._info_label.setText(f"Video: {path.name}")
         self._show_frame(0)
         self._update_time_label()
+        self._emit_position()
         return True
 
     def video_path(self) -> Path | None:
         return self._video_path
+
+    def current_position_s(self) -> float:
+        if self._fps <= 0:
+            return 0.0
+        return self._current_frame / self._fps
+
+    def duration_s(self) -> float:
+        return self._duration_s()
 
     def shutdown(self) -> None:
         self.clear()
@@ -185,6 +198,9 @@ class AnalyzeVideoPanel(QGroupBox):
             Qt.TransformationMode.SmoothTransformation,
         )
         self._preview.setPixmap(pixmap)
+
+    def _emit_position(self) -> None:
+        self.position_changed.emit(self.current_position_s())
 
     def _toggle_play(self) -> None:
         if self._cap is None:
@@ -220,6 +236,7 @@ class AnalyzeVideoPanel(QGroupBox):
             self._slider.setValue(self._current_frame)
             self._slider.blockSignals(False)
         self._update_time_label()
+        self._emit_position()
 
     def _on_slider_pressed(self) -> None:
         self._slider_dragging = True
