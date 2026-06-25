@@ -9,6 +9,8 @@ Changelog (2.2.0 → 2.3.0)
   video (OpenCV, backend MSMF/DSHOW) dan **tampilan live**; rekam ``.mp4`` ke
   ``DataLog/`` dengan basename sama seperti CSV saat **Start Log**; berhenti saat
   **Stop Log**. Modul ``live_camera_core.py``, ``live_camera_panel.py``.
+- **Tab Analisa** — tiga plot FFT diganti **playback video** pasangan CSV (auto-load
+  ``.mp4``); frekuensi dominan tetap di statistik. Modul ``analyze_video_panel.py``.
 
 Changelog (2.1.0 → 2.2.0)
 ==========================
@@ -173,6 +175,7 @@ Berkas terkait di folder yang sama
 - ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel + jendela plot).
 - ``live_camera_core.py`` — pemindaian kamera (probe MSMF/DSHOW).
 - ``live_camera_panel.py`` — panel kamera tab Live (preview + rekam video).
+- ``analyze_video_panel.py`` — playback video rekaman di tab Analisa.
 - ``UserManual_Force_Motion_v2.3.0.md`` — manual pengguna (Markdown).
 - ``UserManual_Force_Motion_v2.3.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
 - ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +

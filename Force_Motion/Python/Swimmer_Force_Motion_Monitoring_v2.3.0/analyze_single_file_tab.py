@@ -7,11 +7,11 @@ Fungsi utama
   buka berkas, default folder ``DataLog/``.
 - **Plot waktu** penuh untuk Force, Roll, Pitch; **marker** titik ekstrem (min
   hijau / maks merah) dan label waktu pada plot.
-- **Plot spektrum** satu sisi per kanal; metode **FFT** (``numpy.fft``) atau
-  **Welch PSD** (``scipy.signal.welch``), dipilih lewat ``QComboBox``; estimasi
-  laju sampel dari deret TimeStamp; marker puncak pada kurva spektrum.
-- **Panel statistik** (HTML ringan): TimeStamp Start, kartu FORCE / ROLL / PITCH
-  dengan ekstremum + **frekuensi dominan** (konsisten dengan metode spektrum),
+- **Playback video** rekaman kamera tab Live (``.mp4`` pasangan basename CSV) di
+  samping plot waktu; muat otomatis saat **Load CSV** (Fase A — tanpa sinkron
+  timestamp dengan plot).
+- Metode **FFT** / **Welch PSD** untuk **frekuensi dominan** di kartu statistik
+  (tanpa plot spektrum).
   kartu **gap rekaman CSV** (Metode A per gap / Metode B global, pilih radio).
 - **Simpan statistik** — menulis ``DataStatistik/<nama_log>_DataStaistik.csv``
   (UTF-8): metadata, ``Timestampstart (s)``, tabel ekstremum, lalu blok frekuensi
@@ -57,6 +57,7 @@ from PySide6.QtWidgets import (
 from scipy import signal
 
 from analyze_metrics_core import GAP_LOSS_TOLERANCE_FACTOR, GapLossStats, compute_gap_loss
+from analyze_video_panel import AnalyzeVideoPanel
 from live_csv_io import parse_logged_csv
 
 
@@ -102,12 +103,16 @@ def _html_load_field(label: str, value: str, *, monospace: bool = False, margin_
     )
 
 
-def _html_load_block(swimmer: str, stroke: str, filename: str) -> str:
+def _html_load_block(
+    swimmer: str, stroke: str, csv_filename: str, video_filename: str | None = None
+) -> str:
+    video_value = video_filename if video_filename else "— (tidak ditemukan)"
     return (
         '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:12px 14px;">'
         f"{_html_load_field('Nama perenang', swimmer, margin_top=0)}"
         f"{_html_load_field('Gaya renang', stroke)}"
-        f"{_html_load_field('Nama file', filename, monospace=True)}"
+        f"{_html_load_field('File CSV', csv_filename, monospace=True)}"
+        f"{_html_load_field('File video', video_value, monospace=True)}"
         "</div>"
     )
 
@@ -117,7 +122,8 @@ def _html_load_placeholder() -> str:
         '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:14px 16px;">'
         '<p style="margin:0;color:#cbd5e1;font-size:11px;line-height:1.55;">'
         'Belum ada rekaman dimuat.<br/>'
-        'Tekan <b style="color:#f1f5f9;">Load CSV…</b> untuk memilih file hasil tab Live.'
+        'Tekan <b style="color:#f1f5f9;">Load CSV…</b> untuk memilih file hasil tab Live '
+        "(video <code>.mp4</code> pasangan dimuat otomatis jika ada)."
         "</p></div>"
     )
 
@@ -461,6 +467,28 @@ def _spectrum_welch_bins(y: list[float], fs_hz: float) -> tuple[np.ndarray, np.n
 _ANALYZE_PLOT_MIN_HEIGHT = 72
 
 
+def make_analyze_time_plot(
+    *,
+    time_title: str,
+    time_left: str,
+    line_pen: str,
+) -> tuple[pg.PlotWidget, pg.PlotDataItem]:
+    """Satu plot waktu untuk tab Analisa."""
+    time_w = pg.PlotWidget()
+    time_w.setLabel("left", time_left, color="#e5e7eb", **{"font-size": "9pt"})
+    time_w.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "9pt"})
+    time_w.setTitle(time_title, color="#e5e7eb", size="9pt")
+    time_w.setBackground("#1f2937")
+    time_w.showGrid(x=False, y=False)
+    time_w.getAxis("left").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    time_w.getAxis("bottom").setPen(pg.mkPen(color="#e5e7eb", width=1))
+    time_w.getAxis("left").setTextPen(pg.mkPen(color="#e5e7eb"))
+    time_w.getAxis("bottom").setTextPen(pg.mkPen(color="#e5e7eb"))
+    time_c = time_w.plot(pen=pg.mkPen(color=line_pen, width=2))
+    _configure_plot_widget_for_responsive_layout(time_w, min_height=_ANALYZE_PLOT_MIN_HEIGHT)
+    return time_w, time_c
+
+
 def make_analyze_time_spectrum_row(
     *,
     time_title: str,
@@ -534,51 +562,43 @@ class AnalyzeSingleFileTab(QWidget):
 
         plots_panel = QWidget(self)
         plots_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        plots_layout = QVBoxLayout(plots_panel)
+        plots_layout = QHBoxLayout(plots_panel)
         plots_layout.setContentsMargins(0, 0, 0, 0)
-        plots_layout.setSpacing(4)
+        plots_layout.setSpacing(6)
 
-        self.force_plot_widget, self.force_curve, self.force_spec_plot_widget, self.force_spec_curve = (
-            make_analyze_time_spectrum_row(
-                time_title="Force (Kg) — rekaman",
-                time_left="Force (Kg)",
-                spectrum_title="Force — spektrum",
-                line_pen="#38bdf8",
-                spectrum_pen="#7dd3fc",
-            )
+        time_column = QWidget(plots_panel)
+        time_layout = QVBoxLayout(time_column)
+        time_layout.setContentsMargins(0, 0, 0, 0)
+        time_layout.setSpacing(4)
+
+        self.force_plot_widget, self.force_curve = make_analyze_time_plot(
+            time_title="Force (Kg) — rekaman",
+            time_left="Force (Kg)",
+            line_pen="#38bdf8",
         )
-        self.roll_plot_widget, self.roll_curve, self.roll_spec_plot_widget, self.roll_spec_curve = (
-            make_analyze_time_spectrum_row(
-                time_title="Roll (°) — rekaman",
-                time_left="Angle (°)",
-                spectrum_title="Roll — spektrum",
-                line_pen="#f59e0b",
-                spectrum_pen="#fcd34d",
-            )
+        self.roll_plot_widget, self.roll_curve = make_analyze_time_plot(
+            time_title="Roll (°) — rekaman",
+            time_left="Angle (°)",
+            line_pen="#f59e0b",
         )
-        self.pitch_plot_widget, self.pitch_curve, self.pitch_spec_plot_widget, self.pitch_spec_curve = (
-            make_analyze_time_spectrum_row(
-                time_title="Pitch (°) — rekaman",
-                time_left="Angle (°)",
-                spectrum_title="Pitch — spektrum",
-                line_pen="#a78bfa",
-                spectrum_pen="#c4b5fd",
-            )
+        self.pitch_plot_widget, self.pitch_curve = make_analyze_time_plot(
+            time_title="Pitch (°) — rekaman",
+            time_left="Angle (°)",
+            line_pen="#a78bfa",
         )
 
-        for tw, sw in (
-            (self.force_plot_widget, self.force_spec_plot_widget),
-            (self.roll_plot_widget, self.roll_spec_plot_widget),
-            (self.pitch_plot_widget, self.pitch_spec_plot_widget),
-        ):
-            row_widget = QWidget(plots_panel)
+        for tw in (self.force_plot_widget, self.roll_plot_widget, self.pitch_plot_widget):
+            row_widget = QWidget(time_column)
             row_widget.setMinimumHeight(_ANALYZE_PLOT_MIN_HEIGHT)
-            row_layout = QHBoxLayout(row_widget)
+            row_layout = QVBoxLayout(row_widget)
             row_layout.setContentsMargins(0, 0, 0, 0)
-            row_layout.setSpacing(4)
-            row_layout.addWidget(tw, 3)
-            row_layout.addWidget(sw, 2)
-            plots_layout.addWidget(row_widget, 1)
+            row_layout.addWidget(tw)
+            time_layout.addWidget(row_widget, 1)
+
+        self.video_panel = AnalyzeVideoPanel(plots_panel)
+
+        plots_layout.addWidget(time_column, 3)
+        plots_layout.addWidget(self.video_panel, 2)
 
         right_column = QWidget(self)
         right_column.setMinimumWidth(260)
@@ -596,6 +616,13 @@ class AnalyzeSingleFileTab(QWidget):
         self.load_csv_btn.clicked.connect(self.load_csv)
         load_group.layout().addWidget(self.load_csv_btn)
 
+        self.load_video_btn = QPushButton("Load Video…", self)
+        self.load_video_btn.setToolTip(
+            "Muat berkas MP4 secara manual jika pasangan otomatis tidak ditemukan."
+        )
+        self.load_video_btn.clicked.connect(self.load_video)
+        load_group.layout().addWidget(self.load_video_btn)
+
         self.meta_label = QLabel(self)
         self.meta_label.setObjectName("AnalyzeRichLabel")
         self.meta_label.setWordWrap(True)
@@ -609,8 +636,12 @@ class AnalyzeSingleFileTab(QWidget):
         settings_inner.setSpacing(6)
         spectrum_method_row = QHBoxLayout()
         spectrum_method_row.setSpacing(10)
-        spectrum_lbl = QLabel("Metode spektrum:", self)
+        spectrum_lbl = QLabel("Metode spektrum (statistik):", self)
         spectrum_lbl.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        spectrum_lbl.setToolTip(
+            "Frekuensi dominan pada kartu statistik dan ekspor DataStatistik "
+            "(plot spektrum tidak ditampilkan)."
+        )
         self._spectrum_method_combo = QComboBox(self)
         self._spectrum_method_combo.addItem("FFT", userData=False)
         self._spectrum_method_combo.addItem("Welch PSD", userData=True)
@@ -632,7 +663,7 @@ class AnalyzeSingleFileTab(QWidget):
         self.segment_info_label.setWordWrap(True)
         self.segment_info_label.setToolTip(
             "Geser tepi area biru pada plot Force untuk membatasi segmen analisa. "
-            "Roll dan Pitch menampilkan area yang sama; statistik dan spektrum "
+            "Roll dan Pitch menampilkan area yang sama; statistik "
             "dihitung hanya pada sampel di dalam segmen."
         )
         settings_inner.addWidget(self.segment_info_label)
@@ -705,9 +736,9 @@ class AnalyzeSingleFileTab(QWidget):
         self._scatter_roll: pg.ScatterPlotItem | None = None
         self._scatter_pitch: pg.ScatterPlotItem | None = None
         self._stat_texts: list[tuple[pg.PlotWidget, pg.TextItem]] = []
-        self._spec_peak_artists: list[tuple[pg.PlotWidget, pg.ScatterPlotItem, pg.TextItem]] = []
         self._export_ctx: dict[str, str] | None = None
         self._stats_snapshot: dict[str, float | str | None] | None = None
+        self._loaded_csv_path: Path | None = None
 
         right_layout.addWidget(load_group, 0)
         right_layout.addWidget(settings_group, 0)
@@ -730,8 +761,6 @@ class AnalyzeSingleFileTab(QWidget):
         root.addWidget(self._plots_scroll, 4)
         root.addWidget(right_column, 1)
 
-        self._clear_spectrum_plots()
-
     def _spectrum_use_welch(self) -> bool:
         """True jika metode spektrum = Welch PSD (dropdown)."""
         idx = self._spectrum_method_combo.currentIndex()
@@ -739,69 +768,6 @@ class AnalyzeSingleFileTab(QWidget):
             return False
         data = self._spectrum_method_combo.itemData(idx)
         return bool(data) if data is not None else False
-
-    def _clear_spectrum_peak_markers(self) -> None:
-        for plot, sc, ti in self._spec_peak_artists:
-            plot.removeItem(sc)
-            plot.removeItem(ti)
-        self._spec_peak_artists.clear()
-
-    def _clear_spectrum_plots(self) -> None:
-        self._clear_spectrum_peak_markers()
-        self.force_spec_curve.setData([], [])
-        self.roll_spec_curve.setData([], [])
-        self.pitch_spec_curve.setData([], [])
-
-    def _add_spectrum_peak_marker(
-        self,
-        plot: pg.PlotWidget,
-        fq: np.ndarray,
-        mag: np.ndarray,
-        *,
-        use_welch: bool,
-    ) -> None:
-        """Marker pada bin magnitudo / PSD maksimum; label f (Hz) dan Y sesuai metode."""
-        if fq.size == 0 or mag.size == 0:
-            return
-        imax = int(np.argmax(mag))
-        fx = float(fq[imax])
-        my = float(mag[imax])
-        f_min = float(fq[0])
-        f_max = float(fq[-1])
-        y_name = "PSD" if use_welch else "|FFT|"
-        text = f"f = {fx:.4f} Hz\n{y_name} = {my:.4g}"
-
-        span = (f_max - f_min) or 1.0
-        dx = max(span * 0.028, 1e-6)
-        mid = (f_min + f_max) * 0.5
-        if fx <= mid:
-            lx = fx + dx
-            anchor = (0.0, 0.5)
-        else:
-            lx = fx - dx
-            anchor = (1.0, 0.5)
-
-        sc = pg.ScatterPlotItem(
-            pos=[(fx, my)],
-            size=12,
-            symbol="o",
-            pen=pg.mkPen("#f8fafc", width=2),
-            brush=pg.mkBrush(MARKER_MAX_COLOR),
-        )
-        sc.setZValue(10)
-        plot.addItem(sc)
-        ti = pg.TextItem(
-            text,
-            color="#f8fafc",
-            anchor=anchor,
-            border=pg.mkPen("#94a3b8", width=1),
-            fill=pg.mkBrush(30, 41, 59, 230),
-        )
-        ti.setFont(QFont("Segoe UI", 9))
-        ti.setZValue(11)
-        ti.setPos(lx, my)
-        plot.addItem(ti)
-        self._spec_peak_artists.append((plot, sc, ti))
 
     def _segment_time_bounds(self) -> tuple[float, float] | None:
         if self._segment_region_force is not None:
@@ -943,14 +909,14 @@ class AnalyzeSingleFileTab(QWidget):
             self.stat_roll_label.setText(_html_stat_placeholder())
             self.stat_pitch_label.setText(_html_stat_placeholder())
             self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
-            self._clear_spectrum_plots()
             return
         self._apply_statistics(ts_list, f_list, r_list, p_list)
         bounds = self._segment_time_bounds()
         if bounds is not None and self._stats_snapshot is not None:
             self._stats_snapshot["segment_start_s"] = float(bounds[0])
             self._stats_snapshot["segment_end_s"] = float(bounds[1])
-        self._refresh_spectrum_plots()
+        if ts_list:
+            self._fs_hz = _estimate_sample_rate_hz(ts_list)
 
     def _gap_loss_method_key(self) -> str:
         """``A`` = per gap; ``B`` = global."""
@@ -963,55 +929,46 @@ class AnalyzeSingleFileTab(QWidget):
     def _on_spectrum_method_changed(self, _index: int) -> None:
         self._reanalyze_current_segment()
 
-    def _refresh_spectrum_plots(self) -> None:
-        self._clear_spectrum_peak_markers()
-        sliced = self._slice_loaded_segment()
-        if sliced is None:
-            self.force_spec_curve.setData([], [])
-            self.roll_spec_curve.setData([], [])
-            self.pitch_spec_curve.setData([], [])
+    def _try_load_paired_video(self, csv_path: Path) -> str | None:
+        video_path = csv_path.with_suffix(".mp4")
+        if video_path.is_file() and self.video_panel.load_video(video_path):
+            return video_path.name
+        self.video_panel.clear()
+        return None
+
+    def _update_meta_label(self) -> None:
+        if self._export_ctx is None:
+            self.meta_label.setText(_html_load_placeholder())
             return
-        ts, f_list, r_list, p_list = sliced
-        if not ts:
-            self.force_spec_curve.setData([], [])
-            self.roll_spec_curve.setData([], [])
-            self.pitch_spec_curve.setData([], [])
+        video_name = (
+            self.video_panel.video_path().name if self.video_panel.video_path() else None
+        )
+        self.meta_label.setText(
+            _html_load_block(
+                self._export_ctx["swimmer"],
+                self._export_ctx["stroke"],
+                self._export_ctx["source_file"],
+                video_name,
+            )
+        )
+
+    def load_video(self) -> None:
+        start_dir = str(self._datalog_dir) if self._datalog_dir.is_dir() else ""
+        if self._loaded_csv_path is not None:
+            start_dir = str(self._loaded_csv_path.parent)
+        path_str, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load video rekaman",
+            start_dir,
+            "Video MP4 (*.mp4);;Semua (*.*)",
+        )
+        if not path_str:
             return
-        fs = _estimate_sample_rate_hz(ts)
-        self._fs_hz = fs
-        use_welch = self._spectrum_use_welch()
-        y_left = "PSD (lin.)" if use_welch else "|FFT| (norm.)"
-        for sw in (
-            self.force_spec_plot_widget,
-            self.roll_spec_plot_widget,
-            self.pitch_spec_plot_widget,
-        ):
-            sw.setLabel("left", y_left, color="#e5e7eb", **{"font-size": "10pt"})
-
-        def compute(y: list[float]) -> tuple[np.ndarray, np.ndarray]:
-            if use_welch:
-                return _spectrum_welch_bins(y, fs)
-            return _spectrum_fft_bins(y, fs)
-
-        channels: list[tuple[pg.PlotWidget, pg.PlotDataItem, list[float]]] = [
-            (self.force_spec_plot_widget, self.force_spec_curve, f_list),
-            (self.roll_spec_plot_widget, self.roll_spec_curve, r_list),
-            (self.pitch_spec_plot_widget, self.pitch_spec_curve, p_list),
-        ]
-        for plot, curve, ydata in channels:
-            fq, mag = compute(ydata)
-            if fq.size == 0:
-                curve.setData([], [])
-                continue
-            curve.setData(fq, mag)
-            self._add_spectrum_peak_marker(plot, fq, mag, use_welch=use_welch)
-
-        for sw in (
-            self.force_spec_plot_widget,
-            self.roll_spec_plot_widget,
-            self.pitch_spec_plot_widget,
-        ):
-            sw.getViewBox().autoRange()
+        path = Path(path_str)
+        if not self.video_panel.load_video(path):
+            QMessageBox.warning(self, "Load Video", f"Tidak bisa membuka video:\n{path}")
+            return
+        self._update_meta_label()
 
     def load_csv(self) -> None:
         start_dir = str(self._datalog_dir) if self._datalog_dir.is_dir() else str(self._datalog_dir.parent)
@@ -1041,14 +998,16 @@ class AnalyzeSingleFileTab(QWidget):
         self._loaded_f = f_list
         self._loaded_r = r_list
         self._loaded_p = p_list
+        self._loaded_csv_path = path
 
-        self.meta_label.setText(_html_load_block(swimmer, stroke, path.name))
+        video_name = self._try_load_paired_video(path)
 
         self._export_ctx = {
             "swimmer": swimmer,
             "stroke": stroke,
             "source_file": path.name,
         }
+        self.meta_label.setText(_html_load_block(swimmer, stroke, path.name, video_name))
 
         self._setup_segment_regions(ts_list)
         self._reanalyze_current_segment()
