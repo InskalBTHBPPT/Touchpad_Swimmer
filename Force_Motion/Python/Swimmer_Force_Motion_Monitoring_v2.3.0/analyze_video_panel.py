@@ -60,10 +60,11 @@ class AnalyzeVideoPanel(QGroupBox):
 
         self._preview = QLabel("Muat CSV untuk memuat video pasangan (.mp4).", self)
         self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview.setMinimumHeight(200)
+        self._preview.setMinimumHeight(140)
+        self._preview.setMaximumHeight(320)
         self._preview.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
         )
         self._preview.setStyleSheet(
             "background: #111827; color: #6b7280; border-radius: 8px; font-size: 10pt;"

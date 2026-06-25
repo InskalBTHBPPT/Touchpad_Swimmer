@@ -215,6 +215,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QStyle,
     QTabWidget,
     QVBoxLayout,
@@ -297,7 +298,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
-        self.resize(1400, 760)
+        self.resize(1280, 700)
 
         self.ser: serial.Serial | None = None
         self.serial_timer = QTimer(self)
@@ -351,6 +352,8 @@ class MainWindow(QMainWindow):
 
         # ---------- Kanan: kontrol ----------
         right_panel = QWidget(self)
+        right_panel.setMinimumWidth(260)
+        right_panel.setMaximumWidth(360)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -459,9 +462,19 @@ class MainWindow(QMainWindow):
 
         self.camera_panel = LiveCameraPanel(self)
 
-        live_layout.addWidget(wrap_in_scroll_area(plots_panel, self), 2)
-        live_layout.addWidget(self.camera_panel, 3)
-        live_layout.addWidget(right_panel, 1)
+        center_panel = QWidget(self)
+        center_layout = QHBoxLayout(center_panel)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(8)
+        center_layout.addWidget(plots_panel, 2)
+        center_layout.addWidget(self.camera_panel, 2)
+        center_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+
+        live_layout.addWidget(wrap_in_scroll_area(center_panel, self), 1)
+        live_layout.addWidget(right_panel, 0)
 
         # ---------- Tab Analisa (satu berkas) + tab Analisa multifile ----------
         self.analyze_single_file_tab = AnalyzeSingleFileTab(
@@ -930,7 +943,7 @@ def _present_main_window(win: QMainWindow) -> None:
         return
     avail = screen.availableGeometry()
     target_w = min(max(win.width(), 1000), avail.width())
-    target_h = min(max(win.height(), 640), avail.height())
+    target_h = min(max(win.height(), 600), min(720, avail.height()))
     if target_w >= avail.width() - 40 and target_h >= avail.height() - 40:
         win.showMaximized()
     else:

@@ -398,7 +398,7 @@ def make_three_stack_plots() -> tuple[
     pitch_c = pitch_w.plot(pen=pg.mkPen(color="#a78bfa", width=2))
 
     for w in (force_w, roll_w, pitch_w):
-        _configure_plot_widget_for_responsive_layout(w)
+        _configure_plot_widget_for_responsive_layout(w, min_height=64)
 
     return force_w, roll_w, pitch_w, force_c, roll_c, pitch_c
 
@@ -464,7 +464,7 @@ def _spectrum_welch_bins(y: list[float], fs_hz: float) -> tuple[np.ndarray, np.n
     return np.array([]), np.array([])
 
 
-_ANALYZE_PLOT_MIN_HEIGHT = 72
+_ANALYZE_PLOT_MIN_HEIGHT = 52
 
 
 def make_analyze_time_plot(
@@ -589,16 +589,23 @@ class AnalyzeSingleFileTab(QWidget):
 
         for tw in (self.force_plot_widget, self.roll_plot_widget, self.pitch_plot_widget):
             row_widget = QWidget(time_column)
-            row_widget.setMinimumHeight(_ANALYZE_PLOT_MIN_HEIGHT)
             row_layout = QVBoxLayout(row_widget)
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.addWidget(tw)
             time_layout.addWidget(row_widget, 1)
 
         self.video_panel = AnalyzeVideoPanel(plots_panel)
+        self.video_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
 
         plots_layout.addWidget(time_column, 3)
         plots_layout.addWidget(self.video_panel, 2)
+        plots_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
 
         right_column = QWidget(self)
         right_column.setMinimumWidth(260)

@@ -213,16 +213,18 @@ class LiveCameraPanel(QWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self._table.itemSelectionChanged.connect(self._on_selection_changed)
-        scan_layout.addWidget(self._table, 1)
+        self._table.setMaximumHeight(96)
+        scan_layout.addWidget(self._table)
 
-        root.addWidget(scan_group, 1)
+        root.addWidget(scan_group, 0)
 
         view_group = QGroupBox("Tampilan kamera", self)
         view_layout = QVBoxLayout(view_group)
 
         self._preview_label = QLabel("Belum ada kamera dipilih.", self)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview_label.setMinimumHeight(320)
+        self._preview_label.setMinimumHeight(160)
+        self._preview_label.setMaximumHeight(280)
         self._preview_label.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -251,9 +253,14 @@ class LiveCameraPanel(QWidget):
         )
         view_layout.addWidget(self._video_name_label)
 
-        root.addWidget(view_group, 4)
+        root.addWidget(view_group, 1)
 
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(280)
+        self.setMaximumWidth(420)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Preferred,
+        )
 
         self._capture_thread = CameraCaptureThread()
         self._capture_thread.frame_ready.connect(self._on_frame)
