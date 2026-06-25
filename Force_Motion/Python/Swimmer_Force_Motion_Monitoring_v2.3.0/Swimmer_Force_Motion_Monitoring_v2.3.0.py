@@ -5,8 +5,10 @@ Versi modul ini: **2.3.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.3.0
 
 Changelog (2.2.0 → 2.3.0)
 ==========================
-- Salinan kerja dari **v2.2.0** sebagai basis pengembangan berikutnya (fitur sama
-  dengan v2.2.0 pada rilis awal v2.3.0).
+- **Tab Live — kamera** — panel di samping tiga plot: **pindai & pilih** perangkat
+  video (OpenCV, backend MSMF/DSHOW) dan **tampilan live**; rekam ``.mp4`` ke
+  ``DataLog/`` dengan basename sama seperti CSV saat **Start Log**; berhenti saat
+  **Stop Log**. Modul ``live_camera_core.py``, ``live_camera_panel.py``.
 
 Changelog (2.1.0 → 2.2.0)
 ==========================
@@ -169,6 +171,8 @@ Berkas terkait di folder yang sama
 - ``analyze_metrics_core.py`` — metrik rekaman, spektrum, **gap rekaman CSV**
   (``compute_gap_loss``; dipakai tab Analisa + multifile).
 - ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel + jendela plot).
+- ``live_camera_core.py`` — pemindaian kamera (probe MSMF/DSHOW).
+- ``live_camera_panel.py`` — panel kamera tab Live (preview + rekam video).
 - ``UserManual_Force_Motion_v2.3.0.md`` — manual pengguna (Markdown).
 - ``UserManual_Force_Motion_v2.3.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
 - ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +
@@ -216,6 +220,7 @@ from PySide6.QtWidgets import (
 
 from analyze_multi_file_tab import AnalyzeMultiFileTab
 from analyze_single_file_tab import AnalyzeSingleFileTab, make_three_stack_plots, wrap_in_scroll_area
+from live_camera_panel import LiveCameraPanel
 from live_csv_io import LIVE_CSV_DATA_HEADER
 
 
@@ -289,7 +294,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
-        self.resize(1100, 720)
+        self.resize(1280, 720)
 
         self.ser: serial.Serial | None = None
         self.serial_timer = QTimer(self)
@@ -449,7 +454,10 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(controls, 0)
         right_layout.addWidget(indicators, 1)
 
-        live_layout.addWidget(wrap_in_scroll_area(plots_panel, self), 4)
+        self.camera_panel = LiveCameraPanel(self)
+
+        live_layout.addWidget(wrap_in_scroll_area(plots_panel, self), 3)
+        live_layout.addWidget(self.camera_panel, 2)
         live_layout.addWidget(right_panel, 1)
 
         # ---------- Tab Analisa (satu berkas) + tab Analisa multifile ----------
@@ -502,6 +510,20 @@ class MainWindow(QMainWindow):
                 border-color: #60a5fa;
             }
             QCheckBox::indicator:disabled { background: #2d3643; border-color: #4b5563; }
+            QTableWidget {
+                background: #111827;
+                color: #e5e7eb;
+                gridline-color: #374151;
+                border: 1px solid #374151;
+                border-radius: 8px;
+            }
+            QTableWidget::item:selected { background: #1d4ed8; }
+            QHeaderView::section {
+                background: #1f2937;
+                color: #9ca3af;
+                border: none;
+                padding: 4px;
+            }
             QRadioButton { color: #e5e7eb; spacing: 8px; }
             QTabWidget::pane {
                 border: 1px solid #374151;
@@ -839,6 +861,16 @@ class MainWindow(QMainWindow):
                 self.log_ts_zero_checkbox.setEnabled(False)
                 self.connect_btn.setEnabled(False)
                 self.log_filename_label.setText(path.name)
+                self.camera_panel.set_logging_active(True)
+                video_path = path.with_suffix(".mp4")
+                if self.camera_panel.is_preview_active():
+                    if not self.camera_panel.start_recording(video_path):
+                        QMessageBox.warning(
+                            self,
+                            "Video",
+                            "CSV dimulai, tetapi rekam video gagal.\n"
+                            "Pastikan kamera aktif dipilih sebelum Start Log.",
+                        )
             except Exception as e:
                 QMessageBox.critical(self, "Log", f"Gagal membuka file:\n{e}")
                 self.log_file = None
@@ -868,6 +900,8 @@ class MainWindow(QMainWindow):
                 self.connect_btn.setEnabled(True)
             self.log_filename_label.setText("—")
             self._log_timestamp_t0 = None
+            self.camera_panel.stop_recording()
+            self.camera_panel.set_logging_active(False)
 
     def flush_log_buffer(self) -> None:
         if not self.log_file or not self.log_buffer:
@@ -880,6 +914,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self.disconnect_serial()
+        self.camera_panel.shutdown()
         super().closeEvent(event)
 
 

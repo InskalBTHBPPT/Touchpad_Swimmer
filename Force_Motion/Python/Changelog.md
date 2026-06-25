@@ -11,6 +11,7 @@ Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
 ### Ditambahkan
 
 - **Rilis awal v2.3.0** — salinan kerja dari v2.2.0 sebagai basis pengembangan berikutnya; fitur sama dengan v2.2.0 pada rilis ini.
+- **Tab Live — kamera** — panel pindai/pilih perangkat video, preview live, rekam `.mp4` ke `DataLog/` (basename sama dengan CSV) saat **Start Log**; modul `live_camera_core.py`, `live_camera_panel.py`.
 - **Manual v2.3.0** — `UserManual_Force_Motion_v2.3.0.md` / `.pdf` di folder `Swimmer_Force_Motion_Monitoring_v2.3.0/`.
 
 ---
