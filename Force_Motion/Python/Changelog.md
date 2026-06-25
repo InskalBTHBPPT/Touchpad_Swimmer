@@ -4,6 +4,17 @@ Catatan perubahan antar versi aplikasi **Swimmer Force Motion Monitoring** (fold
 
 ---
 
+## [2.3.0] — 2026-06-25
+
+Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
+
+### Ditambahkan
+
+- **Rilis awal v2.3.0** — salinan kerja dari v2.2.0 sebagai basis pengembangan berikutnya; fitur sama dengan v2.2.0 pada rilis ini.
+- **Manual v2.3.0** — `UserManual_Force_Motion_v2.3.0.md` / `.pdf` di folder `Swimmer_Force_Motion_Monitoring_v2.3.0/`.
+
+---
+
 ## [2.2.0] — 2026-06-23
 
 Bandingan dengan **v2.1.0** (`Swimmer_Force_Motion_Monitoring_v2.1.0/`).
