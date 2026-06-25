@@ -11,6 +11,9 @@ Changelog (2.2.0 → 2.3.0)
   **Stop Log**. Modul ``live_camera_core.py``, ``live_camera_panel.py``.
 - **Tab Analisa** — tiga plot FFT diganti **playback video** pasangan CSV (auto-load
   ``.mp4``); frekuensi dominan tetap di statistik. Modul ``analyze_video_panel.py``.
+- **Sinkron video ↔ plot** — metadata di CSV (``VideoFile``, ``LogWallStartEpoch``,
+  footer ``SyncCsvT0`` / ``SyncLogWallStart`` / ``SyncFirstSampleWall``); playhead
+  memakai titik acuan rekaman (fallback ke sinkron kasar untuk CSV lama).
 
 Changelog (2.1.0 → 2.2.0)
 ==========================
@@ -193,6 +196,7 @@ from __future__ import annotations
 import csv
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -314,6 +318,9 @@ class MainWindow(QMainWindow):
         self.log_timer.timeout.connect(self.flush_log_buffer)
         self._log_header_time_str = ""
         self._log_timestamp_t0: float | None = None
+        self._log_wall_start_epoch: float | None = None
+        self._sync_first_csv_ts: float | None = None
+        self._sync_first_sample_wall: float | None = None
 
         # ~10 detik jendela tampilan pada laju ~10 baris/detik (mis. ESP timerInterval 100 ms)
         self.max_points = 100
@@ -804,6 +811,9 @@ class MainWindow(QMainWindow):
                         if self._log_timestamp_t0 is None:
                             self._log_timestamp_t0 = ts
                         ts_log = ts - self._log_timestamp_t0
+                    if self._sync_first_csv_ts is None:
+                        self._sync_first_csv_ts = ts_log
+                        self._sync_first_sample_wall = time.time()
                     self.log_buffer.append(
                         f"{ts_log:.2f},{force_kg:.2f},{roll_deg:.2f},{pitch_deg:.2f}\n"
                     )
@@ -866,15 +876,25 @@ class MainWindow(QMainWindow):
                 f"{self._log_header_time_str}.csv"
             )
             path = DATALOG_DIR / fn
+            video_path = path.with_suffix(".mp4")
+            video_will_record = self.camera_panel.is_preview_active()
             try:
                 self.log_file_path = path
                 self.log_file = open(path, "w", buffering=1, encoding="utf-8")
                 self.log_file.write(f"Nama Perenang:,{name}\n")
                 self.log_file.write(f"Gaya Renang:,{stroke}\n")
                 self.log_file.write(f"Time:,{self._log_header_time_str}\n")
+                if video_will_record:
+                    self.log_file.write(f"VideoFile:,{video_path.name}\n")
+                self._log_wall_start_epoch = time.time()
+                self.log_file.write(
+                    f"LogWallStartEpoch(s):,{self._log_wall_start_epoch:.6f}\n"
+                )
                 self.log_file.write(",".join(LIVE_CSV_DATA_HEADER) + "\n")
                 self.log_buffer.clear()
                 self._log_timestamp_t0 = None
+                self._sync_first_csv_ts = None
+                self._sync_first_sample_wall = None
                 self.log_timer.start()
                 self.log_btn.setText("Stop Log")
                 self.swimmer_name_edit.setEnabled(False)
@@ -883,8 +903,7 @@ class MainWindow(QMainWindow):
                 self.connect_btn.setEnabled(False)
                 self.log_filename_label.setText(path.name)
                 self.camera_panel.set_logging_active(True)
-                video_path = path.with_suffix(".mp4")
-                if self.camera_panel.is_preview_active():
+                if video_will_record:
                     if not self.camera_panel.start_recording(video_path):
                         QMessageBox.warning(
                             self,
@@ -906,6 +925,18 @@ class MainWindow(QMainWindow):
             self.log_timer.stop()
             self.flush_log_buffer()
             if self.log_file:
+                if self._sync_first_csv_ts is not None:
+                    self.log_file.write(
+                        f"SyncCsvT0(s):,{self._sync_first_csv_ts:.6f}\n"
+                    )
+                    if self._log_wall_start_epoch is not None:
+                        self.log_file.write(
+                            f"SyncLogWallStart(s):,{self._log_wall_start_epoch:.6f}\n"
+                        )
+                    if self._sync_first_sample_wall is not None:
+                        self.log_file.write(
+                            f"SyncFirstSampleWall(s):,{self._sync_first_sample_wall:.6f}\n"
+                        )
                 self.log_file.close()
         except Exception:
             pass
@@ -921,6 +952,9 @@ class MainWindow(QMainWindow):
                 self.connect_btn.setEnabled(True)
             self.log_filename_label.setText("—")
             self._log_timestamp_t0 = None
+            self._log_wall_start_epoch = None
+            self._sync_first_csv_ts = None
+            self._sync_first_sample_wall = None
             self.camera_panel.stop_recording()
             self.camera_panel.set_logging_active(False)
 

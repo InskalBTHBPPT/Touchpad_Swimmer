@@ -357,7 +357,7 @@ class AnalyzeMultiFileTab(QWidget):
             return
         path = Path(path_str)
         try:
-            swimmer, stroke, ts_list, f_list, r_list, p_list = parse_logged_csv(path)
+            swimmer, stroke, ts_list, f_list, r_list, p_list, _sync = parse_logged_csv(path)
         except OSError as e:
             QMessageBox.critical(self, "Load CSV", f"Tidak bisa membaca file:\n{e}")
             return

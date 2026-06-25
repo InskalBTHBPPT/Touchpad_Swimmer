@@ -8,9 +8,9 @@ Fungsi utama
 - **Plot waktu** penuh untuk Force, Roll, Pitch; **marker** titik ekstrem (min
   hijau / maks merah) dan label waktu pada plot.
 - **Playback video** rekaman kamera tab Live (``.mp4`` pasangan basename CSV) di
-  samping plot waktu; muat otomatis saat **Load CSV**. **Sinkron kasar:** garis
-  vertikal playhead pada plot Force/Roll/Pitch mengikuti posisi video
-  (``csv_t ≈ TimeStamp baris pertama + detik video``).
+  samping plot waktu; muat otomatis saat **Load CSV**. **Sinkron video:** garis
+  vertikal playhead pada plot Force/Roll/Pitch mengikuti posisi video; memakai
+  metadata ``SyncCsvT0`` di CSV jika ada (fallback kasar: ``ts_awal + video_t``).
 - Metode **FFT** / **Welch PSD** untuk **frekuensi dominan** di kartu statistik
   (tanpa plot spektrum).
   kartu **gap rekaman CSV** (Metode A per gap / Metode B global, pilih radio).
@@ -59,7 +59,7 @@ from scipy import signal
 
 from analyze_metrics_core import GAP_LOSS_TOLERANCE_FACTOR, GapLossStats, compute_gap_loss
 from analyze_video_panel import AnalyzeVideoPanel
-from live_csv_io import parse_logged_csv
+from live_csv_io import LogSyncMeta, parse_logged_csv
 
 
 # Marker ekstremum: semua min hijau, semua max merah
@@ -552,6 +552,7 @@ class AnalyzeSingleFileTab(QWidget):
         self._loaded_f: list[float] | None = None
         self._loaded_r: list[float] | None = None
         self._loaded_p: list[float] | None = None
+        self._log_sync_meta: LogSyncMeta | None = None
         self._fs_hz: float = 1.0
         self._segment_region_force: pg.LinearRegionItem | None = None
         self._segment_region_roll: pg.LinearRegionItem | None = None
@@ -609,8 +610,9 @@ class AnalyzeSingleFileTab(QWidget):
 
         self.video_panel = AnalyzeVideoPanel(self)
         self.video_panel.setToolTip(
-            "Sinkron kasar dengan plot: garis vertikal pink = "
-            "TimeStamp awal CSV + posisi video (detik)."
+            "Sinkron dengan plot: garis vertikal pink = posisi video pada sumbu "
+            "Time (s). Rekaman baru memakai metadata SyncCsvT0 di CSV; file lama "
+            "memakai TimeStamp baris pertama + detik video."
         )
         self.video_panel.position_changed.connect(self._on_video_position_changed)
 
@@ -789,12 +791,19 @@ class AnalyzeSingleFileTab(QWidget):
         return bool(data) if data is not None else False
 
     def _video_sec_to_csv_time(self, video_sec: float) -> float | None:
-        """Sinkron kasar: detik media → sumbu Time (s) pada plot."""
+        """Detik media → sumbu Time (s) pada plot (metadata SyncCsvT0 atau fallback kasar)."""
         if video_sec < 0 or self._loaded_ts is None or self.video_panel.video_path() is None:
             return None
         t0 = self._loaded_ts[0]
         t1 = self._loaded_ts[-1]
-        csv_t = t0 + video_sec
+        sync = self._log_sync_meta
+        if sync is not None and sync.has_precise_sync and sync.sync_csv_t0 is not None:
+            wall_offset = 0.0
+            if sync.sync_log_wall_start is not None and sync.sync_first_sample_wall is not None:
+                wall_offset = sync.sync_first_sample_wall - sync.sync_log_wall_start
+            csv_t = sync.sync_csv_t0 + max(0.0, video_sec - wall_offset)
+        else:
+            csv_t = t0 + video_sec
         return min(t1, max(t0, csv_t))
 
     def _on_video_position_changed(self, video_sec: float) -> None:
@@ -1025,7 +1034,7 @@ class AnalyzeSingleFileTab(QWidget):
             return
         path = Path(path_str)
         try:
-            swimmer, stroke, ts_list, f_list, r_list, p_list = parse_logged_csv(path)
+            swimmer, stroke, ts_list, f_list, r_list, p_list, sync_meta = parse_logged_csv(path)
         except OSError as e:
             QMessageBox.critical(self, "Load CSV", f"Tidak bisa membaca file:\n{e}")
             return
@@ -1041,6 +1050,7 @@ class AnalyzeSingleFileTab(QWidget):
         self._loaded_f = f_list
         self._loaded_r = r_list
         self._loaded_p = p_list
+        self._log_sync_meta = sync_meta
         self._loaded_csv_path = path
 
         video_name = self._try_load_paired_video(path)

@@ -102,8 +102,12 @@ Grup **Nilai terakhir** menampilkan **Force**, **Roll**, **Pitch**, dan **Batera
 Struktur awal file CSV rekaman:
 
 1. Baris metadata: `Nama Perenang:`, `Gaya Renang:`, `Time:`
-2. Header data: `TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)`
-3. Baris data numerik
+2. Opsional (jika kamera aktif saat Start Log): `VideoFile:`, `LogWallStartEpoch(s):`
+3. Header data: `TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)`
+4. Baris data numerik
+5. Opsional (ditulis saat Stop Log): `SyncCsvT0(s):`, `SyncLogWallStart(s):`, `SyncFirstSampleWall(s):` — dipakai tab Analisa untuk menyelaraskan playhead video dengan plot
+
+Rekaman video `.mp4` (basename sama dengan CSV) disimpan di `DataLog/` jika kamera aktif saat **Start Log**.
 
 ### 3.7 Checkbox “TimeStamp CSV mulai 0 saat Start Log”
 
@@ -124,6 +128,14 @@ Struktur awal file CSV rekaman:
 
 - Tekan **Load CSV…** dan pilih file rekaman dari folder `DataLog/` (atau lokasi lain).
 - File harus memiliki metadata dan header data yang sesuai format tab Live (lihat §3.6). Parser memakai `live_csv_io.parse_logged_csv`.
+- File `.mp4` pasangan (basename sama) dimuat otomatis jika ada di folder yang sama; gunakan **Load Video…** untuk memilih video lain.
+
+### 4.1a Sinkron playhead video ↔ plot
+
+- Panel **Rekaman video** di tengah tab menampilkan playback MP4 hasil rekaman kamera tab Live.
+- Garis vertikal pink pada plot Force, Roll, dan Pitch mengikuti posisi pemutar video.
+- **Rekaman baru (v2.3.0):** posisi sumbu waktu dihitung dari metadata `SyncCsvT0(s)` di footer CSV, dengan koreksi jeda antara Start Log dan sampel serial pertama (`SyncFirstSampleWall` − `SyncLogWallStart`).
+- **File CSV lama** tanpa metadata sinkron: fallback `TimeStamp` baris pertama + detik video (sinkron kasar).
 
 ### 4.2 Plot waktu dan statistik
 

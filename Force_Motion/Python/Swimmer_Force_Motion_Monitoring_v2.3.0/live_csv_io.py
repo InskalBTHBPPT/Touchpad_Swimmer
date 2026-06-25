@@ -6,8 +6,8 @@ Modul ini dipakai bersama oleh:
   *logging* (impor ``LIVE_CSV_DATA_HEADER``) konsisten dengan parser.
 - **``analyze_single_file_tab.py``** dan **``analyze_multi_file_tab.py``** —
   ``parse_logged_csv`` memvalidasi prolog metadata + baris header, lalu
-  mengembalikan nama perenang, gaya renang, dan empat deret float (TimeStamp,
-  Force, Roll, Pitch).
+  mengembalikan nama perenang, gaya renang, empat deret float (TimeStamp,
+  Force, Roll, Pitch), serta metadata sinkron video (opsional).
 
 Kontrak berkas: lihat manual ``UserManual_Force_Motion_v2.3.0.md`` (struktur CSV
 ``DataLog/``). Header data harus persis empat kolom seperti konstanta tuple di
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import csv
 import io
+from dataclasses import dataclass
 from pathlib import Path
 
 # Header baris data persis seperti ditulis tab Live (toggle_logging)
@@ -29,7 +30,82 @@ LIVE_CSV_DATA_HEADER: tuple[str, ...] = (
 )
 
 
-def parse_logged_csv(path: Path) -> tuple[str, str, list[float], list[float], list[float], list[float]]:
+@dataclass(frozen=True)
+class LogSyncMeta:
+    """Metadata sinkron video ↔ CSV (Fase B); kosong untuk rekaman lama."""
+
+    video_file: str | None = None
+    sync_csv_t0: float | None = None
+    sync_log_wall_start: float | None = None
+    sync_first_sample_wall: float | None = None
+
+    @property
+    def has_precise_sync(self) -> bool:
+        return self.sync_csv_t0 is not None
+
+
+def _kv_from_line(line: str) -> tuple[str, str] | None:
+    if "," not in line:
+        return None
+    key, val = line.split(",", 1)
+    return key.strip(), val.strip()
+
+
+def _float_kv(line: str, prefix: str) -> float | None:
+    kv = _kv_from_line(line)
+    if kv is None:
+        return None
+    key, val = kv
+    if not key.lower().startswith(prefix):
+        return None
+    try:
+        return float(val)
+    except ValueError:
+        return None
+
+
+def _extract_sync_meta(lines: list[str]) -> LogSyncMeta:
+    video_file: str | None = None
+    sync_csv_t0: float | None = None
+    sync_log_wall_start: float | None = None
+    sync_first_sample_wall: float | None = None
+
+    for line in lines:
+        low = line.lower()
+        kv = _kv_from_line(line)
+        if kv is None:
+            continue
+        key, val = kv
+        key_low = key.lower()
+
+        if key_low.startswith("videofile"):
+            video_file = val or None
+            continue
+        if key_low.startswith("logwallstartepoch"):
+            sync_log_wall_start = _float_kv(line, "logwallstartepoch")
+            continue
+        if low.startswith("synccsvt0"):
+            sync_csv_t0 = _float_kv(line, "synccsvt0")
+            continue
+        if low.startswith("synclogwallstart"):
+            v = _float_kv(line, "synclogwallstart")
+            if v is not None:
+                sync_log_wall_start = v
+            continue
+        if low.startswith("syncfirstsamplewall"):
+            sync_first_sample_wall = _float_kv(line, "syncfirstsamplewall")
+
+    return LogSyncMeta(
+        video_file=video_file,
+        sync_csv_t0=sync_csv_t0,
+        sync_log_wall_start=sync_log_wall_start,
+        sync_first_sample_wall=sync_first_sample_wall,
+    )
+
+
+def parse_logged_csv(
+    path: Path,
+) -> tuple[str, str, list[float], list[float], list[float], list[float], LogSyncMeta]:
     """
     Baca CSV yang ditulis tab Live saja.
 
@@ -38,6 +114,10 @@ def parse_logged_csv(path: Path) -> tuple[str, str, list[float], list[float], li
       (sama seperti urutan/kunci yang ditulis aplikasi).
     - Baris header data harus persis 4 kolom:
       TimeStamp(s), Force(Kg), Roll(Deg), Pitch(Deg) (perbandingan case-insensitive, spasi dijepit).
+
+  Metadata sinkron (opsional, v2.3.0 Fase B):
+    - Prolog: ``VideoFile:``, ``LogWallStartEpoch(s):``
+    - Footer setelah data: ``SyncCsvT0(s):``, ``SyncLogWallStart(s):``, ``SyncFirstSampleWall(s):``
     """
     raw = path.read_text(encoding="utf-8-sig")
     lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
@@ -96,6 +176,8 @@ def parse_logged_csv(path: Path) -> tuple[str, str, list[float], list[float], li
     ):
         raise ValueError('Bukan file rekaman Live: tidak ada baris "Time:," sebelum data.')
 
+    sync_meta = _extract_sync_meta(lines)
+
     data_lines = "\n".join(lines[header_idx + 1 :])
     ts_list: list[float] = []
     f_list: list[float] = []
@@ -104,6 +186,9 @@ def parse_logged_csv(path: Path) -> tuple[str, str, list[float], list[float], li
     reader = csv.reader(io.StringIO(data_lines))
     for row in reader:
         if len(row) < 4:
+            continue
+        first = row[0].strip()
+        if first.lower().startswith("sync"):
             continue
         try:
             ts_list.append(float(row[0].strip()))
@@ -116,4 +201,4 @@ def parse_logged_csv(path: Path) -> tuple[str, str, list[float], list[float], li
     if not ts_list:
         raise ValueError("Tidak ada baris data numerik yang valid (4 kolom).")
 
-    return swimmer, stroke, ts_list, f_list, r_list, p_list
+    return swimmer, stroke, ts_list, f_list, r_list, p_list, sync_meta
