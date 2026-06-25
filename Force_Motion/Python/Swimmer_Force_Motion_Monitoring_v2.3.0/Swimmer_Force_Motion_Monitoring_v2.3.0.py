@@ -294,7 +294,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
-        self.resize(1280, 720)
+        self.resize(1400, 760)
 
         self.ser: serial.Serial | None = None
         self.serial_timer = QTimer(self)
@@ -456,8 +456,8 @@ class MainWindow(QMainWindow):
 
         self.camera_panel = LiveCameraPanel(self)
 
-        live_layout.addWidget(wrap_in_scroll_area(plots_panel, self), 3)
-        live_layout.addWidget(self.camera_panel, 2)
+        live_layout.addWidget(wrap_in_scroll_area(plots_panel, self), 2)
+        live_layout.addWidget(self.camera_panel, 3)
         live_layout.addWidget(right_panel, 1)
 
         # ---------- Tab Analisa (satu berkas) + tab Analisa multifile ----------

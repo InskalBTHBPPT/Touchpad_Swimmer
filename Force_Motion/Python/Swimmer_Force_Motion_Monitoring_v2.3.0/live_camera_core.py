@@ -18,6 +18,16 @@ from PySide6.QtCore import QThread, Signal
 
 MAX_PROBE_INDEX = 10
 
+# Resolusi yang dicoba (tertinggi dulu); driver virtual cam (mis. DroidCam) mungkin
+# hanya mendukung subset — ukuran aktual dibaca dari frame setelah set.
+PREFERRED_CAPTURE_SIZES: tuple[tuple[int, int], ...] = (
+    (1920, 1080),
+    (1280, 720),
+    (960, 540),
+    (854, 480),
+    (640, 480),
+)
+
 
 def _configure_opencv_logging() -> None:
     for setter in (
@@ -94,6 +104,29 @@ def list_camera_names() -> list[str]:
         return []
 
 
+def configure_capture_resolution(cap: cv2.VideoCapture) -> tuple[int, int, float]:
+    """
+    Minta resolusi setinggi mungkin ke driver, lalu baca satu frame untuk ukuran aktual.
+    """
+    for width, height in PREFERRED_CAPTURE_SIZES:
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(width))
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, float(height))
+
+    fps = float(cap.get(cv2.CAP_PROP_FPS))
+    ok, frame = cap.read()
+    if ok and frame is not None:
+        actual_h, actual_w = frame.shape[:2]
+        if fps <= 1.0:
+            fps = 30.0
+        return actual_w, actual_h, fps
+
+    width = max(0, int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
+    height = max(0, int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    if fps <= 1.0:
+        fps = 30.0
+    return width, height, fps
+
+
 def _try_probe(index: int, name: str, backend: int, backend_label: str) -> CameraInfo:
     with quiet_opencv():
         cap = cv2.VideoCapture(index, backend)
@@ -103,13 +136,10 @@ def _try_probe(index: int, name: str, backend: int, backend_label: str) -> Camer
                 index, name, False, 0, 0, 0.0, f"Gagal buka ({backend_label})", backend
             )
 
-        ok, _frame = cap.read()
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = float(cap.get(cv2.CAP_PROP_FPS))
+        width, height, fps = configure_capture_resolution(cap)
         cap.release()
 
-    if not ok:
+    if width <= 0 or height <= 0:
         return CameraInfo(
             index,
             name,
@@ -122,8 +152,6 @@ def _try_probe(index: int, name: str, backend: int, backend_label: str) -> Camer
         )
 
     note = f"Aktif via {backend_label}"
-    if width <= 0 or height <= 0:
-        note = f"Aktif via {backend_label} (resolusi tidak terbaca)"
     return CameraInfo(index, name, True, width, height, fps, note, backend)
 
 
