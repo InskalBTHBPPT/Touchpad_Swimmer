@@ -327,6 +327,10 @@ class MainWindow(QMainWindow):
 
         # ---------- Kiri: plots Live ----------
         plots_panel = QWidget(self)
+        plots_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
         plots_layout = QVBoxLayout(plots_panel)
         plots_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -462,18 +466,19 @@ class MainWindow(QMainWindow):
 
         self.camera_panel = LiveCameraPanel(self)
 
-        center_panel = QWidget(self)
-        center_layout = QHBoxLayout(center_panel)
-        center_layout.setContentsMargins(0, 0, 0, 0)
-        center_layout.setSpacing(8)
-        center_layout.addWidget(plots_panel, 2)
-        center_layout.addWidget(self.camera_panel, 2)
-        center_panel.setSizePolicy(
+        plots_scroll = wrap_in_scroll_area(plots_panel, self)
+        plots_scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Expanding,
+        )
+        camera_scroll = wrap_in_scroll_area(self.camera_panel, self)
+        camera_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
         )
 
-        live_layout.addWidget(wrap_in_scroll_area(center_panel, self), 1)
+        live_layout.addWidget(plots_scroll, 2)
+        live_layout.addWidget(camera_scroll, 2)
         live_layout.addWidget(right_panel, 0)
 
         # ---------- Tab Analisa (satu berkas) + tab Analisa multifile ----------

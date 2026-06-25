@@ -259,7 +259,7 @@ class LiveCameraPanel(QWidget):
         self.setMaximumWidth(420)
         self.setSizePolicy(
             QSizePolicy.Policy.Preferred,
-            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Minimum,
         )
 
         self._capture_thread = CameraCaptureThread()

@@ -560,13 +560,11 @@ class AnalyzeSingleFileTab(QWidget):
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(6)
 
-        plots_panel = QWidget(self)
-        plots_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        plots_layout = QHBoxLayout(plots_panel)
-        plots_layout.setContentsMargins(0, 0, 0, 0)
-        plots_layout.setSpacing(6)
-
-        time_column = QWidget(plots_panel)
+        time_column = QWidget(self)
+        time_column.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Minimum,
+        )
         time_layout = QVBoxLayout(time_column)
         time_layout.setContentsMargins(0, 0, 0, 0)
         time_layout.setSpacing(4)
@@ -594,17 +592,17 @@ class AnalyzeSingleFileTab(QWidget):
             row_layout.addWidget(tw)
             time_layout.addWidget(row_widget, 1)
 
-        self.video_panel = AnalyzeVideoPanel(plots_panel)
-        self.video_panel.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Preferred,
-        )
+        self.video_panel = AnalyzeVideoPanel(self)
 
-        plots_layout.addWidget(time_column, 3)
-        plots_layout.addWidget(self.video_panel, 2)
-        plots_panel.setSizePolicy(
+        time_scroll = wrap_in_scroll_area(time_column, self)
+        time_scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Expanding,
+        )
+        video_scroll = wrap_in_scroll_area(self.video_panel, self)
+        video_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
         )
 
         right_column = QWidget(self)
@@ -763,9 +761,8 @@ class AnalyzeSingleFileTab(QWidget):
         stats_scroll.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         right_layout.addWidget(stats_scroll, 1)
 
-        self._plots_scroll = wrap_in_scroll_area(plots_panel, self)
-        self._plots_scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        root.addWidget(self._plots_scroll, 4)
+        root.addWidget(time_scroll, 3)
+        root.addWidget(video_scroll, 2)
         root.addWidget(right_column, 1)
 
     def _spectrum_use_welch(self) -> bool:
