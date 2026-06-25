@@ -1,5 +1,9 @@
 """
 Panel kamera tab Live: pindai perangkat, preview, dan rekam video (v2.3.0).
+
+Rekam ``.mp4`` ke ``DataLog/`` (basename sama dengan CSV) saat **Start Log** jika
+preview aktif; berhenti saat **Stop Log**. Modul ``live_camera_core`` menangani
+probe OpenCV (MSMF/DSHOW) dan penekanan log.
 """
 
 from __future__ import annotations

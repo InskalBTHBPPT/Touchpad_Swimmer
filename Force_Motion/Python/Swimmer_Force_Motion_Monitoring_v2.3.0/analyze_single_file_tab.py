@@ -499,7 +499,7 @@ def make_analyze_time_spectrum_row(
     line_pen: str,
     spectrum_pen: str,
 ) -> tuple[pg.PlotWidget, pg.PlotDataItem, pg.PlotWidget, pg.PlotDataItem]:
-    """Satu baris tab Analisa: plot waktu (kiri) + plot spektrum (kanan)."""
+    """Legacy (v2.0–v2.2): plot waktu + spektrum per baris; tidak dipakai tab Analisa v2.3.0."""
     time_w = pg.PlotWidget()
     time_w.setLabel("left", time_left, color="#e5e7eb", **{"font-size": "9pt"})
     time_w.setLabel("bottom", "Time (s)", color="#e5e7eb", **{"font-size": "9pt"})

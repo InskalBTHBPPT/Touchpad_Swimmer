@@ -2,6 +2,8 @@
 Pemindaian dan probe kamera untuk tab Live (v2.3.0).
 
 Logika backend MSMF/DSHOW diadaptasi dari ``Camera_Device_Detector``.
+Di Windows, MSMF dicoba lebih dulu (cocok untuk DroidCam). ``pygrabber`` dipakai
+untuk nama perangkat DirectShow jika tersedia.
 """
 
 from __future__ import annotations

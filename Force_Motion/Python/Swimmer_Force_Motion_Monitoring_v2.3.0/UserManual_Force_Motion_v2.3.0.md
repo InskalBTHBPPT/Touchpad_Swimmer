@@ -1,6 +1,6 @@
 # Manual Pengguna — Swimmer Force Motion Monitoring v2.3.0
 
-Dokumen ini menjelaskan pemakaian aplikasi desktop **Swimmer Force Motion Monitoring** (berkas utama: `Swimmer_Force_Motion_Monitoring_v2.3.0.py`) untuk memantau beban dan orientasi (roll, pitch) perenang melalui koneksi serial, merekam data ke CSV, menampilkan **baterai transmitter** (opsional) di tab Live, serta menganalisis rekaman dengan **spektrum frekuensi**, **estimasi gap rekaman CSV**, **perbandingan multi-berkas** dalam tabel, dan ekspor statistik yang diperluas.
+Dokumen ini menjelaskan pemakaian aplikasi desktop **Swimmer Force Motion Monitoring** (berkas utama: `Swimmer_Force_Motion_Monitoring_v2.3.0.py`) untuk memantau beban dan orientasi (roll, pitch) perenang melalui koneksi serial, merekam data ke CSV dan **video kamera** (opsional), menampilkan **baterai transmitter** (opsional) di tab Live, serta menganalisis rekaman dengan **playback video** (sinkron playhead), **frekuensi dominan** (FFT/Welch di statistik), **estimasi gap rekaman CSV**, **perbandingan multi-berkas** dalam tabel, dan ekspor statistik yang diperluas.
 
 ---
 
@@ -9,14 +9,15 @@ Dokumen ini menjelaskan pemakaian aplikasi desktop **Swimmer Force Motion Monito
 | Komponen | Keterangan |
 |----------|------------|
 | Python | Disarankan 3.10 atau lebih baru |
-| Paket | `PySide6`, `pyqtgraph`, `pyserial`, `numpy`, `scipy` |
+| Paket | `PySide6`, `pyqtgraph`, `pyserial`, `numpy`, `scipy`, `opencv-python`, `pygrabber` |
+| Kamera (opsional) | Webcam, DroidCam, atau perangkat video lain yang dikenali OpenCV (uji utama: backend MSMF di Windows) |
 | Perangkat | Mikrokontroler / sensor yang mengirim **satu baris CSV per sampel** lewat USB serial (UTF-8) |
 | Sistem | Windows (uji utama); Linux/macOS seharusnya kompatibel selama driver serial tersedia |
 
 Instalasi contoh:
 
 ```text
-pip install PySide6 pyqtgraph pyserial numpy scipy
+pip install PySide6 pyqtgraph pyserial numpy scipy opencv-python pygrabber
 ```
 
 Jalankan aplikasi dari folder `Swimmer_Force_Motion_Monitoring_v2.3.0` (atau dengan path penuh):
@@ -31,13 +32,16 @@ python Swimmer_Force_Motion_Monitoring_v2.3.0.py
 
 Aplikasi memiliki **tiga tab**:
 
-- **Live** — koneksi serial, plot waktu-nyata, indikator nilai terakhir (force, roll, pitch, **baterai %** jika perangkat mengirim kolom kelima), rekaman CSV empat kolom, opsi timestamp CSV, tombol **About** dan **Help**.
-- **Analisa** — muat **satu** file CSV hasil rekaman Live, plot waktu penuh dengan marker ekstremum, **tiga plot spektrum** (FFT atau Welch PSD), kartu statistik (frekuensi dominan, **gap rekaman CSV** Metode A/B), ekspor ringkasan ke `DataStatistik/`.
+- **Live** — koneksi serial, plot waktu-nyata, indikator nilai terakhir (force, roll, pitch, **baterai %** jika perangkat mengirim kolom kelima), panel **kamera** (pindai, preview, rekam `.mp4` saat **Start Log**), rekaman CSV empat kolom, opsi timestamp CSV, tombol **About** dan **Help**.
+- **Analisa** — muat **satu** file CSV hasil rekaman Live, tiga plot waktu penuh dengan marker ekstremum, **playback video** pasangan (playhead pink pada plot), kartu statistik (frekuensi dominan FFT/Welch **tanpa plot spektrum visual**, **gap rekaman CSV** Metode A/B), ekspor ringkasan ke `DataStatistik/`.
 - **Analisa multifile** — hingga **lima** berkas CSV sekaligus; ringkasan metrik dalam **tabel**; **plot perbandingan** (jendela terpisah, pyqtgraph); simpan tabel ke `TableMultiFile/`; metode spektrum (FFT / Welch) mengisi ulang semua kolom.
 
 Modul pendukung di folder yang sama:
 
-- `live_csv_io.py` — header data CSV dan `parse_logged_csv` untuk tab Analisa (format sama dengan rekaman Live).
+- `live_csv_io.py` — header data CSV, `parse_logged_csv`, dan `LogSyncMeta` (metadata sinkron video).
+- `live_camera_core.py` — pemindaian/probe kamera (OpenCV, MSMF/DSHOW).
+- `live_camera_panel.py` — panel kamera tab Live (preview + rekam).
+- `analyze_video_panel.py` — pemutar video MP4 di tab Analisa.
 - `analyze_single_file_tab.py` — implementasi tab Analisa (satu berkas).
 - `analyze_metrics_core.py` — perhitungan metrik + spektrum + **gap rekaman CSV** (`compute_gap_loss`).
 - `analyze_multi_file_tab.py` — implementasi tab Analisa multifile.
@@ -120,6 +124,17 @@ Rekaman video `.mp4` (basename sama dengan CSV) disimpan di `DataLog/` jika kame
 - **About** — menampilkan dialog informasi aplikasi dan versi (**2.3.0**).
 - **Help** — membuka berkas **`UserManual_Force_Motion_v2.3.0.pdf`** dengan aplikasi PDF bawaan sistem. Jika PDF belum ada, dialog menjelaskan cara membuatnya (lihat bagian 7).
 
+### 3.9 Kamera (opsional)
+
+Panel **Kamera** di tab Live (di samping plot) memungkinkan preview dan rekaman video bersamaan dengan log CSV.
+
+1. Tekan **Pindai kamera** untuk memuat daftar perangkat video yang terdeteksi (OpenCV; di Windows backend **MSMF** dicoba lebih dulu, cocok untuk DroidCam).
+2. Pilih perangkat dari dropdown, lalu **Mulai preview** untuk menampilkan gambar live.
+3. Saat **Start Log** dengan preview aktif, aplikasi merekam `.mp4` ke `DataLog/` — **basename sama** dengan file CSV (mis. `Ridwan_Bebas_240625-1105.mp4`).
+4. **Stop Log** menghentikan rekaman CSV dan video.
+
+Tanpa kamera aktif, **Start Log** hanya menulis CSV (perilaku sama seperti v2.2.0). Metadata sinkron video (lihat §3.6) hanya ditulis jika kamera aktif saat Start Log.
+
 ---
 
 ## 4. Tab Analisa
@@ -137,18 +152,20 @@ Rekaman video `.mp4` (basename sama dengan CSV) disimpan di `DataLog/` jika kame
 - **Rekaman baru (v2.3.0):** posisi sumbu waktu dihitung dari metadata `SyncCsvT0(s)` di footer CSV, dengan koreksi jeda antara Start Log dan sampel serial pertama (`SyncFirstSampleWall` − `SyncLogWallStart`).
 - **File CSV lama** tanpa metadata sinkron: fallback `TimeStamp` baris pertama + detik video (sinkron kasar).
 
-### 4.2 Plot waktu dan statistik
+### 4.2 Plot waktu, video, dan statistik
 
 Setelah berhasil dimuat:
 
-- Tiga plot menampilkan rekaman penuh.
+- **Kiri:** tiga plot menampilkan rekaman penuh (Force, Roll, Pitch).
+- **Tengah:** panel **Rekaman video** — playback MP4 (lihat §4.1a untuk sinkron playhead).
+- **Kanan:** panel statistik dan pengaturan.
 - Marker menandai titik ekstrem (force maksimum; roll/pitch min dan max) dengan label waktu.
 - Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start** (waktu minimum deret), **frekuensi dominan** (Hz) per kanal beserta label metode spektrum (**FFT** atau **Welch PSD**), serta kartu **GAP REKAMAN CSV** (lihat §4.4).
 
 ### 4.3 Analisa Setting — metode spektrum
 
-- Pilih **FFT** atau **Welch PSD** pada dropdown **Metode spektrum**.
-- Perubahan metode memperbarui plot spektrum, marker puncak, dan angka frekuensi dominan pada kartu statistik.
+- Pilih **FFT** atau **Welch PSD** pada dropdown **Metode spektrum (statistik)**.
+- Perubahan metode memperbarui **angka frekuensi dominan** pada kartu statistik (v2.3.0 tidak menampilkan plot spektrum visual).
 
 ### 4.4 Gap rekaman CSV
 
@@ -164,12 +181,7 @@ Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
 - **Tujuan:** mengetahui kualitas rekaman CSV (lubang timestamp), **bukan** diagnosis LoRa atau transfer nirkabel.
 - Mengganti radio langsung menghitung ulang kartu (tanpa reload CSV).
 
-### 4.5 Plot spektrum
-
-- Tiga plot di bawah plot waktu menampilkan spektrum **satu sisi** (komponen DC tidak ditampilkan pada sumbu frekuensi positif).
-- Sumbu Y menyesuaikan label (FFT ternormalisasi vs PSD linear, sesuai implementasi).
-
-### 4.6 Simpan statistik
+### 4.5 Simpan statistik
 
 - Tombol **Simpan statistik** menulis file CSV ke folder **`DataStatistik/`** tanpa dialog penyimpanan.
 - Nama file: `<nama_file_csv_yang_dimuat>_DataStaistik.csv` (sufiks persis seperti di aplikasi).
@@ -228,13 +240,17 @@ Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
 
 | Folder / berkas | Fungsi |
 |-----------------|--------|
-| `DataLog/` | Rekaman CSV dari tab Live (diabaikan Git sesuai `.gitignore` proyek) |
+| `DataLog/` | Rekaman CSV dan video `.mp4` dari tab Live (diabaikan Git sesuai `.gitignore` proyek) |
 | `DataStatistik/` | Ekspor statistik dari tab Analisa |
 | `TableMultiFile/` | Ekspor tabel tab Analisa multifile |
-| `live_csv_io.py` | Header + parser CSV rekaman |
-| `analyze_single_file_tab.py` | Tab Analisa (plot + statistik + ekspor) |
+| `live_csv_io.py` | Header + parser CSV rekaman + `LogSyncMeta` |
+| `live_camera_core.py` | Pemindaian kamera |
+| `live_camera_panel.py` | Panel kamera tab Live |
+| `analyze_video_panel.py` | Pemutar video tab Analisa |
+| `analyze_single_file_tab.py` | Tab Analisa (plot + video + statistik + ekspor) |
 | `analyze_metrics_core.py` | Metrik rekaman + spektrum (multifile) |
 | `analyze_multi_file_tab.py` | Tab Analisa multifile |
+| `requirements.txt` | Daftar dependensi Python (termasuk OpenCV) |
 | `UserManual_Force_Motion_v2.3.0.md` | Manual ini (Markdown) |
 | `UserManual_Force_Motion_v2.3.0.pdf` | Manual ini (PDF, opsional) |
 | `../md_to_pdf_Force_Motion.py` | Skrip konversi MD → PDF (folder induk `Force_Motion/Python`) |
@@ -265,12 +281,15 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 | Plot kosong | Periksa format baris (empat atau lima angka, koma); pastikan firmware mengirim newline. |
 | Baterai tampil `—` | Perangkat mungkin hanya mengirim empat kolom; LoRa Receiver mengirim lima kolom. |
 | Load CSV gagal di Analisa | Pastikan file dari tab Live yang sama (metadata + header persis). |
+| Video tidak dimuat otomatis | Pastikan `.mp4` ada di folder yang sama dengan CSV dan basename cocok; atau gunakan **Load Video…**. |
+| Rekam video gagal saat Start Log | Aktifkan **Mulai preview** kamera sebelum Start Log; periksa instalasi `opencv-python`. |
+| Kamera tidak terdeteksi | Coba **Pindai kamera** ulang; di Windows pastikan DroidCam memakai mode yang kompatibel MSMF. |
 | Help tidak membuka PDF | Jalankan §7; pastikan `UserManual_Force_Motion_v2.3.0.pdf` ada di folder aplikasi v2.3.0. |
-| Error import `numpy` / `scipy` | Instal dependensi (lihat §1). |
+| Error import `numpy` / `scipy` / `cv2` | Instal dependensi (lihat §1 atau `requirements.txt`). |
 
 ---
 
 ## 9. Versi dokumen
 
-- **Manual:** selaras dengan aplikasi **v2.3.0** (baterai Live, gap rekaman CSV Metode A/B).
+- **Manual:** selaras dengan aplikasi **v2.3.0** (kamera Live, video Analisa, sinkron playhead, baterai Live, gap rekaman CSV Metode A/B; frekuensi dominan di statistik tanpa plot spektrum visual).
 - Ringkasan perubahan antar versi ada di `Force_Motion/Python/Changelog.md` dan docstring `Swimmer_Force_Motion_Monitoring_v2.3.0.py`.

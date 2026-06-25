@@ -2,7 +2,8 @@
 Panel playback video rekaman tab Live untuk tab Analisa (v2.3.0).
 
 Playback sinkron dengan plot CSV: ``position_changed`` mengirim detik media;
-tab Analisa memetakan ke sumbu Time (s) lewat metadata ``SyncCsvT0`` atau fallback kasar.
+tab Analisa memetakan ke sumbu Time (s) lewat metadata ``SyncCsvT0`` di CSV
+atau fallback kasar untuk rekaman lama.
 """
 
 from __future__ import annotations

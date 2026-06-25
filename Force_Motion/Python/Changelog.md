@@ -10,10 +10,21 @@ Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
 
 ### Ditambahkan
 
-- **Rilis awal v2.3.0** — salinan kerja dari v2.2.0 sebagai basis pengembangan berikutnya; fitur sama dengan v2.2.0 pada rilis ini.
 - **Tab Live — kamera** — panel pindai/pilih perangkat video, preview live, rekam `.mp4` ke `DataLog/` (basename sama dengan CSV) saat **Start Log**; modul `live_camera_core.py`, `live_camera_panel.py`.
-- **Tab Analisa — video** — tiga plot spektrum diganti panel **playback video** (auto-load `.mp4` pasangan CSV); frekuensi dominan FFT/Welch tetap di statistik; modul `analyze_video_panel.py`.
+- **Tab Analisa — video** — tiga plot spektrum diganti panel **playback video** (auto-load `.mp4` pasangan CSV); frekuensi dominan FFT/Welch tetap di **kartu statistik** (tanpa plot spektrum visual); modul `analyze_video_panel.py`.
+- **Sinkron video ↔ plot** — metadata di CSV (`VideoFile`, `LogWallStartEpoch`, footer `SyncCsvT0` / `SyncLogWallStart` / `SyncFirstSampleWall`); playhead memakai titik acuan rekaman; CSV lama fallback sinkron kasar (`TimeStamp` baris pertama + detik video).
+- **`LogSyncMeta`** di `live_csv_io.py` — parser metadata sinkron opsional.
+- **Dependensi** — `opencv-python`, `pygrabber` (`requirements.txt`).
 - **Manual v2.3.0** — `UserManual_Force_Motion_v2.3.0.md` / `.pdf` di folder `Swimmer_Force_Motion_Monitoring_v2.3.0/`.
+
+### Diubah
+
+- **Tab Analisa** — layout: plot waktu | panel video | panel kanan; tidak ada plot spektrum visual.
+- **Docstring** modul utama v2.3.0, manual, dan modul kamera/video diselaraskan dengan fitur di atas.
+
+### Kompatibilitas
+
+- CSV dan MP4 rekaman lama tetap bisa dimuat di tab Analisa; tanpa metadata sinkron, playhead memakai sinkron kasar.
 
 ---
 

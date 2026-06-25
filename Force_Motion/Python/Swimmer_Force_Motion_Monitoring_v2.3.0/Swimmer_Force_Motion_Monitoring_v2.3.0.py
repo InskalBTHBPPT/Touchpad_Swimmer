@@ -72,12 +72,14 @@ dalam format **teks CSV**: satu baris per sampel, empat kolom numerik dipisahkan
 Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
 
 1. **Live** — koneksi serial, plot tiga deret waktu, indikator nilai terakhir (force,
-   roll, pitch, **baterai %** jika dikirim perangkat), rekaman ke berkas CSV di folder
-   ``DataLog/`` (empat kolom data saja), opsi menggeser kolom waktu di CSV ke nol
-   per sesi **Start Log**, serta tombol **About** / **Help**.
+   roll, pitch, **baterai %** jika dikirim perangkat), panel **kamera** (pindai,
+   preview, rekam ``.mp4`` ke ``DataLog/`` saat **Start Log**), rekaman ke berkas CSV
+   di folder ``DataLog/`` (empat kolom data saja), opsi menggeser kolom waktu di CSV
+   ke nol per sesi **Start Log**, serta tombol **About** / **Help**.
 2. **Analisa** — muat satu CSV hasil tab Live, plot waktu dengan marker ekstremum,
-   **plot spektrum** (FFT / Welch), ringkasan statistik (frekuensi dominan,
-   **gap rekaman CSV** Metode A/B), ekspor ringkasan ke ``DataStatistik/``.
+   **playback video** pasangan (playhead pink; sinkron dari metadata CSV atau fallback
+   kasar), ringkasan statistik (frekuensi dominan FFT/Welch **tanpa plot spektrum
+   visual**, **gap rekaman CSV** Metode A/B), ekspor ringkasan ke ``DataStatistik/``.
 3. **Analisa multifile** — hingga lima CSV; ringkasan metrik dalam **tabel**;
    **plot perbandingan** opsional di **jendela terpisah** (metrik & gaya plot dipilih
    di jendela); **Clear tabel** per kolom atau semua; simpan tabel ke ``TableMultiFile/``.
@@ -93,7 +95,10 @@ Arsitektur ringkas
   titik (default 100) — jendela geser ~10 s jika laju ~10 sampel/detik.
 - **Logging**: ``toggle_logging`` membuka berkas teks UTF-8; baris data di-buffer
   dan di-flush periodik lewat ``QTimer`` terpisah agar I/O disk tidak memblokir
-  pembacaan serial setiap tick.
+  pembacaan serial setiap tick. Jika kamera aktif, ``.mp4`` direkam paralel; metadata
+  sinkron ditulis ke header/footer CSV (lihat format berkas di bawah).
+- **Kamera**: ``live_camera_panel`` + ``live_camera_core`` — probe OpenCV (MSMF/DSHOW),
+  preview di thread terpisah, rekam MP4 saat logging.
 
 Format baris serial (wajib)
 ============================
@@ -124,10 +129,16 @@ perenang aman, gaya renang, dan cap waktu ``ddmmyy-HHMM``.
 
 Struktur:
 
-- Beberapa baris **metadata** (mis. ``Nama Perenang:``, ``Gaya Renang:``, ``Time:``).
+- Beberapa baris **metadata** (``Nama Perenang:``, ``Gaya Renang:``, ``Time:``).
+- Opsional jika kamera aktif saat **Start Log**: ``VideoFile:``, ``LogWallStartEpoch(s):``.
 - Satu baris **header data** persis:
   ``TimeStamp(s),Force(Kg),Roll(Deg),Pitch(Deg)``
 - Baris data numerik empat kolom.
+- Opsional di footer saat **Stop Log** (sinkron video ↔ plot):
+  ``SyncCsvT0(s):``, ``SyncLogWallStart(s):``, ``SyncFirstSampleWall(s):``.
+
+Berkas video ``.mp4`` (basename sama dengan CSV) di ``DataLog/`` jika kamera aktif
+saat Start Log.
 
 Opsi **TimeStamp CSV mulai 0 saat Start Log**: jika dicentang, kolom waktu yang
 ditulis ke CSV adalah ``waktu_serial - waktu_sampel_pertama_sesi_log`` sehingga
@@ -138,9 +149,16 @@ dari serial.
 Analisa & statistik (satu berkas)
 ==================================
 Tab **Analisa** diimplementasikan sebagai ``AnalyzeSingleFileTab`` di berkas
-``analyze_single_file_tab.py``: satu CSV rekaman, plot, ekstremum, ekspor.
-Parsing format CSV Live ada di ``live_csv_io.parse_logged_csv`` (dipakai bersama
-penulisan header rekaman). **Analisa multifile** di ``analyze_multi_file_tab.py``.
+``analyze_single_file_tab.py``: satu CSV rekaman, plot waktu, playback video
+(``analyze_video_panel.py``), ekstremum, ekspor. Parsing format CSV Live ada di
+``live_csv_io.parse_logged_csv`` (mengembalikan ``LogSyncMeta`` untuk sinkron
+opsional). **Analisa multifile** di ``analyze_multi_file_tab.py``.
+
+**Sinkron playhead video ↔ plot:**
+
+- Rekaman baru: ``csv_t = SyncCsvT0 + max(0, video_sec − (SyncFirstSampleWall − SyncLogWallStart))``
+  (metadata footer CSV).
+- CSV lama tanpa metadata: ``csv_t ≈ TimeStamp baris pertama + video_sec`` (sinkron kasar).
 
 Tombol **Simpan statistik** menulis CSV ke ``DataStatistik/`` dengan nama
 ``<nama_file_log>_DataStatistik.csv`` (tanpa dialog Save As), berisi meta baris
@@ -167,11 +185,13 @@ Dependensi Python
 - ``PySide6`` — antarmuka Qt6.
 - ``pyqtgraph`` — plot deret waktu.
 - ``pyserial`` — komunikasi serial.
-- ``numpy``, ``scipy`` — spektrum frekuensi di tab Analisa (FFT / Welch).
+- ``numpy``, ``scipy`` — perhitungan frekuensi dominan (FFT / Welch) di statistik.
+- ``opencv-python`` — capture/preview/rekam kamera dan playback video.
+- ``pygrabber`` — nama perangkat kamera di Windows (opsional, fallback jika tidak ada).
 
 Berkas terkait di folder yang sama
 ===================================
-- ``live_csv_io.py`` — header + parser CSV rekaman Live.
+- ``live_csv_io.py`` — header + parser CSV rekaman Live + ``LogSyncMeta``.
 - ``analyze_single_file_tab.py`` — widget tab Analisa (satu berkas).
 - ``analyze_metrics_core.py`` — metrik rekaman, spektrum, **gap rekaman CSV**
   (``compute_gap_loss``; dipakai tab Analisa + multifile).
