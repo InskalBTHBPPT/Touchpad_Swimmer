@@ -106,22 +106,68 @@ def list_camera_names() -> list[str]:
         return []
 
 
-def configure_capture_resolution(cap: cv2.VideoCapture) -> tuple[int, int, float]:
-    """
-    Minta resolusi setinggi mungkin ke driver, lalu baca satu frame untuk ukuran aktual.
-    """
-    for width, height in PREFERRED_CAPTURE_SIZES:
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(width))
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, float(height))
-
-    fps = float(cap.get(cv2.CAP_PROP_FPS))
+def _read_actual_frame(cap: cv2.VideoCapture) -> tuple[int, int] | None:
     ok, frame = cap.read()
     if ok and frame is not None:
-        actual_h, actual_w = frame.shape[:2]
-        if fps <= 1.0:
-            fps = 30.0
-        return actual_w, actual_h, fps
+        h, w = frame.shape[:2]
+        return w, h
+    return None
 
+
+def _request_capture_size(
+    cap: cv2.VideoCapture,
+    width: int,
+    height: int,
+    *,
+    mjpeg: bool = False,
+) -> tuple[int, int] | None:
+    if mjpeg:
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(width))
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, float(height))
+    return _read_actual_frame(cap)
+
+
+def configure_capture_resolution(cap: cv2.VideoCapture) -> tuple[int, int, float]:
+    """
+    Coba resolusi dari tertinggi ke terendah; kembalikan ukuran frame aktual terbaik.
+
+    Beberapa webcam USB (mis. 1080p) membutuhkan FOURCC MJPEG agar driver menerima
+    resolusi tinggi. Setiap permintaan diverifikasi dengan membaca satu frame — bukan
+    hanya ``cap.get()`` — karena OpenCV/MSMF sering melaporkan nilai salah.
+    """
+    best_pixels = 0
+    best_actual = (0, 0)
+    best_request = (0, 0)
+    best_mjpeg = False
+    best_fps = 30.0
+
+    for width, height in PREFERRED_CAPTURE_SIZES:
+        for mjpeg in (False, True):
+            actual = _request_capture_size(cap, width, height, mjpeg=mjpeg)
+            if actual is None:
+                continue
+            actual_w, actual_h = actual
+            pixels = actual_w * actual_h
+            if pixels > best_pixels:
+                best_pixels = pixels
+                best_actual = actual
+                best_request = (width, height)
+                best_mjpeg = mjpeg
+                fps = float(cap.get(cv2.CAP_PROP_FPS))
+                best_fps = fps if fps > 1.0 else 30.0
+            if actual_w >= width - 2 and actual_h >= height - 2:
+                _request_capture_size(cap, width, height, mjpeg=mjpeg)
+                fps = float(cap.get(cv2.CAP_PROP_FPS))
+                return actual_w, actual_h, fps if fps > 1.0 else 30.0
+
+    if best_pixels > 0:
+        _request_capture_size(
+            cap, best_request[0], best_request[1], mjpeg=best_mjpeg
+        )
+        return best_actual[0], best_actual[1], best_fps
+
+    fps = float(cap.get(cv2.CAP_PROP_FPS))
     width = max(0, int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
     height = max(0, int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
     if fps <= 1.0:
@@ -158,13 +204,17 @@ def _try_probe(index: int, name: str, backend: int, backend_label: str) -> Camer
 
 
 def probe_camera(index: int, name: str) -> CameraInfo:
+    best: CameraInfo | None = None
     last = CameraInfo(index, name, False, 0, 0, 0.0, "Tidak bisa dibuka")
     for backend, backend_label in probe_backends():
         info = _try_probe(index, name, backend, backend_label)
-        if info.active:
-            return info
+        if not info.active:
+            last = info
+            continue
+        if best is None or (info.width * info.height) > (best.width * best.height):
+            best = info
         last = info
-    return last
+    return best if best is not None else last
 
 
 def scan_cameras(max_index: int = MAX_PROBE_INDEX) -> list[CameraInfo]:
