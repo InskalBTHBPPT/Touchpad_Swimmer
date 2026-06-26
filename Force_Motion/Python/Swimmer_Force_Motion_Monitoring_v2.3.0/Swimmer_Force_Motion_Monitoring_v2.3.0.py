@@ -318,6 +318,27 @@ def _safe_filename_part(s: str) -> str:
     return s or "TanpaNama"
 
 
+def _live_metric_block(title: str, parent: QWidget) -> tuple[QLabel, QWidget]:
+    """Judul statis di atas, nilai dinamis di bawah (satu kolom vertikal)."""
+    block = QWidget(parent)
+    block.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    lay = QVBoxLayout(block)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(1)
+    title_lbl = QLabel(title, block)
+    title_lbl.setStyleSheet("color: #9ca3af; font-size: 8pt; font-weight: 600;")
+    title_lbl.setFixedHeight(14)
+    value_lbl = QLabel("—", block)
+    value_lbl.setStyleSheet(
+        "color: #f9fafb; font-size: 16pt; font-weight: 700;"
+        " font-family: Consolas, 'Courier New', monospace;"
+    )
+    value_lbl.setFixedHeight(24)
+    lay.addWidget(title_lbl)
+    lay.addWidget(value_lbl)
+    return value_lbl, block
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -461,20 +482,29 @@ class MainWindow(QMainWindow):
         controls.layout().addLayout(row_btn)
 
         indicators = QGroupBox("Nilai terakhir", self)
+        indicators.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Expanding,
+        )
         ind_outer = QVBoxLayout(indicators)
+        ind_outer.setContentsMargins(12, 12, 12, 12)
         ind_outer.setSpacing(6)
-        live_row_style = "color: #e5e7eb; font-size: 10pt;"
-        self.force_label = QLabel("Force (Kg): —", self)
-        self.roll_label = QLabel("Roll Motion (Deg): —", self)
-        self.pitch_label = QLabel("Pitch Motion (Deg): —", self)
-        self.battery_label = QLabel("Baterai (%): —", self)
-        for w in (self.force_label, self.roll_label, self.pitch_label, self.battery_label):
-            w.setStyleSheet(live_row_style)
 
-        ind_outer.addWidget(self.force_label)
-        ind_outer.addWidget(self.roll_label)
-        ind_outer.addWidget(self.pitch_label)
-        ind_outer.addWidget(self.battery_label)
+        metrics_column = QVBoxLayout()
+        metrics_column.setContentsMargins(0, 0, 0, 0)
+        metrics_column.setSpacing(5)
+
+        self.force_label, force_block = _live_metric_block("Force (Kg)", indicators)
+        metrics_column.addWidget(force_block)
+        self.roll_label, roll_block = _live_metric_block("Roll Motion (Deg)", indicators)
+        metrics_column.addWidget(roll_block)
+        self.pitch_label, pitch_block = _live_metric_block("Pitch Motion (Deg)", indicators)
+        metrics_column.addWidget(pitch_block)
+        self.battery_label, battery_block = _live_metric_block("Baterai (%)", indicators)
+        metrics_column.addWidget(battery_block)
+
+        ind_outer.addLayout(metrics_column, 0)
+        ind_outer.addStretch(1)
 
         about_help_row = QHBoxLayout()
         about_help_row.addStretch(1)
@@ -813,10 +843,10 @@ class MainWindow(QMainWindow):
         self._reset_live_indicators()
 
     def _reset_live_indicators(self) -> None:
-        self.force_label.setText("Force (Kg): —")
-        self.roll_label.setText("Roll Motion (Deg): —")
-        self.pitch_label.setText("Pitch Motion (Deg): —")
-        self.battery_label.setText("Baterai (%): —")
+        self.force_label.setText("—")
+        self.roll_label.setText("—")
+        self.pitch_label.setText("—")
+        self.battery_label.setText("—")
 
     def poll_serial(self) -> None:
         if not self.ser:
@@ -867,11 +897,11 @@ class MainWindow(QMainWindow):
         pitch_deg: float,
         battery_pct: float | None = None,
     ) -> None:
-        self.force_label.setText(f"Force (Kg): {force_kg:.2f} Kg")
-        self.roll_label.setText(f"Roll Motion (Deg): {roll_deg:.2f}°")
-        self.pitch_label.setText(f"Pitch Motion (Deg): {pitch_deg:.2f}°")
+        self.force_label.setText(f"{force_kg:.2f} Kg")
+        self.roll_label.setText(f"{roll_deg:.2f}°")
+        self.pitch_label.setText(f"{pitch_deg:.2f}°")
         if battery_pct is not None:
-            self.battery_label.setText(f"Baterai (%): {battery_pct:.0f} %")
+            self.battery_label.setText(f"{battery_pct:.0f} %")
 
         self.force_time_data.append(ts)
         self.force_data.append(force_kg)
