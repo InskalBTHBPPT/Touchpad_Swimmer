@@ -43,6 +43,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
+    QDialog,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -521,6 +522,38 @@ def make_analyze_time_spectrum_row(
     return time_w, time_c, spec_w, spec_c
 
 
+_ANALYZE_SETTINGS_DIALOG_STYLESHEET = """
+QDialog { background-color: #1f2937; }
+QDialog QLabel { color: #e5e7eb; }
+QDialog QComboBox {
+    background: #374151;
+    color: #e5e7eb;
+    border: 1px solid #4b5563;
+    padding: 6px;
+    border-radius: 8px;
+}
+QDialog QRadioButton { color: #e5e7eb; spacing: 8px; }
+"""
+
+
+class AnalyzeSettingsDialog(QDialog):
+    """Jendela terpisah untuk pengaturan analisa (spektrum, segmen, gap CSV)."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Analisa Setting")
+        self.setModal(False)
+        self.setMinimumSize(400, 320)
+        self.setStyleSheet(_ANALYZE_SETTINGS_DIALOG_STYLESHEET)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(12, 12, 12, 12)
+        outer.setSpacing(8)
+        self._content_layout = outer
+
+    def set_content(self, widget: QWidget) -> None:
+        self._content_layout.addWidget(widget)
+
+
 class AnalyzeSingleFileTab(QWidget):
     """Satu CSV rekaman; statistik & plot rekaman — pisahkan dari tab batch nanti."""
 
@@ -646,7 +679,7 @@ class AnalyzeSingleFileTab(QWidget):
             QSizePolicy.Policy.Expanding,
         )
 
-        settings_group = QGroupBox("", self)
+        settings_group = QWidget(self)
         settings_inner = QVBoxLayout(settings_group)
         settings_inner.setContentsMargins(10, 10, 10, 10)
         settings_inner.setSpacing(6)
@@ -738,6 +771,16 @@ class AnalyzeSingleFileTab(QWidget):
         stats_inner.addWidget(self.stat_pitch_label)
         stats_inner.addWidget(self.stat_gap_loss_label)
 
+        stats_actions = QHBoxLayout()
+        stats_actions.setSpacing(8)
+        self.settings_btn = QPushButton("Setting…", self)
+        self.settings_btn.setToolTip(
+            "Buka pengaturan analisa: metode spektrum, segmen waktu, metode gap CSV."
+        )
+        self.settings_btn.clicked.connect(self._show_analyze_settings)
+        stats_actions.addWidget(self.settings_btn, 0)
+        stats_actions.addStretch(1)
+
         self.save_stats_btn = QPushButton("Simpan statistik…", self)
         self.save_stats_btn.setObjectName("SaveStatsButton")
         self.save_stats_btn.setToolTip(
@@ -746,7 +789,11 @@ class AnalyzeSingleFileTab(QWidget):
         )
         self.save_stats_btn.setEnabled(False)
         self.save_stats_btn.clicked.connect(self.save_statistics_csv)
-        stats_inner.addWidget(self.save_stats_btn)
+        stats_actions.addWidget(self.save_stats_btn, 0)
+        stats_inner.addLayout(stats_actions)
+
+        self._settings_dialog = AnalyzeSettingsDialog(self)
+        self._settings_dialog.set_content(settings_group)
 
         self._scatter_force: pg.ScatterPlotItem | None = None
         self._scatter_roll: pg.ScatterPlotItem | None = None
@@ -756,10 +803,6 @@ class AnalyzeSingleFileTab(QWidget):
         self._stats_snapshot: dict[str, float | str | None] | None = None
         self._loaded_csv_path: Path | None = None
 
-        settings_group.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
-        )
         self.stats_group.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -780,7 +823,7 @@ class AnalyzeSingleFileTab(QWidget):
             QSizePolicy.Policy.Expanding,
         )
 
-        # Kanan: atas (video) + bawah (setting | statistik)
+        # Kanan: atas (video) + bawah (statistik)
         right_top = QWidget(self)
         right_top.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -799,7 +842,6 @@ class AnalyzeSingleFileTab(QWidget):
         right_bottom_layout = QHBoxLayout(right_bottom)
         right_bottom_layout.setContentsMargins(0, 0, 0, 0)
         right_bottom_layout.setSpacing(6)
-        right_bottom_layout.addWidget(settings_group, 1)
         right_bottom_layout.addWidget(stats_scroll, 1)
 
         right_side = QWidget(self)
@@ -815,6 +857,11 @@ class AnalyzeSingleFileTab(QWidget):
 
         root.addWidget(time_column, 1)
         root.addWidget(right_side, 1)
+
+    def _show_analyze_settings(self) -> None:
+        self._settings_dialog.show()
+        self._settings_dialog.raise_()
+        self._settings_dialog.activateWindow()
 
     def _spectrum_use_welch(self) -> bool:
         """True jika metode spektrum = Welch PSD (dropdown)."""
