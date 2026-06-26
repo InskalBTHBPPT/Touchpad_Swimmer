@@ -62,7 +62,7 @@ class AnalyzeVideoPanel(QGroupBox):
     position_changed = Signal(float)
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__("Rekaman video", parent)
+        super().__init__("", parent)
         self._video_path: Path | None = None
         self._cap: cv2.VideoCapture | None = None
         self._playing = False

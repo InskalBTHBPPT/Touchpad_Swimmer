@@ -648,7 +648,7 @@ class AnalyzeSingleFileTab(QWidget):
         self.meta_label.setText(_html_load_placeholder())
         load_group.layout().addWidget(self.meta_label)
 
-        settings_group = QGroupBox("Analisa Setting", self)
+        settings_group = QGroupBox("", self)
         settings_inner = QVBoxLayout(settings_group)
         settings_inner.setContentsMargins(10, 10, 10, 10)
         settings_inner.setSpacing(6)
@@ -709,7 +709,7 @@ class AnalyzeSingleFileTab(QWidget):
         settings_inner.addWidget(self._gap_method_a_radio)
         settings_inner.addWidget(self._gap_method_b_radio)
 
-        self.stats_group = QGroupBox("Statistik", self)
+        self.stats_group = QGroupBox("", self)
         stats_inner = QVBoxLayout(self.stats_group)
         stats_inner.setContentsMargins(10, 10, 10, 10)
         stats_inner.setSpacing(6)
@@ -1096,7 +1096,7 @@ class AnalyzeSingleFileTab(QWidget):
 
         self._setup_segment_regions(ts_list)
         self._reanalyze_current_segment()
-        if video_name is None:
+        if self.video_panel.video_path() is None:
             self._on_video_position_changed(-1.0)
         else:
             self._on_video_position_changed(self.video_panel.current_position_s())
