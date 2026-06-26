@@ -174,7 +174,7 @@ class CameraCaptureThread(QThread):
 
 
 class LiveCameraPanel(QWidget):
-    """Dua grup: pindai/pilih kamera dan tampilan live (+ rekam saat Start Log)."""
+    """Panel pindai/pilih kamera, preview live, dan rekam saat Start Log."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -190,19 +190,18 @@ class LiveCameraPanel(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(8)
 
-        scan_group = QGroupBox("Pindai & pilih kamera", self)
+        scan_group = QGroupBox("", self)
         scan_layout = QVBoxLayout(scan_group)
-
-        self._scan_status = QLabel("Klik «Pindai Kamera» untuk memulai.", self)
-        self._scan_status.setWordWrap(True)
-        self._scan_status.setStyleSheet("color: #9ca3af; font-size: 9pt;")
-        scan_layout.addWidget(self._scan_status)
+        scan_layout.setContentsMargins(8, 8, 8, 8)
 
         scan_btn_row = QHBoxLayout()
         self._scan_btn = QPushButton("Pindai Kamera", self)
         self._scan_btn.clicked.connect(self.start_scan)
         scan_btn_row.addWidget(self._scan_btn)
-        scan_btn_row.addStretch()
+        self._scan_status = QLabel("Klik «Pindai Kamera» untuk memulai.", self)
+        self._scan_status.setWordWrap(True)
+        self._scan_status.setStyleSheet("color: #9ca3af; font-size: 9pt;")
+        scan_btn_row.addWidget(self._scan_status, 1)
         scan_layout.addLayout(scan_btn_row)
 
         self._table = QTableWidget(0, 5, self)
@@ -222,8 +221,9 @@ class LiveCameraPanel(QWidget):
 
         root.addWidget(scan_group, 0)
 
-        view_group = QGroupBox("Tampilan kamera", self)
+        view_group = QGroupBox("", self)
         view_layout = QVBoxLayout(view_group)
+        view_layout.setContentsMargins(8, 8, 8, 8)
 
         self._preview_label = QLabel("Belum ada kamera dipilih.", self)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
