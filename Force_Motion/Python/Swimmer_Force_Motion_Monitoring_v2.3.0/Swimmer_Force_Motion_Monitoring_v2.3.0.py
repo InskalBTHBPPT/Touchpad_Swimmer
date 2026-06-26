@@ -400,6 +400,7 @@ class MainWindow(QMainWindow):
         self.port_combo = QComboBox(self)
         self.refresh_ports()
         self.refresh_btn = QPushButton("Refresh Ports", self)
+        self.refresh_btn.setObjectName("LivePrimaryButton")
         self.refresh_btn.clicked.connect(self.refresh_ports)
 
         baud_label = QLabel("Baud:")
@@ -448,6 +449,7 @@ class MainWindow(QMainWindow):
 
         row_btn = QHBoxLayout()
         self.connect_btn = QPushButton("Connect", self)
+        self.connect_btn.setObjectName("LivePrimaryButton")
         self.connect_btn.setCheckable(True)
         self.connect_btn.clicked.connect(self.toggle_connection)
         self.log_btn = QPushButton("Start Log", self)
@@ -549,6 +551,19 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background-color: #2563eb; }
             QPushButton:checked { background-color: #ef4444; }
             QPushButton:disabled { background-color: #6b7280; color: #d1d5db; }
+            QPushButton#LivePrimaryButton {
+                padding: 8px 12px;
+                background-color: #3b82f6;
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+            }
+            QPushButton#LivePrimaryButton:hover { background-color: #2563eb; }
+            QPushButton#LivePrimaryButton:checked { background-color: #ef4444; }
+            QPushButton#LivePrimaryButton:disabled {
+                background-color: #6b7280;
+                color: #d1d5db;
+            }
             QCheckBox { color: #e5e7eb; spacing: 8px; }
             QCheckBox::indicator {
                 width: 18px;

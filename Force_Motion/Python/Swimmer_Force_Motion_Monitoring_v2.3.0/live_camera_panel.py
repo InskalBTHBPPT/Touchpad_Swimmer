@@ -33,9 +33,8 @@ from live_camera_core import (
     quiet_opencv,
 )
 
-_PANEL_SECTION_STYLE = (
-    "background: #1f2937; border: 1px solid #374151; border-radius: 10px;"
-)
+_CAMERA_TABLE_ROW_HEIGHT = 28
+_CAMERA_TABLE_MIN_ROWS = 3
 _STATUS_BAR_STYLE = (
     "color: #9ca3af; font-size: 9pt; font-family: Consolas, 'Courier New', monospace;"
     " padding: 4px 2px;"
@@ -50,7 +49,9 @@ def _frame_to_qimage(frame) -> QImage:
 
 def _section_widget(parent: QWidget | None = None) -> tuple[QWidget, QVBoxLayout]:
     box = QWidget(parent)
-    box.setStyleSheet(_PANEL_SECTION_STYLE)
+    box.setStyleSheet(
+        "background: #1f2937; border: 1px solid #374151; border-radius: 10px;"
+    )
     layout = QVBoxLayout(box)
     layout.setContentsMargins(8, 8, 8, 8)
     layout.setSpacing(6)
@@ -254,6 +255,7 @@ class LiveCameraPanel(QWidget):
 
         scan_btn_row = QHBoxLayout()
         self._scan_btn = QPushButton("Pindai Kamera", self)
+        self._scan_btn.setObjectName("LivePrimaryButton")
         self._scan_btn.clicked.connect(self.start_scan)
         scan_btn_row.addWidget(self._scan_btn)
         self._scan_status = QLabel("Klik «Pindai Kamera» untuk memulai.", self)
@@ -274,7 +276,11 @@ class LiveCameraPanel(QWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self._table.itemSelectionChanged.connect(self._on_selection_changed)
-        self._table.setMaximumHeight(96)
+        self._table.verticalHeader().setDefaultSectionSize(_CAMERA_TABLE_ROW_HEIGHT)
+        table_header_h = self._table.horizontalHeader().sizeHint().height()
+        table_body_h = _CAMERA_TABLE_MIN_ROWS * _CAMERA_TABLE_ROW_HEIGHT
+        self._table.setMinimumHeight(table_header_h + table_body_h + 2)
+        self._table.setMaximumHeight(table_header_h + table_body_h + 2)
         scan_layout.addWidget(self._table)
 
         root.addWidget(scan_box, 0)
