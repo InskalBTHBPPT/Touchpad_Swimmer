@@ -318,12 +318,15 @@ def _safe_filename_part(s: str) -> str:
     return s or "TanpaNama"
 
 
+_LIVE_METRIC_GAP_Y = 8  # px jeda vertikal sebelum & sesudah tiap parameter
+
+
 def _live_metric_block(title: str, parent: QWidget) -> tuple[QLabel, QWidget]:
     """Judul statis di atas, nilai dinamis di bawah (satu kolom vertikal)."""
     block = QWidget(parent)
     block.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
     lay = QVBoxLayout(block)
-    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setContentsMargins(0, _LIVE_METRIC_GAP_Y, 0, _LIVE_METRIC_GAP_Y)
     lay.setSpacing(2)
     title_lbl = QLabel(title, block)
     title_lbl.setStyleSheet("color: #9ca3af; font-size: 15pt; font-weight: 600;")
@@ -492,7 +495,7 @@ class MainWindow(QMainWindow):
 
         metrics_column = QVBoxLayout()
         metrics_column.setContentsMargins(0, 0, 0, 0)
-        metrics_column.setSpacing(4)
+        metrics_column.setSpacing(0)
 
         self.force_label, force_block = _live_metric_block("Force (Kg)", indicators)
         metrics_column.addWidget(force_block)
