@@ -623,17 +623,16 @@ class AnalyzeSingleFileTab(QWidget):
             QSizePolicy.Policy.Expanding,
         )
 
-        right_column = QWidget(self)
-        right_column.setMinimumWidth(260)
-        right_column.setMaximumWidth(380)
-        right_layout = QVBoxLayout(right_column)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(6)
-
         load_group = QGroupBox("", self)
         load_group.setLayout(QVBoxLayout())
         load_group.layout().setContentsMargins(10, 10, 10, 10)
         load_group.layout().setSpacing(8)
+        load_group.setMinimumWidth(220)
+        load_group.setMaximumWidth(300)
+        load_group.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Expanding,
+        )
 
         self.load_csv_btn = QPushButton("Load CSV…", self)
         self.load_csv_btn.clicked.connect(self.load_csv)
@@ -763,8 +762,14 @@ class AnalyzeSingleFileTab(QWidget):
         self._stats_snapshot: dict[str, float | str | None] | None = None
         self._loaded_csv_path: Path | None = None
 
-        right_layout.addWidget(load_group, 0)
-        right_layout.addWidget(settings_group, 0)
+        settings_group.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        self.stats_group.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
 
         stats_scroll_body = QWidget(self)
         stats_scroll_body.setSizePolicy(
@@ -776,12 +781,47 @@ class AnalyzeSingleFileTab(QWidget):
         stats_scroll_layout.setSpacing(0)
         stats_scroll_layout.addWidget(self.stats_group)
         stats_scroll = wrap_in_scroll_area(stats_scroll_body, self)
-        stats_scroll.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        right_layout.addWidget(stats_scroll, 1)
+        stats_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
 
-        root.addWidget(time_column, 3)
-        root.addWidget(video_scroll, 2)
-        root.addWidget(right_column, 1)
+        # Kanan: atas (video | load) + bawah (setting | statistik)
+        right_top = QWidget(self)
+        right_top.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        right_top_layout = QHBoxLayout(right_top)
+        right_top_layout.setContentsMargins(0, 0, 0, 0)
+        right_top_layout.setSpacing(6)
+        right_top_layout.addWidget(video_scroll, 1)
+        right_top_layout.addWidget(load_group, 0)
+
+        right_bottom = QWidget(self)
+        right_bottom.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        right_bottom_layout = QHBoxLayout(right_bottom)
+        right_bottom_layout.setContentsMargins(0, 0, 0, 0)
+        right_bottom_layout.setSpacing(6)
+        right_bottom_layout.addWidget(settings_group, 1)
+        right_bottom_layout.addWidget(stats_scroll, 1)
+
+        right_side = QWidget(self)
+        right_side.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        right_side_layout = QVBoxLayout(right_side)
+        right_side_layout.setContentsMargins(0, 0, 0, 0)
+        right_side_layout.setSpacing(6)
+        right_side_layout.addWidget(right_top, 1)
+        right_side_layout.addWidget(right_bottom, 1)
+
+        root.addWidget(time_column, 1)
+        root.addWidget(right_side, 1)
 
     def _spectrum_use_welch(self) -> bool:
         """True jika metode spektrum = Welch PSD (dropdown)."""
