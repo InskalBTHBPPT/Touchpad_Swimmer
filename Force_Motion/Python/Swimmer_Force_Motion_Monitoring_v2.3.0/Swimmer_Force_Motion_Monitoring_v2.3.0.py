@@ -224,7 +224,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QFont, QGuiApplication
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -994,24 +994,9 @@ class MainWindow(QMainWindow):
 
 
 def _present_main_window(win: QMainWindow) -> None:
-    """Tampilkan jendela agar muat area kerja layar (hindari setGeometry > available)."""
+    """Tampilkan jendela utama memenuhi area kerja layar (maximized)."""
     win.setMinimumSize(720, 480)
-    screen = QGuiApplication.primaryScreen()
-    if screen is None:
-        win.showMaximized()
-        return
-    avail = screen.availableGeometry()
-    target_w = min(max(win.width(), 1000), avail.width())
-    target_h = min(max(win.height(), 600), min(720, avail.height()))
-    if target_w >= avail.width() - 40 and target_h >= avail.height() - 40:
-        win.showMaximized()
-    else:
-        win.resize(target_w, target_h)
-        win.move(
-            avail.x() + max(0, (avail.width() - target_w) // 2),
-            avail.y() + max(0, (avail.height() - target_h) // 2),
-        )
-        win.show()
+    win.showMaximized()
 
 
 if __name__ == "__main__":
