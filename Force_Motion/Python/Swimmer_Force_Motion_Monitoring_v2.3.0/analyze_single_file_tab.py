@@ -59,7 +59,7 @@ from PySide6.QtWidgets import (
 from scipy import signal
 
 from analyze_metrics_core import GAP_LOSS_TOLERANCE_FACTOR, GapLossStats, compute_gap_loss
-from analyze_video_panel import AnalyzeVideoPanel
+from analyze_video_panel import AnalyzeVideoPanel, _ANALYZE_TRANSPORT_BUTTON_STYLE
 from live_csv_io import LogSyncMeta, parse_logged_csv
 
 
@@ -610,6 +610,7 @@ class AnalyzeSingleFileTab(QWidget):
         meta_row1.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self.load_csv_btn = QPushButton("Load CSV…", self)
+        self.load_csv_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
         self.load_csv_btn.clicked.connect(self.load_csv)
         meta_row1.addWidget(self.load_csv_btn, 0)
 
@@ -774,6 +775,7 @@ class AnalyzeSingleFileTab(QWidget):
         stats_actions = QHBoxLayout()
         stats_actions.setSpacing(8)
         self.settings_btn = QPushButton("Setting…", self)
+        self.settings_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
         self.settings_btn.setToolTip(
             "Buka pengaturan analisa: metode spektrum, segmen waktu, metode gap CSV."
         )
@@ -782,6 +784,7 @@ class AnalyzeSingleFileTab(QWidget):
         stats_actions.addStretch(1)
 
         self.save_stats_btn = QPushButton("Simpan statistik…", self)
+        self.save_stats_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
         self.save_stats_btn.setToolTip(
             "Simpan langsung ke folder DataStatistik/ di samping DataLog: "
             "<nama_file_log>_DataStaistik.csv (UTF-8), tanpa dialog Save As."
