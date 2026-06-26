@@ -12,7 +12,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import cv2
-from PySide6.QtCore import QMutex, QMutexLocker, Qt, QThread, Signal
+from PySide6.QtCore import QMutex, QMutexLocker, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -33,8 +33,9 @@ from live_camera_core import (
     quiet_opencv,
 )
 
-_CAMERA_TABLE_ROW_HEIGHT = 28
+_CAMERA_TABLE_ROW_HEIGHT = 32
 _CAMERA_TABLE_MIN_ROWS = 3
+_CAMERA_TABLE_HEADER_MIN = 34
 # Tombol di dalam QWidget ber-border tidak mewarisi QPushButton#LivePrimaryButton dari jendela utama.
 _LIVE_PRIMARY_BUTTON_STYLE = """
 QPushButton {
@@ -62,6 +63,17 @@ def _frame_to_qimage(frame) -> QImage:
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     h, w, ch = rgb.shape
     return QImage(rgb.copy(), w, h, ch * w, QImage.Format.Format_RGB888)
+
+
+def _camera_table_viewport_height(table: QTableWidget, visible_rows: int) -> int:
+    """Tinggi widget agar ``visible_rows`` baris isi tampil penuh (tanpa terpotong)."""
+    header = table.horizontalHeader()
+    header_h = max(header.height(), header.sizeHint().height(), _CAMERA_TABLE_HEADER_MIN)
+    row_h = table.verticalHeader().defaultSectionSize()
+    if row_h <= 0:
+        row_h = _CAMERA_TABLE_ROW_HEIGHT
+    frame = table.frameWidth() * 2
+    return header_h + visible_rows * row_h + frame + 4
 
 
 def _section_widget(parent: QWidget | None = None) -> tuple[QWidget, QVBoxLayout]:
@@ -294,11 +306,10 @@ class LiveCameraPanel(QWidget):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self._table.itemSelectionChanged.connect(self._on_selection_changed)
         self._table.verticalHeader().setDefaultSectionSize(_CAMERA_TABLE_ROW_HEIGHT)
-        table_header_h = self._table.horizontalHeader().sizeHint().height()
-        table_body_h = _CAMERA_TABLE_MIN_ROWS * _CAMERA_TABLE_ROW_HEIGHT
-        self._table.setMinimumHeight(table_header_h + table_body_h + 2)
-        self._table.setMaximumHeight(table_header_h + table_body_h + 2)
+        self._table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scan_layout.addWidget(self._table)
+        QTimer.singleShot(0, self._apply_camera_table_height)
 
         root.addWidget(scan_box, 0)
 
@@ -336,6 +347,14 @@ class LiveCameraPanel(QWidget):
         self._capture_thread.stream_info.connect(self._on_stream_info)
         self._capture_thread.error.connect(self._on_capture_error)
         self._capture_thread.start()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._apply_camera_table_height()
+
+    def _apply_camera_table_height(self) -> None:
+        h = _camera_table_viewport_height(self._table, _CAMERA_TABLE_MIN_ROWS)
+        self._table.setFixedHeight(h)
 
     def selected_camera(self) -> CameraInfo | None:
         row = self._table.currentRow()
@@ -454,6 +473,8 @@ class LiveCameraPanel(QWidget):
             self._capture_thread.set_camera(None)
             self._clear_preview("Tidak ada kamera aktif.")
             self._update_status_bar()
+
+        QTimer.singleShot(0, self._apply_camera_table_height)
 
     def _on_selection_changed(self) -> None:
         if self._logging_active:
