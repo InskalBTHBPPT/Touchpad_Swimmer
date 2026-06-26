@@ -35,6 +35,23 @@ from live_camera_core import (
 
 _CAMERA_TABLE_ROW_HEIGHT = 28
 _CAMERA_TABLE_MIN_ROWS = 3
+# Tombol di dalam QWidget ber-border tidak mewarisi QPushButton#LivePrimaryButton dari jendela utama.
+_LIVE_PRIMARY_BUTTON_STYLE = """
+QPushButton {
+    padding: 8px 12px;
+    background-color: #3b82f6;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+}
+QPushButton:hover {
+    background-color: #2563eb;
+}
+QPushButton:disabled {
+    background-color: #6b7280;
+    color: #d1d5db;
+}
+"""
 _STATUS_BAR_STYLE = (
     "color: #9ca3af; font-size: 9pt; font-family: Consolas, 'Courier New', monospace;"
     " padding: 4px 2px;"
@@ -255,7 +272,7 @@ class LiveCameraPanel(QWidget):
 
         scan_btn_row = QHBoxLayout()
         self._scan_btn = QPushButton("Pindai Kamera", self)
-        self._scan_btn.setObjectName("LivePrimaryButton")
+        self._scan_btn.setStyleSheet(_LIVE_PRIMARY_BUTTON_STYLE)
         self._scan_btn.clicked.connect(self.start_scan)
         scan_btn_row.addWidget(self._scan_btn)
         self._scan_status = QLabel("Klik «Pindai Kamera» untuk memulai.", self)
