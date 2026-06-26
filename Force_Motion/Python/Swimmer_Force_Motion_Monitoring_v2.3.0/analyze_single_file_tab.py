@@ -117,17 +117,24 @@ def _analyze_meta_block(
 
 _STATS_TABLE_STYLE = """
 QTableWidget {
-    background: #0f172a;
+    background-color: #111827;
+    alternate-background-color: #111827;
     color: #e5e7eb;
-    gridline-color: #334155;
-    border: 1px solid #334155;
+    gridline-color: #374151;
+    border: 1px solid #374151;
     border-radius: 8px;
     font-size: 10pt;
 }
+QTableWidget::item {
+    background-color: #111827;
+    color: #e5e7eb;
+    padding: 4px 6px;
+}
 QHeaderView::section {
-    background: #1f2937;
-    color: #9ca3af;
+    background-color: #374151;
+    color: #e5e7eb;
     border: none;
+    border-bottom: 1px solid #4b5563;
     padding: 6px 8px;
     font-weight: 600;
 }
@@ -173,7 +180,6 @@ def _configure_stats_matrix_table(table: QTableWidget) -> None:
     table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
     table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-    table.setAlternatingRowColors(True)
     table.setStyleSheet(_STATS_TABLE_STYLE)
     table.horizontalHeader().setStretchLastSection(True)
     table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
