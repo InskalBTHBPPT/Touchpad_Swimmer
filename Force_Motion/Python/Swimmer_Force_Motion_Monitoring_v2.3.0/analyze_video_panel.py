@@ -88,6 +88,13 @@ class AnalyzeVideoPanel(QGroupBox):
         )
         layout.addWidget(self._preview, 1)
 
+        self._info_label = QLabel("Video: —", self)
+        self._info_label.setWordWrap(True)
+        self._info_label.setStyleSheet(
+            "color: #9ca3af; font-size: 9pt; font-family: Consolas, 'Courier New', monospace;"
+        )
+        layout.addWidget(self._info_label)
+
         transport = QHBoxLayout()
         self._play_btn = QPushButton("▶ Play", self)
         self._play_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
@@ -129,6 +136,7 @@ class AnalyzeVideoPanel(QGroupBox):
         self._play_btn.setEnabled(False)
         self._preview.setText("Tidak ada video dimuat.")
         self._preview.setPixmap(QPixmap())
+        self._info_label.setText("Video: —")
         self._time_label.setText("00:00.0 / 00:00.0")
         self.position_changed.emit(-1.0)
 
@@ -158,6 +166,7 @@ class AnalyzeVideoPanel(QGroupBox):
         self._slider.blockSignals(False)
 
         self._play_btn.setEnabled(True)
+        self._info_label.setText(f"Video: {path.name}")
         self._show_frame(0)
         self._update_time_label()
         self._emit_position()
