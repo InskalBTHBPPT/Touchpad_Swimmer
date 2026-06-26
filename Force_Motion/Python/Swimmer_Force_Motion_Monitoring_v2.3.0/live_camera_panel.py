@@ -8,13 +8,13 @@ probe OpenCV (MSMF/DSHOW) dan penekanan log.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import cv2
 from PySide6.QtCore import QMutex, QMutexLocker, Qt, QThread, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
-    QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -33,11 +33,68 @@ from live_camera_core import (
     quiet_opencv,
 )
 
+_PANEL_SECTION_STYLE = (
+    "background: #1f2937; border: 1px solid #374151; border-radius: 10px;"
+)
+_STATUS_BAR_STYLE = (
+    "color: #9ca3af; font-size: 9pt; font-family: Consolas, 'Courier New', monospace;"
+    " padding: 4px 2px;"
+)
+
 
 def _frame_to_qimage(frame) -> QImage:
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     h, w, ch = rgb.shape
     return QImage(rgb.copy(), w, h, ch * w, QImage.Format.Format_RGB888)
+
+
+def _section_widget(parent: QWidget | None = None) -> tuple[QWidget, QVBoxLayout]:
+    box = QWidget(parent)
+    box.setStyleSheet(_PANEL_SECTION_STYLE)
+    layout = QVBoxLayout(box)
+    layout.setContentsMargins(8, 8, 8, 8)
+    layout.setSpacing(6)
+    return box, layout
+
+
+class PreviewAspectContainer(QWidget):
+    """Bingkai preview dengan rasio lebar:tinggi tetap 16:9."""
+
+    _ASPECT = 16.0 / 9.0
+
+    def __init__(
+        self,
+        preview: QLabel,
+        parent: QWidget | None = None,
+        *,
+        on_layout: Callable[[], None] | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._preview = preview
+        self._on_layout = on_layout
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        outer.addWidget(preview, 0, Qt.AlignmentFlag.AlignCenter)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        avail_w = max(self.width(), 1)
+        avail_h = max(self.height(), 1)
+        w = avail_w
+        h = int(round(w / self._ASPECT))
+        if h > avail_h:
+            h = avail_h
+            w = int(round(h * self._ASPECT))
+        w = max(w, 1)
+        h = max(h, 1)
+        self._preview.setFixedSize(w, h)
+        if self._on_layout is not None:
+            self._on_layout()
 
 
 class CameraCaptureThread(QThread):
@@ -184,15 +241,16 @@ class LiveCameraPanel(QWidget):
         self._record_path: Path | None = None
         self._live_width = 0
         self._live_height = 0
+        self._live_fps = 0.0
         self._selected_cam_name = ""
+        self._selected_cam_index: int | str = "?"
+        self._last_frame: QImage | None = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(8)
 
-        scan_group = QGroupBox("", self)
-        scan_layout = QVBoxLayout(scan_group)
-        scan_layout.setContentsMargins(8, 8, 8, 8)
+        scan_box, scan_layout = _section_widget(self)
 
         scan_btn_row = QHBoxLayout()
         self._scan_btn = QPushButton("Pindai Kamera", self)
@@ -219,44 +277,29 @@ class LiveCameraPanel(QWidget):
         self._table.setMaximumHeight(96)
         scan_layout.addWidget(self._table)
 
-        root.addWidget(scan_group, 0)
+        root.addWidget(scan_box, 0)
 
-        view_group = QGroupBox("", self)
-        view_layout = QVBoxLayout(view_group)
-        view_layout.setContentsMargins(8, 8, 8, 8)
+        view_box, view_layout = _section_widget(self)
 
         self._preview_label = QLabel("Belum ada kamera dipilih.", self)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview_label.setMinimumHeight(160)
-        self._preview_label.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
-        )
+        self._preview_label.setMinimumSize(160, 90)
         self._preview_label.setStyleSheet(
             "background: #111827; color: #6b7280; border-radius: 8px; font-size: 10pt;"
         )
-        view_layout.addWidget(self._preview_label, 1)
-
-        self._capture_resolution_label = QLabel("Capture: —", self)
-        self._capture_resolution_label.setWordWrap(True)
-        self._capture_resolution_label.setStyleSheet(
-            "color: #d1d5db; font-size: 9pt; font-family: Consolas, 'Courier New', monospace;"
+        self._preview_aspect = PreviewAspectContainer(
+            self._preview_label,
+            self,
+            on_layout=self._apply_frame_to_preview,
         )
-        view_layout.addWidget(self._capture_resolution_label)
+        view_layout.addWidget(self._preview_aspect, 1)
 
-        self._view_status = QLabel("Preview: —", self)
-        self._view_status.setWordWrap(True)
-        self._view_status.setStyleSheet("color: #9ca3af; font-size: 9pt;")
-        view_layout.addWidget(self._view_status)
+        self._status_bar = QLabel("Pilih kamera aktif pada tabel untuk preview.", self)
+        self._status_bar.setWordWrap(True)
+        self._status_bar.setStyleSheet(_STATUS_BAR_STYLE)
+        view_layout.addWidget(self._status_bar, 0)
 
-        self._video_name_label = QLabel("Video: —", self)
-        self._video_name_label.setWordWrap(True)
-        self._video_name_label.setStyleSheet(
-            "color: #d1d5db; font-size: 9pt; font-family: Consolas, 'Courier New', monospace;"
-        )
-        view_layout.addWidget(self._video_name_label)
-
-        root.addWidget(view_group, 1)
+        root.addWidget(view_box, 1)
 
         self.setMinimumWidth(260)
         self.setSizePolicy(
@@ -285,6 +328,61 @@ class LiveCameraPanel(QWidget):
         self._logging_active = active
         self._scan_btn.setEnabled(not active)
         self._table.setEnabled(not active)
+
+    def _update_status_bar(self, *, error: str | None = None) -> None:
+        if error:
+            self._status_bar.setText(f"⚠ Kamera: {error}")
+            return
+
+        if self._record_path is not None:
+            mode = "● REKAM"
+            video_part = f"  ·  {self._record_path.name}"
+        elif self._live_width > 0 and self.selected_camera() is not None:
+            mode = "● LIVE"
+            video_part = ""
+        else:
+            mode = "○ Preview"
+            video_part = ""
+
+        cam = self.selected_camera()
+        if cam is not None:
+            name_part = f"  [{cam.index}] {cam.name}"
+        elif self._selected_cam_name:
+            name_part = f"  [{self._selected_cam_index}] {self._selected_cam_name}"
+        else:
+            name_part = ""
+
+        if self._live_width > 0 and self._live_height > 0:
+            fps_text = f"{self._live_fps:.0f}" if self._live_fps > 1.0 else "?"
+            res_part = f"  ·  {self._live_width}×{self._live_height} @ {fps_text} fps"
+        else:
+            res_part = ""
+
+        text = f"{mode}{name_part}{res_part}{video_part}".strip()
+        if not name_part and not res_part and not video_part and mode == "○ Preview":
+            text = "Pilih kamera aktif pada tabel untuk preview."
+        self._status_bar.setText(text)
+
+    def _clear_preview(self, message: str) -> None:
+        self._last_frame = None
+        self._live_width = 0
+        self._live_height = 0
+        self._live_fps = 0.0
+        self._preview_label.clear()
+        self._preview_label.setText(message)
+
+    def _apply_frame_to_preview(self) -> None:
+        if self._last_frame is None:
+            return
+        label_w = max(self._preview_label.width(), 1)
+        label_h = max(self._preview_label.height(), 1)
+        pixmap = QPixmap.fromImage(self._last_frame).scaled(
+            label_w,
+            label_h,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self._preview_label.setPixmap(pixmap)
 
     def start_scan(self) -> None:
         if self._logging_active or (self._scan_worker and self._scan_worker.isRunning()):
@@ -331,8 +429,8 @@ class LiveCameraPanel(QWidget):
                     break
         else:
             self._capture_thread.set_camera(None)
-            self._preview_label.setText("Tidak ada kamera aktif.")
-            self._view_status.setText("Preview: —")
+            self._clear_preview("Tidak ada kamera aktif.")
+            self._update_status_bar()
 
     def _on_selection_changed(self) -> None:
         if self._logging_active:
@@ -342,66 +440,38 @@ class LiveCameraPanel(QWidget):
             row = self._table.currentRow()
             if row >= 0:
                 self._capture_thread.set_camera(None)
-                self._preview_label.setText("Kamera tidak aktif atau belum dipilih.")
-                self._view_status.setText("Preview: —")
+                self._clear_preview("Kamera tidak aktif atau belum dipilih.")
+                self._update_status_bar()
             return
-        self._preview_label.setText("Membuka kamera…")
+        self._clear_preview("Membuka kamera…")
         self._selected_cam_name = cam.name
-        self._capture_resolution_label.setText("Capture: membuka…")
-        self._view_status.setText(f"Preview: [{cam.index}] {cam.name}")
+        self._selected_cam_index = cam.index
+        self._update_status_bar()
         self._capture_thread.set_camera(cam)
-
-    def _format_resolution_status(self, prefix: str) -> str:
-        if self._live_width > 0 and self._live_height > 0:
-            return (
-                f"{prefix} — capture {self._live_width}×{self._live_height}, "
-                f"tampilan {self._preview_label.width()}×{self._preview_label.height()} px"
-            )
-        return prefix
 
     def _on_stream_info(self, width: int, height: int, fps: float) -> None:
         self._live_width = width
         self._live_height = height
-        fps_text = f"{fps:.0f}" if fps > 1.0 else "?"
-        self._capture_resolution_label.setText(f"Capture: {width}×{height} @ {fps_text} fps")
-        cam = self.selected_camera()
-        name = cam.name if cam else self._selected_cam_name
-        index = cam.index if cam else "?"
-        prefix = f"Preview: [{index}] {name}"
-        self._view_status.setText(self._format_resolution_status(prefix))
+        self._live_fps = fps
+        self._update_status_bar()
 
     def _on_camera_opened(self, ok: bool) -> None:
         if not ok and not self._logging_active:
-            self._preview_label.setText("Gagal membuka kamera.")
+            self._clear_preview("Gagal membuka kamera.")
 
     def _on_capture_error(self, message: str) -> None:
-        self._view_status.setText(f"Kamera: {message}")
+        self._update_status_bar(error=message)
 
     def _on_frame(self, image: QImage) -> None:
+        self._last_frame = image
         self._live_width = image.width()
         self._live_height = image.height()
-        label_w = max(self._preview_label.width(), 1)
-        label_h = max(self._preview_label.height(), 1)
-        pixmap = QPixmap.fromImage(image).scaled(
-            label_w,
-            label_h,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        self._preview_label.setPixmap(pixmap)
+        self._apply_frame_to_preview()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        if self._preview_label.pixmap() is not None and self._live_width > 0:
-            cam = self.selected_camera()
-            prefix = (
-                f"Preview: [{cam.index}] {cam.name}"
-                if cam
-                else f"Preview: {self._selected_cam_name}"
-            )
-            if self._logging_active and self._record_path:
-                prefix = f"Rekam: [{cam.index if cam else '?'}] {cam.name if cam else self._selected_cam_name}"
-            self._view_status.setText(self._format_resolution_status(prefix))
+        if self._last_frame is not None:
+            self._apply_frame_to_preview()
 
     def start_recording(self, video_path: Path) -> bool:
         cam = self.selected_camera()
@@ -409,21 +479,13 @@ class LiveCameraPanel(QWidget):
             return False
         self._record_path = video_path
         self._capture_thread.start_recording(video_path)
-        self._video_name_label.setText(f"Video: {video_path.name}")
-        prefix = f"Rekam: [{cam.index}] {cam.name}"
-        self._view_status.setText(self._format_resolution_status(prefix))
+        self._update_status_bar()
         return True
 
     def stop_recording(self) -> None:
         self._capture_thread.stop_recording()
         self._record_path = None
-        self._video_name_label.setText("Video: —")
-        cam = self.selected_camera()
-        if cam is not None:
-            prefix = f"Preview: [{cam.index}] {cam.name}"
-            self._view_status.setText(self._format_resolution_status(prefix))
-        else:
-            self._view_status.setText("Preview: —")
+        self._update_status_bar()
 
     def shutdown(self) -> None:
         self._capture_thread.stop_recording()

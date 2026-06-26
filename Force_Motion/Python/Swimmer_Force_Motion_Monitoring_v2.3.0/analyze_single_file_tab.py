@@ -316,7 +316,7 @@ def _configure_plot_widget_for_responsive_layout(
 
 
 _SCROLL_AREA_STYLE = """
-QScrollArea { background: transparent; border: none; }
+QScrollArea { background-color: #1f2937; border: none; }
 QScrollBar:vertical {
     background: #1f2937;
     width: 10px;
@@ -349,6 +349,7 @@ def wrap_in_scroll_area(content: QWidget, parent: QWidget | None = None) -> QScr
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     scroll.setStyleSheet(_SCROLL_AREA_STYLE)
+    scroll.viewport().setStyleSheet("background-color: #1f2937;")
     scroll.setWidget(content)
     return scroll
 
