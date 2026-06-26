@@ -88,41 +88,35 @@ def _he(s: str) -> str:
 _STAT_ROW_STYLE = "color:#ffffff;padding:2px 0;line-height:1.35;font-weight:600;font-size:11px;"
 
 
-def _html_load_field(label: str, value: str, *, monospace: bool = False, margin_top: int = 8) -> str:
-    mono = (
-        'font-family: Consolas, "Cascadia Mono", "Courier New", monospace; font-size: 11.5px;'
+def _analyze_meta_block(
+    title: str,
+    parent: QWidget,
+    *,
+    monospace: bool = False,
+) -> tuple[QLabel, QWidget]:
+    """Judul statis di atas, nilai dinamis di bawah (header kolom plot)."""
+    block = QWidget(parent)
+    block.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    lay = QVBoxLayout(block)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(2)
+    title_lbl = QLabel(title, block)
+    title_lbl.setStyleSheet(
+        "color: #9ca3af; font-size: 9pt; font-weight: 600; letter-spacing: 0.06em;"
+    )
+    value_lbl = QLabel("—", block)
+    mono_css = (
+        "font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace;"
         if monospace
-        else "font-size: 13px;"
+        else ""
     )
-    return (
-        f'<div style="margin-top:{margin_top}px;">'
-        f'<div style="color:#e2e8f0;font-size:9px;font-weight:700;letter-spacing:0.12em;opacity:0.92;">'
-        f"{_he(label.upper())}</div>"
-        f'<div style="color:#f8fafc;font-weight:600;margin-top:3px;line-height:1.45;{mono}">'
-        f"{_he(value)}</div>"
-        f"</div>"
+    value_lbl.setStyleSheet(
+        f"color: #f8fafc; font-size: 12pt; font-weight: 600; {mono_css}"
     )
-
-
-def _html_load_block(swimmer: str, stroke: str, csv_filename: str) -> str:
-    return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:12px 14px;">'
-        f"{_html_load_field('Nama perenang', swimmer, margin_top=0)}"
-        f"{_html_load_field('Gaya renang', stroke)}"
-        f"{_html_load_field('File CSV', csv_filename, monospace=True)}"
-        "</div>"
-    )
-
-
-def _html_load_placeholder() -> str:
-    return (
-        '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:14px 16px;">'
-        '<p style="margin:0;color:#cbd5e1;font-size:11px;line-height:1.55;">'
-        'Belum ada rekaman dimuat.<br/>'
-        'Tekan <b style="color:#f1f5f9;">Load CSV…</b> untuk memilih file hasil tab Live '
-        "(video <code>.mp4</code> pasangan dimuat otomatis jika ada)."
-        "</p></div>"
-    )
+    value_lbl.setWordWrap(True)
+    lay.addWidget(title_lbl)
+    lay.addWidget(value_lbl)
+    return value_lbl, block
 
 
 def _html_stat_placeholder() -> str:
@@ -569,6 +563,41 @@ class AnalyzeSingleFileTab(QWidget):
         time_layout.setContentsMargins(0, 0, 0, 0)
         time_layout.setSpacing(4)
 
+        plot_header = QWidget(time_column)
+        plot_header.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+        plot_header_layout = QVBoxLayout(plot_header)
+        plot_header_layout.setContentsMargins(0, 0, 0, 2)
+        plot_header_layout.setSpacing(4)
+
+        meta_row1 = QHBoxLayout()
+        meta_row1.setSpacing(16)
+        meta_row1.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        self.load_csv_btn = QPushButton("Load CSV…", self)
+        self.load_csv_btn.clicked.connect(self.load_csv)
+        meta_row1.addWidget(self.load_csv_btn, 0)
+
+        self._swimmer_meta_label, swimmer_meta_block = _analyze_meta_block("Perenang", self)
+        meta_row1.addWidget(swimmer_meta_block, 0)
+
+        self._stroke_meta_label, stroke_meta_block = _analyze_meta_block("Gaya", self)
+        meta_row1.addWidget(stroke_meta_block, 0)
+        meta_row1.addStretch(1)
+
+        meta_row2 = QHBoxLayout()
+        meta_row2.setSpacing(16)
+        self._file_meta_label, file_meta_block = _analyze_meta_block(
+            "File", self, monospace=True
+        )
+        meta_row2.addWidget(file_meta_block, 1)
+
+        plot_header_layout.addLayout(meta_row1)
+        plot_header_layout.addLayout(meta_row2)
+        time_layout.addWidget(plot_header, 0)
+
         self.force_plot_widget, self.force_curve = make_analyze_time_plot(
             time_title="Force (Kg) — rekaman",
             time_left="Force (Kg)",
@@ -623,16 +652,12 @@ class AnalyzeSingleFileTab(QWidget):
         load_group.setLayout(QVBoxLayout())
         load_group.layout().setContentsMargins(10, 10, 10, 10)
         load_group.layout().setSpacing(8)
-        load_group.setMinimumWidth(220)
-        load_group.setMaximumWidth(300)
+        load_group.setMinimumWidth(160)
+        load_group.setMaximumWidth(220)
         load_group.setSizePolicy(
             QSizePolicy.Policy.Preferred,
             QSizePolicy.Policy.Expanding,
         )
-
-        self.load_csv_btn = QPushButton("Load CSV…", self)
-        self.load_csv_btn.clicked.connect(self.load_csv)
-        load_group.layout().addWidget(self.load_csv_btn)
 
         self.load_video_btn = QPushButton("Load Video…", self)
         self.load_video_btn.setToolTip(
@@ -640,13 +665,7 @@ class AnalyzeSingleFileTab(QWidget):
         )
         self.load_video_btn.clicked.connect(self.load_video)
         load_group.layout().addWidget(self.load_video_btn)
-
-        self.meta_label = QLabel(self)
-        self.meta_label.setObjectName("AnalyzeRichLabel")
-        self.meta_label.setWordWrap(True)
-        self.meta_label.setTextFormat(Qt.TextFormat.RichText)
-        self.meta_label.setText(_html_load_placeholder())
-        load_group.layout().addWidget(self.meta_label)
+        load_group.layout().addStretch(1)
 
         settings_group = QGroupBox("", self)
         settings_inner = QVBoxLayout(settings_group)
@@ -1023,17 +1042,15 @@ class AnalyzeSingleFileTab(QWidget):
             return
         self.video_panel.clear()
 
-    def _update_meta_label(self) -> None:
+    def _update_meta_labels(self) -> None:
         if self._export_ctx is None:
-            self.meta_label.setText(_html_load_placeholder())
+            self._swimmer_meta_label.setText("—")
+            self._stroke_meta_label.setText("—")
+            self._file_meta_label.setText("—")
             return
-        self.meta_label.setText(
-            _html_load_block(
-                self._export_ctx["swimmer"],
-                self._export_ctx["stroke"],
-                self._export_ctx["source_file"],
-            )
-        )
+        self._swimmer_meta_label.setText(self._export_ctx["swimmer"])
+        self._stroke_meta_label.setText(self._export_ctx["stroke"])
+        self._file_meta_label.setText(self._export_ctx["source_file"])
 
     def load_video(self) -> None:
         start_dir = str(self._datalog_dir) if self._datalog_dir.is_dir() else ""
@@ -1051,7 +1068,6 @@ class AnalyzeSingleFileTab(QWidget):
         if not self.video_panel.load_video(path):
             QMessageBox.warning(self, "Load Video", f"Tidak bisa membuka video:\n{path}")
             return
-        self._update_meta_label()
         self._on_video_position_changed(self.video_panel.current_position_s())
 
     def load_csv(self) -> None:
@@ -1092,7 +1108,7 @@ class AnalyzeSingleFileTab(QWidget):
             "stroke": stroke,
             "source_file": path.name,
         }
-        self.meta_label.setText(_html_load_block(swimmer, stroke, path.name))
+        self._update_meta_labels()
 
         self._setup_segment_regions(ts_list)
         self._reanalyze_current_segment()
