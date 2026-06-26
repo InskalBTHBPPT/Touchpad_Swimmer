@@ -97,11 +97,9 @@ class AnalyzeVideoPanel(QGroupBox):
         layout.addWidget(self._info_label)
 
         transport = QHBoxLayout()
-        self._play_btn = QPushButton("▶ Play", self)
-        self._play_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
-        self._play_btn.setEnabled(False)
-        self._play_btn.clicked.connect(self._toggle_play)
-        transport.addWidget(self._play_btn)
+        transport.setContentsMargins(0, 0, 0, 0)
+        transport.setSpacing(8)
+        transport.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self._load_video_btn = QPushButton("Load Video…", self)
         self._load_video_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
@@ -109,12 +107,19 @@ class AnalyzeVideoPanel(QGroupBox):
             "Muat berkas MP4 secara manual jika pasangan otomatis tidak ditemukan."
         )
         self._load_video_btn.clicked.connect(self.load_video_requested.emit)
-        transport.addWidget(self._load_video_btn)
+        transport.addWidget(self._load_video_btn, 0)
+
+        transport.addStretch(1)
+
+        self._play_btn = QPushButton("▶ Play", self)
+        self._play_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
+        self._play_btn.setEnabled(False)
+        self._play_btn.clicked.connect(self._toggle_play)
+        transport.addWidget(self._play_btn, 0)
 
         self._time_label = QLabel("00:00.0 / 00:00.0", self)
         self._time_label.setStyleSheet("color: #d1d5db; font-size: 9pt;")
-        transport.addWidget(self._time_label)
-        transport.addStretch()
+        transport.addWidget(self._time_label, 0)
         layout.addLayout(transport)
 
         self._slider = QSlider(Qt.Orientation.Horizontal, self)
