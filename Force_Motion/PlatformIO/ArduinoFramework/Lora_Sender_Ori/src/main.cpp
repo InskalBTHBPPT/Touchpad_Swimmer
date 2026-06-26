@@ -68,7 +68,7 @@ int percentTable[numPoints] = {
 // -------------------- Waktu --------------------
 unsigned long startTime;
 unsigned long lastReadTime = 0;
-const int sampleInterval = 50;  // 50Hz sampling
+const int sampleInterval = 50;  // value in ms
 
 // -------------------- Fungsi Normalisasi --------------------
 
