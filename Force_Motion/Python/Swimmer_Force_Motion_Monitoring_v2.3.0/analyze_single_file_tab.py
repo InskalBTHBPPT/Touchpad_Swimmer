@@ -104,16 +104,12 @@ def _html_load_field(label: str, value: str, *, monospace: bool = False, margin_
     )
 
 
-def _html_load_block(
-    swimmer: str, stroke: str, csv_filename: str, video_filename: str | None = None
-) -> str:
-    video_value = video_filename if video_filename else "— (tidak ditemukan)"
+def _html_load_block(swimmer: str, stroke: str, csv_filename: str) -> str:
     return (
         '<div style="background:#0c1222;border:1px solid #273449;border-radius:10px;padding:12px 14px;">'
         f"{_html_load_field('Nama perenang', swimmer, margin_top=0)}"
         f"{_html_load_field('Gaya renang', stroke)}"
         f"{_html_load_field('File CSV', csv_filename, monospace=True)}"
-        f"{_html_load_field('File video', video_value, monospace=True)}"
         "</div>"
     )
 
@@ -1021,26 +1017,21 @@ class AnalyzeSingleFileTab(QWidget):
     def _on_spectrum_method_changed(self, _index: int) -> None:
         self._reanalyze_current_segment()
 
-    def _try_load_paired_video(self, csv_path: Path) -> str | None:
+    def _try_load_paired_video(self, csv_path: Path) -> None:
         video_path = csv_path.with_suffix(".mp4")
         if video_path.is_file() and self.video_panel.load_video(video_path):
-            return video_path.name
+            return
         self.video_panel.clear()
-        return None
 
     def _update_meta_label(self) -> None:
         if self._export_ctx is None:
             self.meta_label.setText(_html_load_placeholder())
             return
-        video_name = (
-            self.video_panel.video_path().name if self.video_panel.video_path() else None
-        )
         self.meta_label.setText(
             _html_load_block(
                 self._export_ctx["swimmer"],
                 self._export_ctx["stroke"],
                 self._export_ctx["source_file"],
-                video_name,
             )
         )
 
@@ -1094,14 +1085,14 @@ class AnalyzeSingleFileTab(QWidget):
         self._log_sync_meta = sync_meta
         self._loaded_csv_path = path
 
-        video_name = self._try_load_paired_video(path)
+        self._try_load_paired_video(path)
 
         self._export_ctx = {
             "swimmer": swimmer,
             "stroke": stroke,
             "source_file": path.name,
         }
-        self.meta_label.setText(_html_load_block(swimmer, stroke, path.name, video_name))
+        self.meta_label.setText(_html_load_block(swimmer, stroke, path.name))
 
         self._setup_segment_regions(ts_list)
         self._reanalyze_current_segment()
