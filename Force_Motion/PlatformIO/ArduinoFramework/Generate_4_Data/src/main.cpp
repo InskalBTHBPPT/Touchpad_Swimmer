@@ -11,7 +11,7 @@
 #endif
 
 unsigned long lastTime = 0;
-unsigned long timerInterval = 20; // ms antar baris
+unsigned long timerInterval = 50; // ms antar baris
 
 static float phase1 = 0.0f;
 static float phase2 = 0.0f;
