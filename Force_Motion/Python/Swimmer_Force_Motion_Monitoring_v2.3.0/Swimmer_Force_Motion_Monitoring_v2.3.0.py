@@ -646,19 +646,6 @@ class MainWindow(QMainWindow):
                 border: none;
                 padding: 0px;
             }
-            QPushButton#SaveStatsButton {
-                background-color: #22c55e;
-            }
-            QPushButton#SaveStatsButton:hover {
-                background-color: #16a34a;
-            }
-            QPushButton#SaveStatsButton:pressed {
-                background-color: #15803d;
-            }
-            QPushButton#SaveStatsButton:disabled {
-                background-color: #6b7280;
-                color: #d1d5db;
-            }
             QPushButton#AboutHelpButton {
                 background-color: #475569;
                 font-size: 10pt;

@@ -782,7 +782,6 @@ class AnalyzeSingleFileTab(QWidget):
         stats_actions.addStretch(1)
 
         self.save_stats_btn = QPushButton("Simpan statistik…", self)
-        self.save_stats_btn.setObjectName("SaveStatsButton")
         self.save_stats_btn.setToolTip(
             "Simpan langsung ke folder DataStatistik/ di samping DataLog: "
             "<nama_file_log>_DataStaistik.csv (UTF-8), tanpa dialog Save As."
