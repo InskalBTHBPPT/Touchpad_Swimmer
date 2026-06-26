@@ -324,16 +324,16 @@ def _live_metric_block(title: str, parent: QWidget) -> tuple[QLabel, QWidget]:
     block.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
     lay = QVBoxLayout(block)
     lay.setContentsMargins(0, 0, 0, 0)
-    lay.setSpacing(1)
+    lay.setSpacing(2)
     title_lbl = QLabel(title, block)
-    title_lbl.setStyleSheet("color: #9ca3af; font-size: 8pt; font-weight: 600;")
-    title_lbl.setFixedHeight(14)
+    title_lbl.setStyleSheet("color: #9ca3af; font-size: 15pt; font-weight: 600;")
+    title_lbl.setFixedHeight(24)
     value_lbl = QLabel("—", block)
     value_lbl.setStyleSheet(
-        "color: #f9fafb; font-size: 16pt; font-weight: 700;"
+        "color: #f9fafb; font-size: 36pt; font-weight: 700;"
         " font-family: Consolas, 'Courier New', monospace;"
     )
-    value_lbl.setFixedHeight(24)
+    value_lbl.setFixedHeight(50)
     lay.addWidget(title_lbl)
     lay.addWidget(value_lbl)
     return value_lbl, block
@@ -492,7 +492,7 @@ class MainWindow(QMainWindow):
 
         metrics_column = QVBoxLayout()
         metrics_column.setContentsMargins(0, 0, 0, 0)
-        metrics_column.setSpacing(5)
+        metrics_column.setSpacing(4)
 
         self.force_label, force_block = _live_metric_block("Force (Kg)", indicators)
         metrics_column.addWidget(force_block)
