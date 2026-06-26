@@ -60,6 +60,7 @@ class AnalyzeVideoPanel(QGroupBox):
     """Pemutar video MP4 hasil rekaman kamera tab Live."""
 
     position_changed = Signal(float)
+    load_video_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("", parent)
@@ -101,6 +102,14 @@ class AnalyzeVideoPanel(QGroupBox):
         self._play_btn.setEnabled(False)
         self._play_btn.clicked.connect(self._toggle_play)
         transport.addWidget(self._play_btn)
+
+        self._load_video_btn = QPushButton("Load Video…", self)
+        self._load_video_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
+        self._load_video_btn.setToolTip(
+            "Muat berkas MP4 secara manual jika pasangan otomatis tidak ditemukan."
+        )
+        self._load_video_btn.clicked.connect(self.load_video_requested.emit)
+        transport.addWidget(self._load_video_btn)
 
         self._time_label = QLabel("00:00.0 / 00:00.0", self)
         self._time_label.setStyleSheet("color: #d1d5db; font-size: 9pt;")

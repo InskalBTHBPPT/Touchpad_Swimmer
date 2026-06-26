@@ -585,17 +585,14 @@ class AnalyzeSingleFileTab(QWidget):
 
         self._stroke_meta_label, stroke_meta_block = _analyze_meta_block("Gaya", self)
         meta_row1.addWidget(stroke_meta_block, 0)
-        meta_row1.addStretch(1)
 
-        meta_row2 = QHBoxLayout()
-        meta_row2.setSpacing(16)
         self._file_meta_label, file_meta_block = _analyze_meta_block(
             "File", self, monospace=True
         )
-        meta_row2.addWidget(file_meta_block, 1)
+        meta_row1.addWidget(file_meta_block, 0)
+        meta_row1.addStretch(1)
 
         plot_header_layout.addLayout(meta_row1)
-        plot_header_layout.addLayout(meta_row2)
         time_layout.addWidget(plot_header, 0)
 
         self.force_plot_widget, self.force_curve = make_analyze_time_plot(
@@ -641,31 +638,13 @@ class AnalyzeSingleFileTab(QWidget):
             "memakai TimeStamp baris pertama + detik video."
         )
         self.video_panel.position_changed.connect(self._on_video_position_changed)
+        self.video_panel.load_video_requested.connect(self.load_video)
 
         video_scroll = wrap_in_scroll_area(self.video_panel, self)
         video_scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
-
-        load_group = QGroupBox("", self)
-        load_group.setLayout(QVBoxLayout())
-        load_group.layout().setContentsMargins(10, 10, 10, 10)
-        load_group.layout().setSpacing(8)
-        load_group.setMinimumWidth(160)
-        load_group.setMaximumWidth(220)
-        load_group.setSizePolicy(
-            QSizePolicy.Policy.Preferred,
-            QSizePolicy.Policy.Expanding,
-        )
-
-        self.load_video_btn = QPushButton("Load Video…", self)
-        self.load_video_btn.setToolTip(
-            "Muat berkas MP4 secara manual jika pasangan otomatis tidak ditemukan."
-        )
-        self.load_video_btn.clicked.connect(self.load_video)
-        load_group.layout().addWidget(self.load_video_btn)
-        load_group.layout().addStretch(1)
 
         settings_group = QGroupBox("", self)
         settings_inner = QVBoxLayout(settings_group)
@@ -801,7 +780,7 @@ class AnalyzeSingleFileTab(QWidget):
             QSizePolicy.Policy.Expanding,
         )
 
-        # Kanan: atas (video | load) + bawah (setting | statistik)
+        # Kanan: atas (video) + bawah (setting | statistik)
         right_top = QWidget(self)
         right_top.setSizePolicy(
             QSizePolicy.Policy.Expanding,
@@ -811,7 +790,6 @@ class AnalyzeSingleFileTab(QWidget):
         right_top_layout.setContentsMargins(0, 0, 0, 0)
         right_top_layout.setSpacing(6)
         right_top_layout.addWidget(video_scroll, 1)
-        right_top_layout.addWidget(load_group, 0)
 
         right_bottom = QWidget(self)
         right_bottom.setSizePolicy(
