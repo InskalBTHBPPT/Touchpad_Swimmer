@@ -33,13 +33,12 @@ import csv
 import statistics
 from collections.abc import Callable
 from datetime import datetime
-from html import escape
 from pathlib import Path
 
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -47,12 +46,15 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QMessageBox,
     QPushButton,
     QRadioButton,
     QScrollArea,
     QSizePolicy,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -80,13 +82,6 @@ def _path_text_for_dialog(path: Path | str) -> str:
     if len(s) >= 3 and s[0].isalpha() and s[1] == ":" and s[2] == "/":
         s = s[:2] + "\u2060" + s[2:]
     return s
-
-
-def _he(s: str) -> str:
-    return escape(s, quote=False)
-
-
-_STAT_ROW_STYLE = "color:#ffffff;padding:2px 0;line-height:1.35;font-weight:600;font-size:11px;"
 
 
 def _analyze_meta_block(
@@ -120,86 +115,206 @@ def _analyze_meta_block(
     return value_lbl, block
 
 
-def _html_stat_placeholder() -> str:
-    return (
-        '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
-        '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
-        "Muat CSV dari tab Live untuk menampilkan ringkasan ekstremum (force, roll, pitch)."
-        "</p></div>"
-    )
+_STATS_TABLE_STYLE = """
+QTableWidget {
+    background: #0f172a;
+    color: #e5e7eb;
+    gridline-color: #334155;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    font-size: 10pt;
+}
+QHeaderView::section {
+    background: #1f2937;
+    color: #9ca3af;
+    border: none;
+    padding: 6px 8px;
+    font-weight: 600;
+}
+"""
+
+_STATS_COL_FORCE = "#38bdf8"
+_STATS_COL_ROLL = "#f59e0b"
+_STATS_COL_PITCH = "#a78bfa"
+
+_STATS_MATRIX_ROW_LABELS = (
+    "TimeStamp Start (s)",
+    "TimeStamp Stop (s)",
+    "Maksimum",
+    "t @ maks (s)",
+    "Minimum",
+    "t @ min (s)",
+    "Frekuensi dominan (Hz)",
+    "Metode spektrum",
+    "Gap — metode",
+    "Gap — Δt nominal (s)",
+    "Gap — sampel tercatat",
+    "Gap — sampel hilang",
+    "Gap — hilang (%)",
+    "Gap — jumlah / diharapkan",
+)
 
 
-def _html_gap_loss_placeholder() -> str:
-    return (
-        '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
-        '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
-        "Estimasi sampel hilang (gap timestamp CSV) — muat CSV untuk menghitung."
-        "</p></div>"
-    )
+def _stats_table_text(value: float | str | None, *, unit: str = "", decimals: int = 2) -> str:
+    if value is None:
+        return "—"
+    if isinstance(value, str):
+        return value if value else "—"
+    fmt = f"{{:.{decimals}f}}"
+    text = fmt.format(float(value))
+    return f"{text} {unit}".strip() if unit else text
 
 
-def _html_stat_gap_loss(stats: GapLossStats) -> str:
-    dt_line = (
-        f"Δt nominal: {_he(f'{stats.dt_nominal_s:.4g}')} s "
-        f"({_he(f'{stats.fs_hz:.2f}')} Hz)"
-    )
-    lost_line = (
-        f"Sampel hilang (estimasi): {_he(str(stats.samples_lost))} "
-        f"({_he(f'{stats.loss_pct:.2f}')} %)"
-    )
-    actual_line = f"Sampel tercatat: {_he(str(stats.samples_actual))}"
-    method_line = _he(stats.method_label)
-
-    row_style = _STAT_ROW_STYLE
-    extra = ""
-    if stats.method_key == "A" and stats.gap_count is not None:
-        extra = (
-            f'<tr><td colspan="2" style="{row_style}">'
-            f"Jumlah gap: {_he(str(stats.gap_count))}</td></tr>"
-        )
-    elif stats.method_key == "B" and stats.samples_expected is not None:
-        extra = (
-            f'<tr><td colspan="2" style="{row_style}">'
-            f"Sampel diharapkan: {_he(str(stats.samples_expected))}</td></tr>"
-        )
-
-    return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
-        '<div style="border-left:3px solid #64748b;padding-left:8px;">'
-        '<div style="color:#94a3b8;font-weight:700;font-size:9px;letter-spacing:0.1em;">'
-        "GAP REKAMAN CSV</div>"
-        '<div style="color:#64748b;font-size:9px;margin-top:2px;line-height:1.3;">'
-        "Estimasi kualitas rekaman (bukan diagnosis LoRa).</div>"
-        '<table style="margin-top:4px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td colspan="2" style="{row_style}">{method_line}</td></tr>'
-        f'<tr><td colspan="2" style="{row_style}">{dt_line}</td></tr>'
-        f'<tr><td colspan="2" style="{row_style}">{actual_line}</td></tr>'
-        f"{extra}"
-        f'<tr><td colspan="2" style="{row_style}">{lost_line}</td></tr>'
-        "</table></div></div>"
-    )
+def _configure_stats_matrix_table(table: QTableWidget) -> None:
+    table.setColumnCount(4)
+    table.setHorizontalHeaderLabels(["Parameter", "Force", "Roll", "Pitch"])
+    table.setRowCount(len(_STATS_MATRIX_ROW_LABELS))
+    table.verticalHeader().setVisible(False)
+    table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+    table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+    table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    table.setAlternatingRowColors(True)
+    table.setStyleSheet(_STATS_TABLE_STYLE)
+    table.horizontalHeader().setStretchLastSection(True)
+    table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+    for col in (1, 2, 3):
+        table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.Stretch)
+    for row, label in enumerate(_STATS_MATRIX_ROW_LABELS):
+        param_item = QTableWidgetItem(label)
+        param_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        param_item.setForeground(QBrush(QColor("#9ca3af")))
+        table.setItem(row, 0, param_item)
+    channel_colors = ("", _STATS_COL_FORCE, _STATS_COL_ROLL, _STATS_COL_PITCH)
+    for col, color in enumerate(channel_colors):
+        if col == 0:
+            continue
+        header_item = table.horizontalHeaderItem(col)
+        if header_item is not None:
+            header_item.setForeground(QBrush(QColor(color)))
 
 
-def _html_tstart_placeholder() -> str:
-    return (
-        '<div style="background:#0c1222;border:1px dashed #334155;border-radius:10px;padding:12px 14px;">'
-        '<p style="margin:0;color:#94a3b8;font-size:10px;line-height:1.55;">'
-        "TimeStamp Start pada — s<br/>"
-        "TimeStamp Stop pada — s"
-        "</p></div>"
-    )
+def _set_stats_matrix_cell(
+    table: QTableWidget,
+    row: int,
+    col: int,
+    text: str,
+    *,
+    accent: str | None = None,
+) -> None:
+    item = QTableWidgetItem(text)
+    item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+    if accent:
+        item.setForeground(QBrush(QColor(accent)))
+    table.setItem(row, col, item)
 
 
-def _html_stat_timestamp_range(t_start_s: float, t_stop_s: float) -> str:
-    """Rentang waktu analisa (sampel pertama & terakhir dalam segmen terpilih)."""
-    return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
-        '<div style="border-left:3px solid #64748b;padding-left:8px;">'
-        '<div style="color:#f8fafc;font-size:11px;font-weight:600;line-height:1.45;">'
-        f"TimeStamp Start pada {_he(f'{t_start_s:.2f}')} s<br/>"
-        f"TimeStamp Stop pada {_he(f'{t_stop_s:.2f}')} s"
-        "</div></div></div>"
-    )
+def _clear_stats_matrix_table(table: QTableWidget) -> None:
+    accents = ("", _STATS_COL_FORCE, _STATS_COL_ROLL, _STATS_COL_PITCH)
+    for row in range(len(_STATS_MATRIX_ROW_LABELS)):
+        for col in range(1, 4):
+            _set_stats_matrix_cell(table, row, col, "—", accent=accents[col])
+
+
+def _fill_stats_matrix_table(
+    table: QTableWidget,
+    snap: dict[str, float | str | None],
+) -> None:
+    accents = ("", _STATS_COL_FORCE, _STATS_COL_ROLL, _STATS_COL_PITCH)
+    t_start = float(snap["timestamp_start_s"])
+    t_stop = float(snap["timestamp_stop_s"])
+    method = str(snap["spectrum_method"])
+
+    def peak_hz_text(v: float | str | None) -> str:
+        if v is None:
+            return "—"
+        if isinstance(v, str):
+            return v
+        return f"{float(v):.2f}"
+
+    row_values: list[tuple[str, str, str, str]] = [
+        (
+            _stats_table_text(t_start),
+            _stats_table_text(t_start),
+            _stats_table_text(t_start),
+        ),
+        (
+            _stats_table_text(t_stop),
+            _stats_table_text(t_stop),
+            _stats_table_text(t_stop),
+        ),
+        (
+            _stats_table_text(snap["force_max_kg"], unit="Kg"),
+            _stats_table_text(snap["roll_max_deg"], unit="°"),
+            _stats_table_text(snap["pitch_max_deg"], unit="°"),
+        ),
+        (
+            _stats_table_text(snap["force_max_t_s"]),
+            _stats_table_text(snap["roll_max_t_s"]),
+            _stats_table_text(snap["pitch_max_t_s"]),
+        ),
+        (
+            "—",
+            _stats_table_text(snap["roll_min_deg"], unit="°"),
+            _stats_table_text(snap["pitch_min_deg"], unit="°"),
+        ),
+        (
+            "—",
+            _stats_table_text(snap["roll_min_t_s"]),
+            _stats_table_text(snap["pitch_min_t_s"]),
+        ),
+        (
+            peak_hz_text(snap["dominant_hz_force"]),
+            peak_hz_text(snap["dominant_hz_roll"]),
+            peak_hz_text(snap["dominant_hz_pitch"]),
+        ),
+        (method, method, method),
+        (str(snap.get("gap_loss_method") or "—"), "—", "—"),
+        (
+            _stats_table_text(snap.get("gap_dt_nominal_s"), decimals=4)
+            + (
+                f" ({_stats_table_text(snap.get('gap_fs_hz'), decimals=2)} Hz)"
+                if snap.get("gap_fs_hz") is not None
+                else ""
+            ),
+            "—",
+            "—",
+        ),
+        (
+            _stats_table_text(snap.get("gap_samples_actual"), decimals=0),
+            "—",
+            "—",
+        ),
+        (
+            (
+                f"{_stats_table_text(snap.get('gap_samples_lost'), decimals=0)}"
+                f" ({_stats_table_text(snap.get('gap_loss_pct'), decimals=2)} %)"
+                if snap.get("gap_samples_lost") is not None
+                and snap.get("gap_loss_pct") is not None
+                else "—"
+            ),
+            "—",
+            "—",
+        ),
+        (
+            _stats_table_text(snap.get("gap_loss_pct"), decimals=2) + " %"
+            if snap.get("gap_loss_pct") is not None
+            else "—",
+            "—",
+            "—",
+        ),
+        ("—", "—", "—"),
+    ]
+
+    gap_extra = "—"
+    if snap.get("gap_count") is not None:
+        gap_extra = f"Jumlah gap: {int(snap['gap_count'])}"
+    elif snap.get("gap_samples_expected") is not None:
+        gap_extra = f"Sampel diharapkan: {int(snap['gap_samples_expected'])}"
+    row_values[-1] = (gap_extra, "—", "—")
+
+    for row, (f_val, r_val, p_val) in enumerate(row_values):
+        for col, text in enumerate((f_val, r_val, p_val), start=1):
+            _set_stats_matrix_cell(table, row, col, text, accent=accents[col])
 
 
 def _spectrum_peak_frequency_hz(y: list[float], fs_hz: float, *, use_welch: bool) -> float | None:
@@ -211,89 +326,6 @@ def _spectrum_peak_frequency_hz(y: list[float], fs_hz: float, *, use_welch: bool
         return None
     imax = int(np.argmax(mag))
     return float(fq[imax])
-
-
-def _html_stat_freq_dominant(peak_hz: float | None, method_label: str) -> str:
-    """Baris spektrum di kartu statistik: Frekuensi dominan: … Hz [metode]."""
-    ml = _he(method_label)
-    if peak_hz is not None:
-        return f"Frekuensi dominan: {_he(f'{peak_hz:.2f}')} Hz [{ml}]"
-    return f"Frekuensi dominan: — Hz [{ml}]"
-
-
-def _html_stat_force(
-    v_max: float,
-    t_max: float,
-    peak_hz: float | None,
-    method_label: str,
-) -> str:
-    line1 = (
-        f"Force Maksimum {_he(f'{v_max:.2f}')} Kg saat t = {_he(f'{t_max:.2f}')} s"
-    )
-    line2 = _html_stat_freq_dominant(peak_hz, method_label)
-    return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
-        '<div style="border-left:3px solid #38bdf8;padding-left:8px;">'
-        '<div style="color:#38bdf8;font-weight:700;font-size:9px;letter-spacing:0.1em;">FORCE</div>'
-        '<table style="margin-top:4px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line1}</td></tr>'
-        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line2}</td></tr>'
-        "</table></div></div>"
-    )
-
-
-def _html_stat_roll(
-    v_min: float,
-    t_min: float,
-    v_max: float,
-    t_max: float,
-    peak_hz: float | None,
-    method_label: str,
-) -> str:
-    line1 = (
-        f"Roll Minimum {_he(f'{v_min:.2f}')}° saat t = {_he(f'{t_min:.2f}')} s"
-    )
-    line2 = (
-        f"Roll Maksimum {_he(f'{v_max:.2f}')}° saat t = {_he(f'{t_max:.2f}')} s"
-    )
-    line3 = _html_stat_freq_dominant(peak_hz, method_label)
-    return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
-        '<div style="border-left:3px solid #f59e0b;padding-left:8px;">'
-        '<div style="color:#fbbf24;font-weight:700;font-size:9px;letter-spacing:0.1em;">ROLL</div>'
-        '<table style="margin-top:4px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line1}</td></tr>'
-        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line2}</td></tr>'
-        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line3}</td></tr>'
-        "</table></div></div>"
-    )
-
-
-def _html_stat_pitch(
-    v_min: float,
-    t_min: float,
-    v_max: float,
-    t_max: float,
-    peak_hz: float | None,
-    method_label: str,
-) -> str:
-    line1 = (
-        f"Pitch Minimum {_he(f'{v_min:.2f}')}° saat t = {_he(f'{t_min:.2f}')} s"
-    )
-    line2 = (
-        f"Pitch Maksimum {_he(f'{v_max:.2f}')}° saat t = {_he(f'{t_max:.2f}')} s"
-    )
-    line3 = _html_stat_freq_dominant(peak_hz, method_label)
-    return (
-        '<div style="background:#0c1222;border:1px solid #273449;border-radius:8px;padding:8px 10px;">'
-        '<div style="border-left:3px solid #a78bfa;padding-left:8px;">'
-        '<div style="color:#c4b5fd;font-weight:700;font-size:9px;letter-spacing:0.1em;">PITCH</div>'
-        '<table style="margin-top:4px;font-size:11px;color:#cbd5e1;width:100%;">'
-        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line1}</td></tr>'
-        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line2}</td></tr>'
-        f'<tr><td colspan="2" style="{_STAT_ROW_STYLE}">{line3}</td></tr>'
-        "</table></div></div>"
-    )
 
 
 def _configure_plot_widget_for_responsive_layout(
@@ -745,32 +777,6 @@ class AnalyzeSingleFileTab(QWidget):
         stats_inner = QVBoxLayout(self.stats_group)
         stats_inner.setContentsMargins(10, 10, 10, 10)
         stats_inner.setSpacing(6)
-        self.stat_tstart_label = QLabel(self)
-        self.stat_force_label = QLabel(self)
-        self.stat_roll_label = QLabel(self)
-        self.stat_pitch_label = QLabel(self)
-        self.stat_gap_loss_label = QLabel(self)
-        for lb in (
-            self.stat_tstart_label,
-            self.stat_force_label,
-            self.stat_roll_label,
-            self.stat_pitch_label,
-            self.stat_gap_loss_label,
-        ):
-            lb.setObjectName("AnalyzeRichLabel")
-            lb.setWordWrap(True)
-            lb.setTextFormat(Qt.TextFormat.RichText)
-        self.stat_tstart_label.setText(_html_tstart_placeholder())
-        self.stat_force_label.setText(_html_stat_placeholder())
-        self.stat_roll_label.setText(_html_stat_placeholder())
-        self.stat_pitch_label.setText(_html_stat_placeholder())
-        self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
-
-        stats_inner.addWidget(self.stat_tstart_label)
-        stats_inner.addWidget(self.stat_force_label)
-        stats_inner.addWidget(self.stat_roll_label)
-        stats_inner.addWidget(self.stat_pitch_label)
-        stats_inner.addWidget(self.stat_gap_loss_label)
 
         stats_actions = QHBoxLayout()
         stats_actions.setSpacing(8)
@@ -794,6 +800,15 @@ class AnalyzeSingleFileTab(QWidget):
         stats_actions.addWidget(self.save_stats_btn, 0)
         stats_inner.addLayout(stats_actions)
 
+        self.stats_table = QTableWidget(self.stats_group)
+        _configure_stats_matrix_table(self.stats_table)
+        _clear_stats_matrix_table(self.stats_table)
+        self.stats_table.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        stats_inner.addWidget(self.stats_table, 1)
+
         self._settings_dialog = AnalyzeSettingsDialog(self)
         self._settings_dialog.set_content(settings_group)
 
@@ -806,21 +821,6 @@ class AnalyzeSingleFileTab(QWidget):
         self._loaded_csv_path: Path | None = None
 
         self.stats_group.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
-        )
-
-        stats_scroll_body = QWidget(self)
-        stats_scroll_body.setSizePolicy(
-            QSizePolicy.Policy.Preferred,
-            QSizePolicy.Policy.Minimum,
-        )
-        stats_scroll_layout = QVBoxLayout(stats_scroll_body)
-        stats_scroll_layout.setContentsMargins(0, 0, 0, 0)
-        stats_scroll_layout.setSpacing(0)
-        stats_scroll_layout.addWidget(self.stats_group)
-        stats_scroll = wrap_in_scroll_area(stats_scroll_body, self)
-        stats_scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
@@ -844,7 +844,7 @@ class AnalyzeSingleFileTab(QWidget):
         right_bottom_layout = QHBoxLayout(right_bottom)
         right_bottom_layout.setContentsMargins(0, 0, 0, 0)
         right_bottom_layout.setSpacing(6)
-        right_bottom_layout.addWidget(stats_scroll, 1)
+        right_bottom_layout.addWidget(self.stats_group, 1)
 
         right_side = QWidget(self)
         right_side.setSizePolicy(
@@ -859,6 +859,12 @@ class AnalyzeSingleFileTab(QWidget):
 
         root.addWidget(time_column, 1)
         root.addWidget(right_side, 1)
+
+    def _refresh_stats_table(self) -> None:
+        if self._stats_snapshot is None:
+            _clear_stats_matrix_table(self.stats_table)
+            return
+        _fill_stats_matrix_table(self.stats_table, self._stats_snapshot)
 
     def _show_analyze_settings(self) -> None:
         self._settings_dialog.show()
@@ -1038,11 +1044,7 @@ class AnalyzeSingleFileTab(QWidget):
         if not ts_list:
             self._stats_snapshot = None
             self.save_stats_btn.setEnabled(False)
-            self.stat_tstart_label.setText(_html_tstart_placeholder())
-            self.stat_force_label.setText(_html_stat_placeholder())
-            self.stat_roll_label.setText(_html_stat_placeholder())
-            self.stat_pitch_label.setText(_html_stat_placeholder())
-            self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
+            self._refresh_stats_table()
             return
         self._apply_statistics(ts_list, f_list, r_list, p_list)
         bounds = self._segment_time_bounds()
@@ -1202,11 +1204,7 @@ class AnalyzeSingleFileTab(QWidget):
         if n == 0:
             self._stats_snapshot = None
             self.save_stats_btn.setEnabled(False)
-            self.stat_tstart_label.setText(_html_tstart_placeholder())
-            self.stat_force_label.setText(_html_stat_placeholder())
-            self.stat_roll_label.setText(_html_stat_placeholder())
-            self.stat_pitch_label.setText(_html_stat_placeholder())
-            self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
+            self._refresh_stats_table()
             return
 
         def _argmin_first(vals: list[float]) -> int:
@@ -1236,35 +1234,6 @@ class AnalyzeSingleFileTab(QWidget):
         peak_p = _spectrum_peak_frequency_hz(p_list, fs, use_welch=use_welch)
 
         gap_stats = compute_gap_loss(ts_list, method=self._gap_loss_method_key())
-        if gap_stats is not None:
-            self.stat_gap_loss_label.setText(_html_stat_gap_loss(gap_stats))
-        else:
-            self.stat_gap_loss_label.setText(_html_gap_loss_placeholder())
-
-        self.stat_tstart_label.setText(_html_stat_timestamp_range(t_start, t_stop))
-        self.stat_force_label.setText(
-            _html_stat_force(v_fmax, t_fmax, peak_f, method_label)
-        )
-        self.stat_roll_label.setText(
-            _html_stat_roll(
-                r_list[i_rmin],
-                ts_list[i_rmin],
-                r_list[i_rmax],
-                ts_list[i_rmax],
-                peak_r,
-                method_label,
-            )
-        )
-        self.stat_pitch_label.setText(
-            _html_stat_pitch(
-                p_list[i_pmin],
-                ts_list[i_pmin],
-                p_list[i_pmax],
-                ts_list[i_pmax],
-                peak_p,
-                method_label,
-            )
-        )
 
         self._scatter_force = pg.ScatterPlotItem(
             pos=[(t_fmax, v_fmax)],
@@ -1373,6 +1342,7 @@ class AnalyzeSingleFileTab(QWidget):
             "gap_samples_expected": gap_stats.samples_expected if gap_stats else None,
         }
         self.save_stats_btn.setEnabled(self._export_ctx is not None)
+        self._refresh_stats_table()
 
     @staticmethod
     def _csv_dominant_hz_cell(v: float | str | None) -> str:
