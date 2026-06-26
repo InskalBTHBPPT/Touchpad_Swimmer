@@ -228,7 +228,6 @@ class LiveCameraPanel(QWidget):
         self._preview_label = QLabel("Belum ada kamera dipilih.", self)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setMinimumHeight(160)
-        self._preview_label.setMaximumHeight(280)
         self._preview_label.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -259,11 +258,10 @@ class LiveCameraPanel(QWidget):
 
         root.addWidget(view_group, 1)
 
-        self.setMinimumWidth(280)
-        self.setMaximumWidth(420)
+        self.setMinimumWidth(260)
         self.setSizePolicy(
-            QSizePolicy.Policy.Preferred,
-            QSizePolicy.Policy.Minimum,
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
         )
 
         self._capture_thread = CameraCaptureThread()

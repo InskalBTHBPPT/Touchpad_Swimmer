@@ -492,6 +492,10 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(indicators, 1)
 
         self.camera_panel = LiveCameraPanel(self)
+        self.camera_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
 
         plots_scroll = wrap_in_scroll_area(plots_panel, self)
         plots_scroll.setSizePolicy(
