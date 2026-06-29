@@ -293,3 +293,9 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 
 - **Manual:** selaras dengan aplikasi **v2.3.0** (kamera Live, video Analisa, sinkron playhead, baterai Live, gap rekaman CSV Metode A/B; frekuensi dominan di statistik tanpa plot spektrum visual).
 - Ringkasan perubahan antar versi ada di `Force_Motion/Python/Changelog.md` dan docstring `Swimmer_Force_Motion_Monitoring_v2.3.0.py`.
+
+---
+
+## 10. Referensi
+
+- [NotebookLM — Swimmer Force Motion Monitoring](https://notebooklm.google.com/notebook/cbd512b8-4457-4a1f-937f-a022df17f8e5?authuser=1) — materi referensi tambahan terkait aplikasi dan analisa force/motion (memerlukan akun Google untuk membuka).
