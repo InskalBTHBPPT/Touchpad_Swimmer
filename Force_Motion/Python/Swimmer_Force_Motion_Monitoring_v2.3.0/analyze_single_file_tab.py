@@ -41,6 +41,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -75,6 +76,16 @@ _SEGMENT_BRUSH_ROLL = pg.mkBrush(245, 158, 11, 35)
 _SEGMENT_PEN_ROLL = pg.mkPen("#f59e0b", width=1)
 _SEGMENT_BRUSH_PITCH = pg.mkBrush(167, 139, 250, 35)
 _SEGMENT_PEN_PITCH = pg.mkPen("#a78bfa", width=1)
+
+_ZERO_OFFSET_DEFAULT_DURATION_S = 2.0
+_ZERO_OFFSET_TEST_GAP_S = 2.0
+_OFFSET_BRUSH_FORCE = pg.mkBrush(34, 197, 94, 42)
+_OFFSET_PEN_FORCE = pg.mkPen("#22c55e", width=1)
+_OFFSET_BRUSH_ROLL = pg.mkBrush(34, 197, 94, 30)
+_OFFSET_PEN_ROLL = pg.mkPen("#22c55e", width=1)
+_OFFSET_BRUSH_PITCH = pg.mkBrush(34, 197, 94, 30)
+_OFFSET_PEN_PITCH = pg.mkPen("#22c55e", width=1)
+_BOUNDS_EPS_S = 1e-3
 
 
 def _path_text_for_dialog(path: Path | str) -> str:
@@ -147,6 +158,8 @@ _STATS_COL_PITCH = "#a78bfa"
 _STATS_MATRIX_ROW_LABELS = (
     "TimeStamp Start (s)",
     "TimeStamp Stop (s)",
+    "Zero offset start (s)",
+    "Zero offset stop (s)",
     "Maksimum",
     "t @ maks (s)",
     "Minimum",
@@ -247,6 +260,16 @@ def _fill_stats_matrix_table(
             _stats_table_text(t_stop),
             _stats_table_text(t_stop),
             _stats_table_text(t_stop),
+        ),
+        (
+            _stats_table_text(snap.get("zero_offset_start_s")),
+            _stats_table_text(snap.get("zero_offset_start_s")),
+            _stats_table_text(snap.get("zero_offset_start_s")),
+        ),
+        (
+            _stats_table_text(snap.get("zero_offset_stop_s")),
+            _stats_table_text(snap.get("zero_offset_stop_s")),
+            _stats_table_text(snap.get("zero_offset_stop_s")),
         ),
         (
             _stats_table_text(snap["force_max_kg"], unit="Kg"),
@@ -563,6 +586,7 @@ def make_analyze_time_spectrum_row(
 _ANALYZE_SETTINGS_DIALOG_STYLESHEET = """
 QDialog { background-color: #1f2937; }
 QDialog QLabel { color: #e5e7eb; }
+QDialog QCheckBox { color: #e5e7eb; spacing: 8px; }
 QDialog QComboBox {
     background: #374151;
     color: #e5e7eb;
@@ -614,12 +638,26 @@ class AnalyzeSingleFileTab(QWidget):
         self._loaded_f: list[float] | None = None
         self._loaded_r: list[float] | None = None
         self._loaded_p: list[float] | None = None
+        self._raw_ts: list[float] | None = None
+        self._raw_f: list[float] | None = None
+        self._raw_r: list[float] | None = None
+        self._raw_p: list[float] | None = None
         self._log_sync_meta: LogSyncMeta | None = None
         self._fs_hz: float = 1.0
+        self._offset_region_force: pg.LinearRegionItem | None = None
+        self._offset_region_roll: pg.LinearRegionItem | None = None
+        self._offset_region_pitch: pg.LinearRegionItem | None = None
         self._segment_region_force: pg.LinearRegionItem | None = None
         self._segment_region_roll: pg.LinearRegionItem | None = None
         self._segment_region_pitch: pg.LinearRegionItem | None = None
+        self._offset_syncing = False
         self._segment_syncing = False
+        self._offset_applied = False
+        self._offset_stale = False
+        self._offset_applied_bounds: tuple[float, float] | None = None
+        self._offset_mean_f = 0.0
+        self._offset_mean_r = 0.0
+        self._offset_mean_p = 0.0
 
         root = QHBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
@@ -743,16 +781,31 @@ class AnalyzeSingleFileTab(QWidget):
         spectrum_method_row.addStretch(1)
         settings_inner.addLayout(spectrum_method_row)
 
-        segment_caption = QLabel("Segmen waktu (geser pada plot Force):", self)
+        self._zero_offset_checkbox = QCheckBox("Zero Offset", self)
+        self._zero_offset_checkbox.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        self._zero_offset_checkbox.setToolTip(
+            "Tampilkan region offset (hijau) di awal plot dan region data uji setelah "
+            f"jeda {_ZERO_OFFSET_TEST_GAP_S:.0f} s. Gunakan tombol Zero Offset untuk "
+            "mengurangi rata-rata region offset dari seluruh data."
+        )
+        self._zero_offset_checkbox.toggled.connect(self._on_zero_offset_checkbox_changed)
+        settings_inner.addWidget(self._zero_offset_checkbox)
+
+        self._offset_info_label = QLabel("Region offset: —", self)
+        self._offset_info_label.setStyleSheet("color: #9ca3af; font-size: 10pt;")
+        self._offset_info_label.setWordWrap(True)
+        settings_inner.addWidget(self._offset_info_label)
+
+        segment_caption = QLabel("Region data uji (geser pada plot Force):", self)
         segment_caption.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
         settings_inner.addWidget(segment_caption)
-        self.segment_info_label = QLabel("Segmen analisa: —", self)
+        self.segment_info_label = QLabel("Region data uji: —", self)
         self.segment_info_label.setStyleSheet("color: #9ca3af; font-size: 10pt;")
         self.segment_info_label.setWordWrap(True)
         self.segment_info_label.setToolTip(
-            "Geser tepi area biru pada plot Force untuk membatasi segmen analisa. "
+            "Geser tepi area berwarna pada plot Force untuk membatasi region data uji. "
             "Roll dan Pitch menampilkan area yang sama; statistik "
-            "dihitung hanya pada sampel di dalam segmen."
+            "dihitung hanya pada sampel di dalam region."
         )
         settings_inner.addWidget(self.segment_info_label)
 
@@ -793,6 +846,16 @@ class AnalyzeSingleFileTab(QWidget):
         )
         self.settings_btn.clicked.connect(self._show_analyze_settings)
         stats_actions.addWidget(self.settings_btn, 0)
+
+        self.zero_offset_btn = QPushButton("Zero Offset", self)
+        self.zero_offset_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
+        self.zero_offset_btn.setEnabled(False)
+        self.zero_offset_btn.setToolTip(
+            "Kurangi rata-rata tiap saluran pada region offset hijau dari seluruh data, "
+            "lalu hitung ulang statistik pada region data uji."
+        )
+        self.zero_offset_btn.clicked.connect(self._on_zero_offset_button_clicked)
+        stats_actions.addWidget(self.zero_offset_btn, 0)
         stats_actions.addStretch(1)
 
         self.save_stats_btn = QPushButton("Simpan statistik…", self)
@@ -805,6 +868,12 @@ class AnalyzeSingleFileTab(QWidget):
         self.save_stats_btn.clicked.connect(self.save_statistics_csv)
         stats_actions.addWidget(self.save_stats_btn, 0)
         stats_inner.addLayout(stats_actions)
+
+        self._offset_stale_label = QLabel("", self)
+        self._offset_stale_label.setStyleSheet("color: #fbbf24; font-size: 9pt;")
+        self._offset_stale_label.setWordWrap(True)
+        self._offset_stale_label.setVisible(False)
+        stats_inner.addWidget(self._offset_stale_label)
 
         self.stats_table = QTableWidget(self.stats_group)
         _configure_stats_matrix_table(self.stats_table)
@@ -915,6 +984,50 @@ class AnalyzeSingleFileTab(QWidget):
             line.setPos(csv_t)
             line.setVisible(True)
 
+    @staticmethod
+    def _bounds_equal(
+        a: tuple[float, float] | None, b: tuple[float, float] | None, *, eps: float = _BOUNDS_EPS_S
+    ) -> bool:
+        if a is None or b is None:
+            return False
+        return abs(a[0] - b[0]) <= eps and abs(a[1] - b[1]) <= eps
+
+    def _store_raw_copy(self) -> None:
+        if self._loaded_ts is None:
+            self._raw_ts = None
+            self._raw_f = None
+            self._raw_r = None
+            self._raw_p = None
+            return
+        self._raw_ts = list(self._loaded_ts)
+        self._raw_f = list(self._loaded_f)  # type: ignore[arg-type]
+        self._raw_r = list(self._loaded_r)  # type: ignore[arg-type]
+        self._raw_p = list(self._loaded_p)  # type: ignore[arg-type]
+
+    def _restore_raw_to_loaded(self) -> None:
+        if self._raw_ts is None:
+            return
+        self._loaded_ts = list(self._raw_ts)
+        self._loaded_f = list(self._raw_f)  # type: ignore[arg-type]
+        self._loaded_r = list(self._raw_r)  # type: ignore[arg-type]
+        self._loaded_p = list(self._raw_p)  # type: ignore[arg-type]
+
+    def _replot_loaded_curves(self) -> None:
+        if self._loaded_ts is None:
+            return
+        self.force_curve.setData(self._loaded_ts, self._loaded_f)
+        self.roll_curve.setData(self._loaded_ts, self._loaded_r)
+        self.pitch_curve.setData(self._loaded_ts, self._loaded_p)
+
+    def _zero_offset_mode(self) -> bool:
+        return self._zero_offset_checkbox.isChecked()
+
+    def _offset_time_bounds(self) -> tuple[float, float] | None:
+        if self._offset_region_force is None or not self._zero_offset_mode():
+            return None
+        a, b = self._offset_region_force.getRegion()
+        return min(a, b), max(a, b)
+
     def _segment_time_bounds(self) -> tuple[float, float] | None:
         if self._segment_region_force is not None:
             a, b = self._segment_region_force.getRegion()
@@ -951,15 +1064,66 @@ class AnalyzeSingleFileTab(QWidget):
                 p_out.append(pv)
         return ts_out, f_out, r_out, p_out
 
-    def _setup_segment_regions(self, ts_list: list[float]) -> None:
-        if not ts_list:
-            return
-        t_min = min(ts_list)
-        t_max = max(ts_list)
+    @staticmethod
+    def _means_in_bounds(
+        ts_list: list[float],
+        f_list: list[float],
+        r_list: list[float],
+        p_list: list[float],
+        t_lo: float,
+        t_hi: float,
+    ) -> tuple[float, float, float] | None:
+        lo, hi = min(t_lo, t_hi), max(t_lo, t_hi)
+        f_vals: list[float] = []
+        r_vals: list[float] = []
+        p_vals: list[float] = []
+        for t, fv, rv, pv in zip(ts_list, f_list, r_list, p_list):
+            if lo <= t <= hi:
+                f_vals.append(fv)
+                r_vals.append(rv)
+                p_vals.append(pv)
+        if not f_vals:
+            return None
+        return (
+            float(statistics.mean(f_vals)),
+            float(statistics.mean(r_vals)),
+            float(statistics.mean(p_vals)),
+        )
 
+    def _ensure_plot_regions(self) -> None:
         if self._segment_region_force is None:
+            self._offset_region_force = pg.LinearRegionItem(
+                values=[0.0, 1.0],
+                brush=_OFFSET_BRUSH_FORCE,
+                movable=True,
+                pen=_OFFSET_PEN_FORCE,
+            )
+            self._offset_region_force.setZValue(6)
+            self._offset_region_force.sigRegionChanged.connect(
+                self._on_offset_region_changed
+            )
+            self.force_plot_widget.addItem(self._offset_region_force)
+
+            self._offset_region_roll = pg.LinearRegionItem(
+                values=[0.0, 1.0],
+                brush=_OFFSET_BRUSH_ROLL,
+                movable=False,
+                pen=_OFFSET_PEN_ROLL,
+            )
+            self._offset_region_roll.setZValue(6)
+            self.roll_plot_widget.addItem(self._offset_region_roll)
+
+            self._offset_region_pitch = pg.LinearRegionItem(
+                values=[0.0, 1.0],
+                brush=_OFFSET_BRUSH_PITCH,
+                movable=False,
+                pen=_OFFSET_PEN_PITCH,
+            )
+            self._offset_region_pitch.setZValue(6)
+            self.pitch_plot_widget.addItem(self._offset_region_pitch)
+
             self._segment_region_force = pg.LinearRegionItem(
-                values=[t_min, t_max],
+                values=[0.0, 1.0],
                 brush=_SEGMENT_BRUSH_FORCE,
                 movable=True,
                 pen=_SEGMENT_PEN_FORCE,
@@ -971,7 +1135,7 @@ class AnalyzeSingleFileTab(QWidget):
             self.force_plot_widget.addItem(self._segment_region_force)
 
             self._segment_region_roll = pg.LinearRegionItem(
-                values=[t_min, t_max],
+                values=[0.0, 1.0],
                 brush=_SEGMENT_BRUSH_ROLL,
                 movable=False,
                 pen=_SEGMENT_PEN_ROLL,
@@ -980,22 +1144,97 @@ class AnalyzeSingleFileTab(QWidget):
             self.roll_plot_widget.addItem(self._segment_region_roll)
 
             self._segment_region_pitch = pg.LinearRegionItem(
-                values=[t_min, t_max],
+                values=[0.0, 1.0],
                 brush=_SEGMENT_BRUSH_PITCH,
                 movable=False,
                 pen=_SEGMENT_PEN_PITCH,
             )
             self._segment_region_pitch.setZValue(5)
             self.pitch_plot_widget.addItem(self._segment_region_pitch)
-        else:
-            self._segment_syncing = True
+
+        self._set_offset_regions_visible(self._zero_offset_mode())
+
+    def _set_offset_regions_visible(self, visible: bool) -> None:
+        for region in (
+            self._offset_region_force,
+            self._offset_region_roll,
+            self._offset_region_pitch,
+        ):
+            if region is not None:
+                region.setVisible(visible)
+
+    def _default_offset_bounds(self, t_min: float, t_max: float) -> tuple[float, float]:
+        span = max(t_max - t_min, 1e-9)
+        dur = min(_ZERO_OFFSET_DEFAULT_DURATION_S, span)
+        off_lo = t_min
+        off_hi = min(t_max, t_min + dur)
+        if off_hi - off_lo < _BOUNDS_EPS_S:
+            off_hi = min(t_max, off_lo + max(span * 0.05, _BOUNDS_EPS_S))
+        return off_lo, off_hi
+
+    def _default_test_bounds(
+        self, t_min: float, t_max: float, offset_hi: float
+    ) -> tuple[float, float]:
+        span = max(t_max - t_min, 1e-9)
+        eps = max(span * 1e-9, _BOUNDS_EPS_S)
+        test_lo = min(t_max, offset_hi + _ZERO_OFFSET_TEST_GAP_S)
+        if test_lo >= t_max - eps:
+            test_lo = max(t_min, t_max - max(span * 0.1, eps))
+        test_hi = t_max
+        if test_hi - test_lo < eps:
+            test_lo = max(t_min, test_hi - eps)
+        return test_lo, test_hi
+
+    def _layout_regions_full_recording(self, t_min: float, t_max: float) -> None:
+        self._segment_syncing = True
+        if self._segment_region_force is not None:
             self._segment_region_force.blockSignals(True)
             self._segment_region_force.setRegion([t_min, t_max])
             self._segment_region_force.blockSignals(False)
-            self._segment_syncing = False
-            self._sync_mirror_segment_regions(t_min, t_max)
-
+        self._segment_syncing = False
+        self._sync_mirror_segment_regions(t_min, t_max)
         self._update_segment_info_label(t_min, t_max)
+        self._update_offset_info_label(None, None)
+
+    def _layout_regions_zero_offset_mode(self, t_min: float, t_max: float) -> None:
+        off_lo, off_hi = self._default_offset_bounds(t_min, t_max)
+        test_lo, test_hi = self._default_test_bounds(t_min, t_max, off_hi)
+        self._offset_syncing = True
+        if self._offset_region_force is not None:
+            self._offset_region_force.blockSignals(True)
+            self._offset_region_force.setRegion([off_lo, off_hi])
+            self._offset_region_force.blockSignals(False)
+        self._offset_syncing = False
+        self._sync_mirror_offset_regions(off_lo, off_hi)
+        self._update_offset_info_label(off_lo, off_hi)
+
+        self._segment_syncing = True
+        if self._segment_region_force is not None:
+            self._segment_region_force.blockSignals(True)
+            self._segment_region_force.setRegion([test_lo, test_hi])
+            self._segment_region_force.blockSignals(False)
+        self._segment_syncing = False
+        self._sync_mirror_segment_regions(test_lo, test_hi)
+        self._update_segment_info_label(test_lo, test_hi)
+
+    def _setup_segment_regions(self, ts_list: list[float]) -> None:
+        if not ts_list:
+            return
+        t_min = min(ts_list)
+        t_max = max(ts_list)
+        self._ensure_plot_regions()
+        if self._zero_offset_mode():
+            self._layout_regions_zero_offset_mode(t_min, t_max)
+        else:
+            self._layout_regions_full_recording(t_min, t_max)
+
+    def _sync_mirror_offset_regions(self, t_lo: float, t_hi: float) -> None:
+        lo, hi = min(t_lo, t_hi), max(t_lo, t_hi)
+        for region in (self._offset_region_roll, self._offset_region_pitch):
+            if region is not None:
+                region.blockSignals(True)
+                region.setRegion([lo, hi])
+                region.blockSignals(False)
 
     def _sync_mirror_segment_regions(self, t_lo: float, t_hi: float) -> None:
         lo, hi = min(t_lo, t_hi), max(t_lo, t_hi)
@@ -1007,38 +1246,235 @@ class AnalyzeSingleFileTab(QWidget):
 
     def _update_segment_info_label(self, t_lo: float, t_hi: float) -> None:
         lo, hi = min(t_lo, t_hi), max(t_lo, t_hi)
-        if self._loaded_ts:
+        if self._loaded_ts and not self._zero_offset_mode():
             full_lo, full_hi = min(self._loaded_ts), max(self._loaded_ts)
             if abs(lo - full_lo) < 1e-6 and abs(hi - full_hi) < 1e-6:
-                self.segment_info_label.setText("Segmen analisa: seluruh rekaman")
+                self.segment_info_label.setText("Region data uji: seluruh rekaman")
                 return
         self.segment_info_label.setText(
-            f"Segmen analisa: {lo:.2f} s — {hi:.2f} s (durasi {hi - lo:.2f} s)"
+            f"Region data uji: {lo:.2f} s — {hi:.2f} s (durasi {hi - lo:.2f} s)"
         )
+
+    def _update_offset_info_label(
+        self, t_lo: float | None, t_hi: float | None
+    ) -> None:
+        if t_lo is None or t_hi is None or not self._zero_offset_mode():
+            self._offset_info_label.setText("Region offset: —")
+            return
+        lo, hi = min(t_lo, t_hi), max(t_lo, t_hi)
+        self._offset_info_label.setText(
+            f"Region offset: {lo:.2f} s — {hi:.2f} s (durasi {hi - lo:.2f} s)"
+        )
+
+    def _clamp_region_to_recording(
+        self, t_lo: float, t_hi: float
+    ) -> tuple[float, float]:
+        if not self._loaded_ts:
+            return min(t_lo, t_hi), max(t_lo, t_hi)
+        full_lo, full_hi = min(self._loaded_ts), max(self._loaded_ts)
+        span = full_hi - full_lo
+        eps = max(span * 1e-9, _BOUNDS_EPS_S)
+        clamped_lo = max(full_lo, min(t_lo, full_hi))
+        clamped_hi = max(full_lo, min(t_hi, full_hi))
+        if clamped_hi - clamped_lo < eps:
+            mid = (clamped_lo + clamped_hi) * 0.5
+            clamped_lo = max(full_lo, mid - eps)
+            clamped_hi = min(full_hi, mid + eps)
+        return clamped_lo, clamped_hi
+
+    def _min_test_start(self) -> float | None:
+        if not self._zero_offset_mode():
+            return None
+        off = self._offset_time_bounds()
+        if off is None or not self._loaded_ts:
+            return None
+        return min(max(self._loaded_ts), off[1] + _ZERO_OFFSET_TEST_GAP_S)
+
+    def _apply_test_region_clamp(self, t_lo: float, t_hi: float) -> tuple[float, float]:
+        t_lo, t_hi = self._clamp_region_to_recording(t_lo, t_hi)
+        min_start = self._min_test_start()
+        if min_start is not None and t_lo < min_start - _BOUNDS_EPS_S:
+            span = t_hi - t_lo
+            t_lo = min_start
+            if self._loaded_ts:
+                t_hi = max(t_lo + _BOUNDS_EPS_S, min(t_hi, max(self._loaded_ts)))
+                if t_hi - t_lo < _BOUNDS_EPS_S:
+                    t_hi = min(max(self._loaded_ts), t_lo + _BOUNDS_EPS_S)
+        return t_lo, t_hi
+
+    def _push_test_region_after_offset(self) -> None:
+        if not self._zero_offset_mode() or self._segment_region_force is None:
+            return
+        off = self._offset_time_bounds()
+        if off is None:
+            return
+        t_lo, t_hi = self._segment_region_force.getRegion()
+        if self._loaded_ts is None:
+            return
+        full_hi = max(self._loaded_ts)
+        new_lo = min(full_hi, off[1] + _ZERO_OFFSET_TEST_GAP_S)
+        if new_lo > t_lo + _BOUNDS_EPS_S:
+            t_lo = new_lo
+            t_lo, t_hi = self._apply_test_region_clamp(t_lo, t_hi)
+            self._segment_syncing = True
+            self._segment_region_force.blockSignals(True)
+            self._segment_region_force.setRegion([t_lo, t_hi])
+            self._segment_region_force.blockSignals(False)
+            self._segment_syncing = False
+            self._sync_mirror_segment_regions(t_lo, t_hi)
+            self._update_segment_info_label(t_lo, t_hi)
+
+    def _update_zero_offset_ui(self) -> None:
+        has_data = self._raw_ts is not None
+        mode = self._zero_offset_mode()
+        self.zero_offset_btn.setEnabled(has_data and mode)
+        if not has_data or not mode:
+            self.zero_offset_btn.setText("Zero Offset")
+            self._offset_stale_label.setVisible(False)
+            return
+        if self._offset_applied and not self._offset_stale:
+            self.zero_offset_btn.setText("Reset Offset")
+        else:
+            self.zero_offset_btn.setText("Zero Offset")
+        stale_visible = self._offset_applied and self._offset_stale
+        self._offset_stale_label.setVisible(stale_visible)
+        if stale_visible:
+            self._offset_stale_label.setText(
+                "Region offset berubah — terapkan ulang Zero Offset."
+            )
+
+    def _mark_offset_stale_if_needed(self) -> None:
+        if not self._offset_applied:
+            return
+        current = self._offset_time_bounds()
+        if not self._bounds_equal(current, self._offset_applied_bounds):
+            self._offset_stale = True
+        self._update_zero_offset_ui()
+
+    def _patch_snapshot_offset_bounds(self) -> None:
+        if self._stats_snapshot is None:
+            return
+        if self._zero_offset_mode():
+            bounds = self._offset_time_bounds()
+            if bounds is not None:
+                self._stats_snapshot["zero_offset_start_s"] = float(bounds[0])
+                self._stats_snapshot["zero_offset_stop_s"] = float(bounds[1])
+            else:
+                self._stats_snapshot["zero_offset_start_s"] = None
+                self._stats_snapshot["zero_offset_stop_s"] = None
+        else:
+            self._stats_snapshot["zero_offset_start_s"] = None
+            self._stats_snapshot["zero_offset_stop_s"] = None
+        self._stats_snapshot["zero_offset_applied"] = (
+            self._offset_applied and not self._offset_stale
+        )
+        self._refresh_stats_table()
+
+    def _on_offset_region_changed(self) -> None:
+        if self._offset_syncing or self._offset_region_force is None:
+            return
+        t_lo, t_hi = self._offset_region_force.getRegion()
+        t_lo, t_hi = self._clamp_region_to_recording(t_lo, t_hi)
+        if self._offset_region_force is not None:
+            cur_lo, cur_hi = self._offset_region_force.getRegion()
+            if abs(cur_lo - t_lo) > 1e-9 or abs(cur_hi - t_hi) > 1e-9:
+                self._offset_syncing = True
+                self._offset_region_force.blockSignals(True)
+                self._offset_region_force.setRegion([t_lo, t_hi])
+                self._offset_region_force.blockSignals(False)
+                self._offset_syncing = False
+        self._sync_mirror_offset_regions(t_lo, t_hi)
+        self._update_offset_info_label(t_lo, t_hi)
+        self._push_test_region_after_offset()
+        was_stale = self._offset_stale
+        self._mark_offset_stale_if_needed()
+        if self._offset_applied and (self._offset_stale or was_stale):
+            self._patch_snapshot_offset_bounds()
+            return
+        self._reanalyze_current_segment()
 
     def _on_segment_region_changed(self) -> None:
         if self._segment_syncing or self._segment_region_force is None:
             return
         t_lo, t_hi = self._segment_region_force.getRegion()
-        if self._loaded_ts:
-            full_lo, full_hi = min(self._loaded_ts), max(self._loaded_ts)
-            span = full_hi - full_lo
-            eps = max(span * 1e-9, 1e-9)
-            clamped_lo = max(full_lo, min(t_lo, full_hi))
-            clamped_hi = max(full_lo, min(t_hi, full_hi))
-            if clamped_hi - clamped_lo < eps:
-                mid = (clamped_lo + clamped_hi) * 0.5
-                clamped_lo = max(full_lo, mid - eps)
-                clamped_hi = min(full_hi, mid + eps)
-            if abs(clamped_lo - t_lo) > 1e-9 or abs(clamped_hi - t_hi) > 1e-9:
-                self._segment_syncing = True
-                self._segment_region_force.blockSignals(True)
-                self._segment_region_force.setRegion([clamped_lo, clamped_hi])
-                self._segment_region_force.blockSignals(False)
-                self._segment_syncing = False
-                t_lo, t_hi = clamped_lo, clamped_hi
+        t_lo, t_hi = self._apply_test_region_clamp(t_lo, t_hi)
+        cur_lo, cur_hi = self._segment_region_force.getRegion()
+        if abs(cur_lo - t_lo) > 1e-9 or abs(cur_hi - t_hi) > 1e-9:
+            self._segment_syncing = True
+            self._segment_region_force.blockSignals(True)
+            self._segment_region_force.setRegion([t_lo, t_hi])
+            self._segment_region_force.blockSignals(False)
+            self._segment_syncing = False
         self._sync_mirror_segment_regions(t_lo, t_hi)
         self._update_segment_info_label(t_lo, t_hi)
+        self._reanalyze_current_segment()
+
+    def _reset_zero_offset_state(self, *, replot: bool = True) -> None:
+        self._offset_applied = False
+        self._offset_stale = False
+        self._offset_applied_bounds = None
+        self._offset_mean_f = 0.0
+        self._offset_mean_r = 0.0
+        self._offset_mean_p = 0.0
+        self._restore_raw_to_loaded()
+        if replot:
+            self._replot_loaded_curves()
+        self._update_zero_offset_ui()
+
+    def _apply_zero_offset(self) -> bool:
+        if (
+            self._raw_ts is None
+            or self._raw_f is None
+            or self._raw_r is None
+            or self._raw_p is None
+        ):
+            return False
+        bounds = self._offset_time_bounds()
+        if bounds is None:
+            return False
+        means = self._means_in_bounds(
+            self._raw_ts, self._raw_f, self._raw_r, self._raw_p, bounds[0], bounds[1]
+        )
+        if means is None:
+            QMessageBox.warning(
+                self,
+                "Zero Offset",
+                "Tidak ada sampel pada region offset untuk menghitung rata-rata.",
+            )
+            return False
+        self._offset_mean_f, self._offset_mean_r, self._offset_mean_p = means
+        self._loaded_f = [v - self._offset_mean_f for v in self._raw_f]
+        self._loaded_r = [v - self._offset_mean_r for v in self._raw_r]
+        self._loaded_p = [v - self._offset_mean_p for v in self._raw_p]
+        self._loaded_ts = list(self._raw_ts)
+        self._offset_applied = True
+        self._offset_stale = False
+        self._offset_applied_bounds = bounds
+        self._replot_loaded_curves()
+        self._update_zero_offset_ui()
+        self._reanalyze_current_segment()
+        return True
+
+    def _on_zero_offset_button_clicked(self) -> None:
+        if self._offset_applied and not self._offset_stale:
+            self._reset_zero_offset_state()
+            self._reanalyze_current_segment()
+            return
+        self._apply_zero_offset()
+
+    def _on_zero_offset_checkbox_changed(self, checked: bool) -> None:
+        self._set_offset_regions_visible(checked)
+        if not checked:
+            self._reset_zero_offset_state(replot=True)
+            if self._loaded_ts:
+                t_min, t_max = min(self._loaded_ts), max(self._loaded_ts)
+                self._layout_regions_full_recording(t_min, t_max)
+            self._reanalyze_current_segment()
+            return
+        if self._loaded_ts:
+            t_min, t_max = min(self._loaded_ts), max(self._loaded_ts)
+            self._layout_regions_zero_offset_mode(t_min, t_max)
+        self._update_zero_offset_ui()
         self._reanalyze_current_segment()
 
     def _reanalyze_current_segment(self) -> None:
@@ -1057,8 +1493,23 @@ class AnalyzeSingleFileTab(QWidget):
         if bounds is not None and self._stats_snapshot is not None:
             self._stats_snapshot["segment_start_s"] = float(bounds[0])
             self._stats_snapshot["segment_end_s"] = float(bounds[1])
+            if self._zero_offset_mode():
+                off = self._offset_time_bounds()
+                if off is not None:
+                    self._stats_snapshot["zero_offset_start_s"] = float(off[0])
+                    self._stats_snapshot["zero_offset_stop_s"] = float(off[1])
+                else:
+                    self._stats_snapshot["zero_offset_start_s"] = None
+                    self._stats_snapshot["zero_offset_stop_s"] = None
+            else:
+                self._stats_snapshot["zero_offset_start_s"] = None
+                self._stats_snapshot["zero_offset_stop_s"] = None
+            self._stats_snapshot["zero_offset_applied"] = (
+                self._offset_applied and not self._offset_stale
+            )
         if ts_list:
             self._fs_hz = _estimate_sample_rate_hz(ts_list)
+        self._update_zero_offset_ui()
 
     def _gap_loss_method_key(self) -> str:
         """``A`` = per gap; ``B`` = global."""
@@ -1133,6 +1584,12 @@ class AnalyzeSingleFileTab(QWidget):
         self._loaded_f = f_list
         self._loaded_r = r_list
         self._loaded_p = p_list
+        self._store_raw_copy()
+        self._reset_zero_offset_state(replot=False)
+        self._zero_offset_checkbox.blockSignals(True)
+        self._zero_offset_checkbox.setChecked(False)
+        self._zero_offset_checkbox.blockSignals(False)
+        self._set_offset_regions_visible(False)
         self._log_sync_meta = sync_meta
         self._loaded_csv_path = path
 
@@ -1146,6 +1603,7 @@ class AnalyzeSingleFileTab(QWidget):
         self._update_meta_labels()
 
         self._setup_segment_regions(ts_list)
+        self._update_zero_offset_ui()
         self._reanalyze_current_segment()
         if self.video_panel.video_path() is None:
             self._on_video_position_changed(-1.0)
@@ -1389,6 +1847,23 @@ class AnalyzeSingleFileTab(QWidget):
                         f"{float(seg_hi):.6g}",
                     ]
                 )
+            z_lo = snap.get("zero_offset_start_s")
+            z_hi = snap.get("zero_offset_stop_s")
+            if z_lo is not None and z_hi is not None:
+                w.writerow(
+                    [
+                        "Zero_offset_start (s)",
+                        f"{float(z_lo):.6g}",
+                    ]
+                )
+                w.writerow(
+                    [
+                        "Zero_offset_stop (s)",
+                        f"{float(z_hi):.6g}",
+                    ]
+                )
+            if snap.get("zero_offset_applied"):
+                w.writerow(["Zero_offset_diterapkan", "Ya"])
             w.writerow([])
             w.writerow(
                 ["Timestampstart (s)", f"{float(snap['timestamp_start_s']):.6g}"]
