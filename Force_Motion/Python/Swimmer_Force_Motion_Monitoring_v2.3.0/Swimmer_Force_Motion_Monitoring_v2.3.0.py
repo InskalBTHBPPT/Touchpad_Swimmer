@@ -5,7 +5,24 @@ Versi modul ini: **2.3.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.3.0
 
 Changelog (2.2.0 → 2.3.0)
 ==========================
-- **Tab Live — kamera** — preview live di samping tiga plot; pindai & pilih perangkat
+- **Menu bar** — **File**, **View**, **Setting**, **Help**; bilah tab disembunyikan (navigasi
+  lewat **View**: Live ``Ctrl+1``, Analisa SingleFile ``Ctrl+2``, Analisa MultiFile ``Ctrl+3``).
+- **File → Analisa SingleFile** — **Load csv**, **Load Video**, **Simpan Statistik**
+  (menggantikan tombol di tab Analisa).
+- **File → Analisa MultiFile → Add File** — menambah kolom tabel (menggantikan tombol
+  *Add file*).
+- **Setting → Analisa SingleFile → Statistik Setting** — dialog pengaturan analisa
+  (menggantikan tombol *Setting…*).
+- **Setting → Live → Camera** — dialog pindai & pilih kamera; **Serial Port** — port,
+  refresh, baud (menggantikan kontrol serupa di panel Live).
+- **Tab Live — tata letak** — dua kolom **50:50**: kiri tiga plot waktu; kanan atas
+  indikator **2×2** + **Kontrol sesi** (perenang, gaya, Connect, Start Log); kanan
+  bawah grup **Kamera** (preview, rasio mengikuti stream). Jendela default 1360×760.
+- **Help** — **Manual** (``F1``), **Tentang**, **Changelog** (tombol About/Help di tab
+  Live dihapus).
+- **Preferensi dormant** — opsi *TimeStamp CSV mulai 0 saat Start Log* tetap di kode
+  (``log_ts_zero_checkbox``) tetapi tidak ditampilkan di UI.
+- **Tab Live — kamera** — preview live di grup **Kamera**; pindai & pilih perangkat
   lewat menu **Setting → Live → Camera**; rekam ``.mp4`` ke ``DataLog/`` dengan
   basename sama seperti CSV saat **Start Log**; berhenti saat **Stop Log**.
   Modul ``live_camera_core.py``, ``live_camera_panel.py``.
@@ -83,27 +100,26 @@ dalam format **teks CSV**: satu baris per sampel, empat kolom numerik dipisahkan
 
 Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
 
-1. **Live** — koneksi serial, plot tiga deret waktu, indikator nilai terakhir (force,
-   roll, pitch, **baterai %** jika dikirim perangkat), panel **kamera** (preview;
-   atur perangkat lewat **Setting → Live → Camera**), rekam ``.mp4`` ke ``DataLog/``
-   saat **Start Log**), rekaman ke berkas CSV
-   di folder ``DataLog/`` (empat kolom data saja), opsi menggeser kolom waktu di CSV
-   ke nol per sesi **Start Log**.
-2. **Analisa** — muat satu CSV hasil tab Live, plot waktu dengan marker ekstremum,
+1. **Live** — menu **Setting → Live** (kamera, serial); plot tiga deret waktu (kiri);
+   indikator nilai terakhir **2×2** + **Kontrol sesi** (kanan atas); preview **kamera**
+   (kanan bawah); rekam ``.mp4`` ke ``DataLog/`` saat **Start Log**; rekaman CSV empat
+   kolom di ``DataLog/``.
+2. **Analisa SingleFile** — muat CSV/video lewat menu **File**; pengaturan lewat
+   **Setting → Statistik Setting**; muat satu CSV hasil tab Live, plot waktu dengan
    **playback video** pasangan (playhead pink; sinkron dari metadata CSV atau fallback
    kasar), region data uji (biru) dan zero offset (hijau), koreksi sudut tali /
    batas bawah Force mentah, statistik gaya tethered **Metode A/B** (peakF, meanF,
    ImpF, TpeakF, DUR, RFD, dF, FI), frekuensi dominan FFT/Welch **tanpa plot spektrum
    visual**, **gap rekaman CSV** Metode A/B, tooltip per baris statistik, ekspor ke
    ``DataStatistik/``.
-3. **Analisa multifile** — hingga lima berkas ekspor ``DataStatistik/``; tabel
-   perbandingan berkelompok; **plot perbandingan** di jendela terpisah (11 metrik,
+3. **Analisa MultiFile** — tambah berkas lewat **File → Add File**; hingga lima berkas
+   ekspor ``DataStatistik/``; tabel perbandingan berkelompok; **plot perbandingan** di jendela terpisah (11 metrik,
    sumbu X nomor kolom, tooltip hover); **Clear tabel** per kolom atau semua.
 
 Arsitektur ringkas
 ===================
-- **GUI**: ``QMainWindow`` + ``QTabWidget``; plot memakai **pyqtgraph** (performa baik
-  untuk deret waktu).
+- **GUI**: ``QMainWindow`` + ``QTabWidget`` (bilah tab disembunyikan; menu **View**);
+  plot memakai **pyqtgraph** (performa baik untuk deret waktu).
 - **Serial**: ``serial.Serial`` + ``QTimer`` periodik (``poll_serial``) membaca buffer
   byte, memecah per ``\\n``, mendekode UTF-8, mem-parse empat kolom float wajib
   (kolom kelima baterai opsional, hanya tampilan Live).
@@ -156,11 +172,11 @@ Struktur:
 Berkas video ``.mp4`` (basename sama dengan CSV) di ``DataLog/`` jika kamera aktif
 saat Start Log.
 
-Opsi **TimeStamp CSV mulai 0 saat Start Log**: jika dicentang, kolom waktu yang
-ditulis ke CSV adalah ``waktu_serial - waktu_sampel_pertama_sesi_log`` sehingga
-baris pertama data ≈ ``0`` detik. **Connect** tidak mengatur ulang referensi ini;
-hanya **Start Log** yang memulai sesi baru. Plot Live tetap memakai waktu mentah
-dari serial.
+Opsi **TimeStamp CSV mulai 0 saat Start Log** (preferensi dormant, tidak ditampilkan
+di UI v2.3.0): jika diaktifkan di kode, kolom waktu yang ditulis ke CSV adalah
+``waktu_serial - waktu_sampel_pertama_sesi_log`` sehingga baris pertama data ≈ ``0``
+detik. **Connect** tidak mengatur ulang referensi ini; hanya **Start Log** yang
+memulai sesi baru. Plot Live tetap memakai waktu mentah dari serial.
 
 Analisa & statistik (satu berkas)
 ==================================
@@ -233,7 +249,8 @@ Berkas terkait di folder yang sama
 - ``parse_datastatistik_csv.py`` — parser ekspor ``DataStatistik/`` (tab multifile).
 - ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel + plot).
 - ``live_camera_core.py`` — pemindaian kamera (probe MSMF/DSHOW).
-- ``live_camera_panel.py`` — preview kamera tab Live + dialog Setting → Live → Camera.
+- ``live_camera_panel.py`` — preview kamera tab Live + dialog **Setting → Live → Camera**.
+- ``live_serial_settings_dialog.py`` — dialog **Setting → Live → Serial Port**.
 - ``analyze_video_panel.py`` — playback video rekaman di tab Analisa.
 - ``analyze_tethered_force_metrics.py`` — metrik gaya tethered (Metode A/B).
 - ``ui_tooltip.py`` — tema dan teks tooltip aplikasi.
@@ -245,8 +262,8 @@ Berkas terkait di folder yang sama
 
 Lihat juga
 ==========
-Menu **Help** membuka PDF manual jika berkas ada; **Tentang**
-menampilkan ringkasan versi dan tujuan aplikasi.
+Menu **Help** — **Manual** (``F1``), **Tentang**, **Changelog**; Manual membuka PDF
+jika berkas ada.
 """
 
 from __future__ import annotations

@@ -30,42 +30,75 @@ python Swimmer_Force_Motion_Monitoring_v2.3.0.py
 
 ## 2. Ringkasan antarmuka
 
-Aplikasi memiliki **tiga tab**:
+Aplikasi memakai **menu bar** (bilah tab disembunyikan; pindah tampilan lewat menu **View**):
 
-- **Live** — koneksi serial, plot waktu-nyata, indikator nilai terakhir (force, roll, pitch, **baterai %** jika perangkat mengirim kolom kelima), panel **kamera** (pindai, preview, rekam `.mp4` saat **Start Log**), rekaman CSV empat kolom, opsi timestamp CSV, tombol **About** dan **Help**.
-- **Analisa** — muat **satu** file CSV hasil rekaman Live, tiga plot waktu penuh dengan marker ekstremum dan region data uji / zero offset, **playback video** pasangan (playhead pink pada plot), kartu statistik (metrik gaya tethered Metode A/B, frekuensi dominan FFT/Welch **tanpa plot spektrum visual**, **gap rekaman CSV** Metode A/B), ekspor ringkasan ke `DataStatistik/`.
-- **Analisa multifile** — hingga **lima** berkas ekspor `DataStatistik/` sekaligus; tabel perbandingan berkelompok (region, zero offset, koreksi, Force, Roll, Pitch, gap); **plot perbandingan** aktif (pyqtgraph); modul `parse_datastatistik_csv.py`.
+| Menu | Isi |
+|------|-----|
+| **File** | **Analisa SingleFile** → Load csv, Load Video, Simpan Statistik · **Analisa MultiFile** → Add File |
+| **View** | Live (`Ctrl+1`), Analisa SingleFile (`Ctrl+2`), Analisa MultiFile (`Ctrl+3`) |
+| **Setting** | **Analisa SingleFile** → Statistik Setting · **Live** → Camera, Serial Port |
+| **Help** | Manual (`F1`), Tentang, Changelog |
+
+Tiga tampilan utama (setara tab):
+
+- **Live** — plot waktu-nyata (kiri); kanan atas **Nilai terakhir** (grid 2×2) + **Kontrol sesi**; kanan bawah **preview kamera**; rekaman CSV dan video opsional.
+- **Analisa SingleFile** — muat CSV/video lewat **File**; plot waktu, playback video, statistik, ekspor `DataStatistik/`.
+- **Analisa MultiFile** — tambah berkas lewat **File → Add File**; tabel perbandingan hingga lima kolom; plot perbandingan.
 
 Modul pendukung di folder yang sama:
 
 - `live_csv_io.py` — header data CSV, `parse_logged_csv`, dan `LogSyncMeta` (metadata sinkron video).
 - `live_camera_core.py` — pemindaian/probe kamera (OpenCV, MSMF/DSHOW).
-- `live_camera_panel.py` — panel kamera tab Live (preview + rekam).
+- `live_camera_panel.py` — preview kamera tab Live + dialog **Setting → Live → Camera**.
+- `live_serial_settings_dialog.py` — dialog **Setting → Live → Serial Port**.
 - `analyze_video_panel.py` — pemutar video MP4 di tab Analisa.
-- `analyze_single_file_tab.py` — implementasi tab Analisa (satu berkas).
+- `analyze_single_file_tab.py` — implementasi Analisa SingleFile.
 - `analyze_tethered_force_metrics.py` — metrik gaya tethered (Metode A global / Metode B Andrade).
 - `analyze_metrics_core.py` — perhitungan metrik + spektrum + **gap rekaman CSV** (`compute_gap_loss`).
-- `parse_datastatistik_csv.py` — parser berkas ekspor `DataStatistik/` (tab multifile).
-- `analyze_multi_file_tab.py` — implementasi tab Analisa multifile (tabel + plot).
+- `parse_datastatistik_csv.py` — parser berkas ekspor `DataStatistik/` (Analisa MultiFile).
+- `analyze_multi_file_tab.py` — implementasi Analisa MultiFile (tabel + plot).
 - `ui_tooltip.py` — tema tooltip aplikasi (latar terang, teks gelap).
 
 ---
 
 ## 3. Tab Live
 
-### 3.1 Port dan baud
+### 3.1 Tata letak
 
-1. Pilih **Port** COM yang sesuai dengan perangkat (tombol **Refresh Ports** memperbarui daftar).
+```
+┌─────────────────────┬──────────────────────────────────┐
+│  Plot Force         │  Nilai terakhir (2×2) │ Kontrol  │
+│  Plot Roll          │  sesi                 │ sesi     │
+│  Plot Pitch         ├──────────────────────────────────┤
+│                     │  Kamera (preview + status)       │
+└─────────────────────┴──────────────────────────────────┘
+        ~50%                        ~50%
+```
+
+- **Kiri:** tiga plot vertikal (Force, Roll, Pitch) — data real-time dari serial (~100 titik terakhir).
+- **Kanan atas (~25% tinggi):** grup **Nilai terakhir** (Force, Roll, Pitch, Baterai dalam grid 2×2) dan **Kontrol sesi** (nama perenang, gaya, nama file, Connect, Start Log).
+- **Kanan bawah (~75% tinggi):** grup **Kamera** — preview live (rasio mengikuti resolusi stream) dan status bar.
+
+### 3.2 Port dan baud
+
+Menu **Setting → Live → Serial Port** membuka dialog:
+
+1. Pilih **Port** COM (tombol **Refresh Ports** memperbarui daftar).
 2. Pilih **Baud** (default umum: `115200`).
-3. Isi **Nama Perenang** dan **Gaya renang** (dipakai untuk nama file log dan metadata CSV).
 
-### 3.2 Connect
+Port dan baud tidak dapat diubah saat serial sudah **Connect**.
 
-- Tekan **Connect** untuk membuka port serial.
-- Saat terhubung, teks tombol berubah (mode *toggle*); plot dan indikator **Nilai terakhir** akan terisi jika data valid masuk.
-- **Disconnect** dengan menekan tombol yang sama saat dalam keadaan terhubung.
+### 3.3 Kontrol sesi
 
-### 3.3 Format data serial
+Di grup **Kontrol sesi** (kanan atas):
+
+1. Isi **Nama Perenang** dan **Gaya renang** (dipakai untuk nama file log dan metadata CSV).
+2. Tekan **Connect** untuk membuka port serial (tombol *toggle* → Disconnect).
+3. Tekan **Start Log** / **Stop Log** untuk rekaman (hanya aktif setelah Connect).
+
+Label **Nama file** menampilkan berkas CSV aktif saat logging.
+
+### 3.4 Format data serial
 
 Setiap baris (diakhiri baris baru `\n`) berisi **empat atau lima** nilai dipisahkan koma. Empat kolom pertama wajib; kolom kelima opsional.
 
@@ -91,20 +124,20 @@ Contoh lima kolom (LoRa Receiver, PlatformIO `Lora_Receiver_Ori`):
 
 Baris yang diawali `#` diabaikan. Baris dengan kolom selain empat atau lima, atau yang tidak bisa di-parse sebagai angka, dilewati. Baris teks status dari firmware (mis. pesan error) juga diabaikan.
 
-### 3.4 Plot Live
+### 3.5 Plot Live
 
 Tiga plot vertikal: **Force**, **Roll**, **Pitch** terhadap waktu (sumbu X: detik). Jumlah titik ditampung terbatas (jendela geser) agar tampilan tetap ringan.
 
-### 3.5 Indikator baterai (opsional)
+### 3.6 Indikator baterai (opsional)
 
 Grup **Nilai terakhir** menampilkan **Force**, **Roll**, **Pitch**, dan **Baterai (%)**. Kolom baterai hanya terisi jika firmware mengirim **lima** kolom per baris. Nilai baterai **tidak** disimpan ke file CSV rekaman (`DataLog/`).
 
-### 3.6 Start Log / Stop Log
+### 3.7 Start Log / Stop Log
 
 - **Start Log** hanya aktif jika serial sudah terhubung.
 - Rekaman ditulis ke folder **`DataLog/`** (otomatis dibuat di samping skrip), tanpa dialog *Save As*.
 - Nama file memuat nama perenang, gaya renang, dan cap waktu (format `ddmmyy-HHMM`).
-- Saat log berjalan, beberapa field (nama, gaya, checkbox timestamp) dikunci; **Stop Log** menghentikan rekaman dan menutup file.
+- Saat log berjalan, beberapa field (nama, gaya) dikunci; **Stop Log** menghentikan rekaman dan menutup file.
 
 Struktur awal file CSV rekaman:
 
@@ -116,37 +149,30 @@ Struktur awal file CSV rekaman:
 
 Rekaman video `.mp4` (basename sama dengan CSV) disimpan di `DataLog/` jika kamera aktif saat **Start Log**.
 
-### 3.7 Checkbox “TimeStamp CSV mulai 0 saat Start Log”
+### 3.8 Kamera (opsional)
 
-- **Default:** tidak dicentang → kolom waktu di CSV sama dengan nilai dari perangkat.
-- **Dicentang:** kolom waktu di CSV = waktu serial **dikurangi** timestamp **sampel pertama setelah Start Log** (bukan saat Connect). Baris pertama data mendekati `0` s.
-- Plot Live tetap memakai waktu mentah dari serial.
+Menu **Setting → Live → Camera** membuka dialog pindai dan pilih perangkat. Preview tampil di grup **Kamera** (bawah kanan tab Live).
 
-### 3.8 About dan Help
-
-- **About** — menampilkan dialog informasi aplikasi dan versi (**2.3.0**).
-- **Help** — membuka berkas **`UserManual_Force_Motion_v2.3.0.pdf`** dengan aplikasi PDF bawaan sistem. Jika PDF belum ada, dialog menjelaskan cara membuatnya (lihat bagian 7).
-
-### 3.9 Kamera (opsional)
-
-Panel **Kamera** di tab Live (di samping plot) memungkinkan preview dan rekaman video bersamaan dengan log CSV.
-
-1. Tekan **Pindai kamera** untuk memuat daftar perangkat video yang terdeteksi (OpenCV; di Windows backend **MSMF** dicoba lebih dulu, cocok untuk DroidCam).
-2. Pilih perangkat dari dropdown, lalu **Mulai preview** untuk menampilkan gambar live.
-3. Saat **Start Log** dengan preview aktif, aplikasi merekam `.mp4` ke `DataLog/` — **basename sama** dengan file CSV (mis. `Ridwan_Bebas_240625-1105.mp4`).
+1. Tekan **Pindai Kamera** untuk memuat daftar perangkat video (OpenCV; di Windows backend **MSMF** dicoba lebih dulu).
+2. Pilih baris berstatus **AKTIF** pada tabel — preview langsung aktif di tab Live.
+3. Saat **Start Log** dengan kamera aktif, aplikasi merekam `.mp4` ke `DataLog/` — **basename sama** dengan file CSV.
 4. **Stop Log** menghentikan rekaman CSV dan video.
 
-Tanpa kamera aktif, **Start Log** hanya menulis CSV (perilaku sama seperti v2.2.0). Metadata sinkron video (lihat §3.6) hanya ditulis jika kamera aktif saat Start Log.
+Tanpa kamera aktif, **Start Log** hanya menulis CSV. Metadata sinkron video (lihat §3.7) hanya ditulis jika kamera aktif saat Start Log.
+
+### 3.9 Bantuan
+
+Menu **Help** — **Manual** (`F1`, membuka `UserManual_Force_Motion_v2.3.0.pdf`), **Tentang**, **Changelog**.
 
 ---
 
-## 4. Tab Analisa
+## 4. Analisa SingleFile
 
-### 4.1 Load CSV
+### 4.1 Load CSV dan video
 
-- Tekan **Load CSV…** dan pilih file rekaman dari folder `DataLog/` (atau lokasi lain).
-- File harus memiliki metadata dan header data yang sesuai format tab Live (lihat §3.6). Parser memakai `live_csv_io.parse_logged_csv`.
-- File `.mp4` pasangan (basename sama) dimuat otomatis jika ada di folder yang sama; gunakan **Load Video…** untuk memilih video lain.
+- **File → Analisa SingleFile → Load csv** — pilih file rekaman dari `DataLog/` (atau lokasi lain). Parser: `live_csv_io.parse_logged_csv`.
+- **File → Analisa SingleFile → Load Video** — pilih MP4 secara manual.
+- File `.mp4` pasangan (basename sama) dimuat otomatis saat Load csv jika ada di folder yang sama.
 
 ### 4.1a Sinkron playhead video ↔ plot
 
@@ -159,14 +185,14 @@ Tanpa kamera aktif, **Start Log** hanya menulis CSV (perilaku sama seperti v2.2.
 
 Setelah berhasil dimuat:
 
-- **Kiri:** tiga plot menampilkan rekaman penuh (Force, Roll, Pitch).
-- **Tengah:** panel **Rekaman video** — playback MP4 (lihat §4.1a untuk sinkron playhead). Tombol **Load Video…** dan **Play** memiliki tooltip bantuan (latar terang, teks gelap).
-- **Kanan:** panel statistik dan pengaturan.
+- **Kiri:** tiga plot rekaman penuh (Force, Roll, Pitch).
+- **Tengah:** panel **Rekaman video** — playback MP4 (lihat §4.1a). Tombol **Play** memiliki tooltip bantuan.
+- **Kanan:** tabel statistik (tanpa tombol Setting — gunakan **Setting → Analisa SingleFile → Statistik Setting**).
 - Marker menandai titik ekstrem pada plot (force maksimum; roll/pitch min dan max) dengan label waktu.
 - Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start/Stop Uji**, **Metode gaya Force**, **Mean (meanF)**, **Impulse (ImpF)**, **TpeakF**, **DUR**, **RFD**, **dF**, **Fatigue Index (FI)** (kolom Force; dF dan temporal hanya Metode B; FI global), dan ekstremum gaya (**Maksimum** = peakF, **Minimum** = minF) pada kolom Force, **frekuensi dominan** (Hz) per kanal, serta kartu **GAP REKAMAN CSV** (lihat §4.4 dan §4.6). **Tooltip:** arahkan kursor ke nama baris di kolom **Parameter** untuk penjelasan singkat; panduan awam lengkap di §4.6a.
-- Tombol **Setting…** membuka dialog pengaturan: koreksi & region, metode statistik Force, spektrum, gap CSV (lihat §4.2a dan §4.3).
+- **Setting → Analisa SingleFile → Statistik Setting** membuka dialog pengaturan: koreksi & region, metode statistik Force, spektrum, gap CSV (lihat §4.2a dan §4.3).
 
-### 4.2a Koreksi & region (dialog Setting…)
+### 4.2a Koreksi & region (Statistik Setting)
 
 Grup **Koreksi & region** mengatur data yang dipakai statistik dan tampilan plot:
 
@@ -212,7 +238,7 @@ Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
 
 ### 4.5 Simpan statistik
 
-- Tombol **Simpan statistik** menulis file CSV ke folder **`DataStatistik/`** tanpa dialog penyimpanan.
+- **File → Analisa SingleFile → Simpan Statistik** menulis file CSV ke folder **`DataStatistik/`** tanpa dialog penyimpanan (nonaktif sampai CSV dimuat dan statistik tersedia).
 - Nama file: `<nama_file_csv_yang_dimuat>_DataStatistik_<ddmmyy-HHMMSS>.csv` — cap waktu **saat tombol ditekan** (lokal); setiap ekspor menghasilkan berkas baru (tidak menimpa ekspor Metode A/B atau pengaturan lain sebelumnya).
 - Isi ringkas:
   - Metadata (nama perenang, gaya renang, waktu ekspor, nama berkas sumber, segmen analisa).
@@ -365,18 +391,19 @@ Jika gap besar, pertimbangkan ulang rekaman atau periksa koneksi/logging sebelum
 
 ---
 
-## 5. Tab Analisa multifile
+## 5. Analisa MultiFile
 
-Tab ini membandingkan hingga **lima** berkas ekspor statistik dari tab Analisa (`DataStatistik/*_DataStatistik*.csv`), bukan berkas rekaman mentah `DataLog/`. Setiap berkas yang dimuat menambah **satu kolom** di tabel; angka pada kolom mencerminkan pengaturan (metode Force, zero offset, koreksi, gap, spektrum) saat berkas tersebut diekspor di tab Analisa.
+Tab ini membandingkan hingga **lima** berkas ekspor statistik dari Analisa SingleFile (`DataStatistik/*_DataStatistik*.csv`), bukan berkas rekaman mentah `DataLog/`.
 
 ### 5.1 Batang alat
 
-- **Baris kontrol** (kiri ke kanan): **Add file** (biru) → **Plot data** (hijau) → *ruang fleksibel* → label **Hapus kolom** + combo + **Clear tabel** (merah).
+- **Baris kontrol:** **Plot data** (hijau) → *ruang fleksibel* → label **Hapus kolom** + combo + **Clear tabel** (merah).
+- Tambah berkas: **File → Analisa MultiFile → Add File**.
 - **Plot data** aktif setelah ada minimal satu berkas dimuat.
 
-### 5.2 Add file dan batas berkas
+### 5.2 Add File dan batas berkas
 
-- Tombol **Add file** membuka dialog pilih CSV (default folder `DataStatistik/`).
+- **File → Analisa MultiFile → Add File** membuka dialog pilih CSV (default folder `DataStatistik/`).
 - Filter dialog: `*_DataStatistik*.csv`.
 - Maksimum **5** berkas; parser `parse_datastatistik_csv.py` memvalidasi format ekspor tab Analisa.
 
@@ -422,7 +449,8 @@ Tab ini membandingkan hingga **lima** berkas ekspor statistik dari tab Analisa (
 | `parse_datastatistik_csv.py` | Parser ekspor DataStatistik (tab multifile) |
 | `live_csv_io.py` | Header + parser CSV rekaman + `LogSyncMeta` |
 | `live_camera_core.py` | Pemindaian kamera |
-| `live_camera_panel.py` | Panel kamera tab Live |
+| `live_camera_panel.py` | Preview kamera tab Live + dialog Setting → Live → Camera |
+| `live_serial_settings_dialog.py` | Dialog Setting → Live → Serial Port |
 | `analyze_video_panel.py` | Pemutar video tab Analisa |
 | `analyze_single_file_tab.py` | Tab Analisa (plot + video + statistik + ekspor) |
 | `analyze_tethered_force_metrics.py` | Metrik gaya tethered (Metode A/B) |
@@ -455,15 +483,15 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 
 | Gejala | Tindakan |
 |---------|----------|
-| Port tidak muncul | Cabut/colok USB, klik **Refresh Ports**, periksa driver (mis. CP210x, CH340). |
+| Port tidak muncul | Buka **Setting → Live → Serial Port**; cabut/colok USB, klik **Refresh Ports**, periksa driver. |
 | Connect gagal | Pastikan port tidak dipakai program lain; coba baud yang sesuai firmware. |
 | Plot kosong | Periksa format baris (empat atau lima angka, koma); pastikan firmware mengirim newline. |
 | Baterai tampil `—` | Perangkat mungkin hanya mengirim empat kolom; LoRa Receiver mengirim lima kolom. |
-| Load CSV gagal di Analisa | Pastikan file dari tab Live yang sama (metadata + header persis). |
-| Load gagal di Analisa multifile | Gunakan berkas dari **Simpan statistik** tab Analisa (`*_DataStatistik*.csv`), bukan `DataLog/`. |
-| Video tidak dimuat otomatis | Pastikan `.mp4` ada di folder yang sama dengan CSV dan basename cocok; atau gunakan **Load Video…**. |
-| Rekam video gagal saat Start Log | Aktifkan **Mulai preview** kamera sebelum Start Log; periksa instalasi `opencv-python`. |
-| Kamera tidak terdeteksi | Coba **Pindai kamera** ulang; di Windows pastikan DroidCam memakai mode yang kompatibel MSMF. |
+| Load CSV gagal di Analisa | **File → Load csv**; pastikan file dari tab Live (metadata + header persis). |
+| Load gagal di Analisa MultiFile | Gunakan berkas dari **Simpan Statistik** (`*_DataStatistik*.csv`), bukan `DataLog/`. |
+| Video tidak dimuat otomatis | Pastikan `.mp4` ada di folder yang sama dengan CSV; atau **File → Load Video**. |
+| Rekam video gagal saat Start Log | Pilih kamera aktif lewat **Setting → Live → Camera** sebelum Start Log; periksa `opencv-python`. |
+| Kamera tidak terdeteksi | **Setting → Live → Camera** → **Pindai Kamera** ulang; di Windows pastikan DroidCam kompatibel MSMF. |
 | Help tidak membuka PDF | Jalankan §7; pastikan `UserManual_Force_Motion_v2.3.0.pdf` ada di folder aplikasi v2.3.0. |
 | Error import `numpy` / `scipy` / `cv2` | Instal dependensi (lihat §1 atau `requirements.txt`). |
 
@@ -471,7 +499,7 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 
 ## 9. Versi dokumen
 
-- **Manual:** selaras dengan aplikasi **v2.3.0** (kamera Live, video Analisa, sinkron playhead, baterai Live, statistik gaya tethered Metode A/B, dF, FI, zero offset, koreksi sudut tali, tooltip, gap rekaman CSV Metode A/B; ekspor DataStatistik lengkap; tab multifile dari `DataStatistik/` dengan tabel berkelompok dan plot perbandingan peakF/meanF/minF/ImpF, roll/pitch, frekuensi dominan).
+- **Manual:** selaras dengan aplikasi **v2.3.0** (menu bar File/View/Setting/Help; tata letak Live 50:50; dialog kamera & serial; muat/simpan lewat menu File; Statistik Setting lewat menu Setting; kamera Live, video Analisa, sinkron playhead, baterai, statistik gaya tethered, dF, FI, zero offset, koreksi, tooltip, gap CSV; ekspor DataStatistik; Analisa MultiFile dengan tabel berkelompok dan plot perbandingan).
 - Ringkasan perubahan antar versi ada di `Force_Motion/Python/Changelog.md` dan docstring `Swimmer_Force_Motion_Monitoring_v2.3.0.py`.
 
 ---
