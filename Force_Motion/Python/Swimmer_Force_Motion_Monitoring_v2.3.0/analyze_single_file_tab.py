@@ -182,6 +182,8 @@ _STATS_MATRIX_ROW_LABELS = (
     "TpeakF (s)",
     "DUR (s)",
     "RFD (Kg/s)",
+    "dF (%)",
+    "Fatigue Index (FI) (%)",
     "Minimum",
     "t @ min (s)",
     "Frekuensi dominan (Hz)",
@@ -378,6 +380,16 @@ def _fill_stats_matrix_table(
         ),
         (
             _stats_table_text(snap.get("force_rfd_kg_s"), unit="Kg/s", decimals=2),
+            "—",
+            "—",
+        ),
+        (
+            _stats_table_text(snap.get("force_df_pct"), unit="%", decimals=2),
+            "—",
+            "—",
+        ),
+        (
+            _stats_table_text(snap.get("force_fatigue_index_pct"), unit="%", decimals=2),
             "—",
             "—",
         ),
@@ -1022,7 +1034,8 @@ class AnalyzeSingleFileTab(QWidget):
         self._force_stats_method_b_radio.setToolTip(
             _tooltip(
                 "Deteksi valley (minF lokal) pada sinyal terfilter;",
-                "peakF, meanF, minF, ImpF, TpeakF, DUR, RFD per siklus → rata-rata.",
+                "peakF, meanF, minF, ImpF, TpeakF, DUR, RFD, dF per siklus → rata-rata.",
+                "FI (kelelahan) dihitung global pada region uji (≥ 15 s).",
                 f"Filter: Butterworth orde-{ANDRADE_FILTER_ORDER}, cutoff dapat diatur",
                 f"(default {ANDRADE_FILTER_CUTOFF_DEFAULT_HZ:.0f} Hz, Andrade 2018).",
                 "Baris t @ maks / t @ min Force = —.",
@@ -2133,6 +2146,14 @@ class AnalyzeSingleFileTab(QWidget):
             "force_rfd_kg_s": (
                 float(force_stats.rfd_kg_s) if force_stats.rfd_kg_s is not None else None
             ),
+            "force_df_pct": (
+                float(force_stats.df_pct) if force_stats.df_pct is not None else None
+            ),
+            "force_fatigue_index_pct": (
+                float(force_stats.fatigue_index_pct)
+                if force_stats.fatigue_index_pct is not None
+                else None
+            ),
             "andrade_filter_cutoff_hz": force_stats.andrade_filter_cutoff_hz,
             "force_min_kg": float(v_fmin),
             "force_min_t_s": float(t_fmin) if t_fmin is not None else None,
@@ -2363,6 +2384,24 @@ class AnalyzeSingleFileTab(QWidget):
                         "Force_RFD",
                         f"{float(snap['force_rfd_kg_s']):.6g}",
                         "Kg/s",
+                        "",
+                    ]
+                )
+            if snap.get("force_df_pct") is not None:
+                w.writerow(
+                    [
+                        "Force_dF",
+                        f"{float(snap['force_df_pct']):.6g}",
+                        "%",
+                        "",
+                    ]
+                )
+            if snap.get("force_fatigue_index_pct") is not None:
+                w.writerow(
+                    [
+                        "Force_Fatigue_Index",
+                        f"{float(snap['force_fatigue_index_pct']):.6g}",
+                        "%",
                         "",
                     ]
                 )

@@ -1,5 +1,5 @@
 """
-Metrik gaya tethered — peakF, meanF, minF, ImpF, TpeakF, DUR, RFD (global vs Andrade).
+Metrik gaya tethered — peakF, meanF, minF, ImpF, TpeakF, DUR, RFD, dF, FI (global vs Andrade).
 """
 
 from __future__ import annotations
@@ -21,6 +21,9 @@ FORCE_STATS_METHOD_LABELS = {
 ANDRADE_FILTER_ORDER = 4
 ANDRADE_FILTER_CUTOFF_DEFAULT_HZ = 7.0
 _RFD_MIN_T_PEAK_S = 1e-9
+FI_MIN_DURATION_S = 15.0
+FI_WINDOW_S = 10.0
+_DF_MIN_MEAN_KG = 1e-9
 
 
 @dataclass(frozen=True)
@@ -34,6 +37,8 @@ class ForceTetheredStats:
     t_peak_f_s: float | None
     dur_s: float | None
     rfd_kg_s: float | None
+    df_pct: float | None
+    fatigue_index_pct: float | None
     method_key: str
     method_label: str
     stroke_count: int | None = None
@@ -53,6 +58,47 @@ def _trapezoid_impulse_kg_s(ts: np.ndarray, f: np.ndarray) -> float:
     if len(ts) < 2 or len(f) < 2:
         return 0.0
     return float(np.trapezoid(f, ts))
+
+
+def _intracyclic_df_pct(seg_f: np.ndarray) -> float | None:
+    """Variasi gaya intrasiklus (Morouço et al., 2018; 2024 Pers. 5), sampling seragam."""
+    if len(seg_f) < 2:
+        return None
+    f_mean = float(np.mean(seg_f))
+    if abs(f_mean) < _DF_MIN_MEAN_KG:
+        return None
+    n = len(seg_f)
+    rms_dev = float(np.sqrt(np.sum((seg_f - f_mean) ** 2) / n))
+    return (rms_dev / f_mean) * 100.0
+
+
+def compute_fatigue_index_pct(
+    ts_list: list[float],
+    f_list: list[float],
+) -> float | None:
+    """
+    FI = (F_akhir / F_awal − 1) × 100 [%].
+    F_awal / F_akhir = meanF pada jendela awal/akhir region (Morouço et al., 2012; 2024).
+    """
+    if len(ts_list) < 2 or len(f_list) < 2:
+        return None
+    ts_arr = np.asarray(ts_list, dtype=float)
+    f_arr = np.asarray(f_list, dtype=float)
+    duration_s = float(ts_arr[-1] - ts_arr[0])
+    if duration_s < FI_MIN_DURATION_S:
+        return None
+    win_s = min(FI_WINDOW_S, duration_s / 3.0)
+    t0 = float(ts_arr[0])
+    t_end = float(ts_arr[-1])
+    mask_start = ts_arr <= t0 + win_s
+    mask_end = ts_arr >= t_end - win_s
+    if not np.any(mask_start) or not np.any(mask_end):
+        return None
+    f_start = float(np.mean(f_arr[mask_start]))
+    f_finish = float(np.mean(f_arr[mask_end]))
+    if abs(f_start) < _DF_MIN_MEAN_KG:
+        return None
+    return (f_finish / f_start - 1.0) * 100.0
 
 
 def butterworth_lowpass_force(
@@ -87,6 +133,8 @@ def compute_force_stats_global(ts_list: list[float], f_list: list[float]) -> For
         t_peak_f_s=None,
         dur_s=None,
         rfd_kg_s=None,
+        df_pct=None,
+        fatigue_index_pct=compute_fatigue_index_pct(ts_list, f_list),
         method_key=FORCE_STATS_METHOD_GLOBAL,
         method_label=FORCE_STATS_METHOD_LABELS[FORCE_STATS_METHOD_GLOBAL],
         stroke_count=None,
@@ -130,6 +178,7 @@ def _stats_from_stroke_segments(
     t_peak_vals: list[float] = []
     dur_vals: list[float] = []
     rfd_vals: list[float] = []
+    df_vals: list[float] = []
     for i in range(len(valleys) - 1):
         lo = int(valleys[i])
         hi = int(valleys[i + 1])
@@ -152,6 +201,9 @@ def _stats_from_stroke_segments(
         dur_vals.append(dur)
         if t_peak_f > _RFD_MIN_T_PEAK_S:
             rfd_vals.append((peak_f - min_f) / t_peak_f)
+        df_i = _intracyclic_df_pct(seg_f)
+        if df_i is not None:
+            df_vals.append(df_i)
 
     if not peak_vals:
         return None
@@ -166,6 +218,8 @@ def _stats_from_stroke_segments(
         t_peak_f_s=float(statistics.mean(t_peak_vals)),
         dur_s=float(statistics.mean(dur_vals)),
         rfd_kg_s=float(statistics.mean(rfd_vals)) if rfd_vals else None,
+        df_pct=float(statistics.mean(df_vals)) if df_vals else None,
+        fatigue_index_pct=None,
         method_key=FORCE_STATS_METHOD_ANDRADE,
         method_label=FORCE_STATS_METHOD_LABELS[FORCE_STATS_METHOD_ANDRADE],
         stroke_count=len(peak_vals),
@@ -201,7 +255,25 @@ def compute_force_stats_andrade(
     )
     if stats is None:
         return _fallback_andrade_global(ts_list, f_list)
-    return stats
+    fi = compute_fatigue_index_pct(ts_list, f_list)
+    return ForceTetheredStats(
+        peak_f_kg=stats.peak_f_kg,
+        mean_f_kg=stats.mean_f_kg,
+        min_f_kg=stats.min_f_kg,
+        impulse_f_kg_s=stats.impulse_f_kg_s,
+        peak_t_s=stats.peak_t_s,
+        min_t_s=stats.min_t_s,
+        t_peak_f_s=stats.t_peak_f_s,
+        dur_s=stats.dur_s,
+        rfd_kg_s=stats.rfd_kg_s,
+        df_pct=stats.df_pct,
+        fatigue_index_pct=fi,
+        method_key=stats.method_key,
+        method_label=stats.method_label,
+        stroke_count=stats.stroke_count,
+        used_fallback_global=stats.used_fallback_global,
+        andrade_filter_cutoff_hz=stats.andrade_filter_cutoff_hz,
+    )
 
 
 def _fallback_andrade_global(
@@ -218,6 +290,8 @@ def _fallback_andrade_global(
         t_peak_f_s=None,
         dur_s=None,
         rfd_kg_s=None,
+        df_pct=None,
+        fatigue_index_pct=compute_fatigue_index_pct(ts_list, f_list),
         method_key=FORCE_STATS_METHOD_ANDRADE,
         method_label=FORCE_STATS_METHOD_LABELS[FORCE_STATS_METHOD_ANDRADE],
         stroke_count=0,

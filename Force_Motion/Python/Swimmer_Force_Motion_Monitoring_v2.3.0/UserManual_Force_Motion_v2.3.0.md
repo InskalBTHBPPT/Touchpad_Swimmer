@@ -160,7 +160,7 @@ Setelah berhasil dimuat:
 - **Tengah:** panel **Rekaman video** — playback MP4 (lihat §4.1a untuk sinkron playhead).
 - **Kanan:** panel statistik dan pengaturan.
 - Marker menandai titik ekstrem pada plot (force maksimum; roll/pitch min dan max) dengan label waktu.
-- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start/Stop Uji**, **Metode gaya Force**, **Mean (meanF)**, **Impulse (ImpF)**, **TpeakF**, **DUR**, **RFD** (kolom Force; temporal hanya Metode B), dan ekstremum gaya (**Maksimum** = peakF, **Minimum** = minF) pada kolom Force, **frekuensi dominan** (Hz) per kanal, serta kartu **GAP REKAMAN CSV** (lihat §4.4 dan §4.6).
+- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start/Stop Uji**, **Metode gaya Force**, **Mean (meanF)**, **Impulse (ImpF)**, **TpeakF**, **DUR**, **RFD**, **dF**, **Fatigue Index (FI)** (kolom Force; dF dan temporal hanya Metode B; FI global), dan ekstremum gaya (**Maksimum** = peakF, **Minimum** = minF) pada kolom Force, **frekuensi dominan** (Hz) per kanal, serta kartu **GAP REKAMAN CSV** (lihat §4.4 dan §4.6).
 
 ### 4.3 Analisa Setting — metode spektrum dan statistik Force
 
@@ -171,8 +171,8 @@ Grup **Statistik Force (peakF / meanF / ImpF / temporal)** — radio pemilihan c
 
 | Pilihan | Makna singkat |
 |---------|----------------|
-| **Metode A — global (Amaro / Carrasco-Poyatos)** | Default. **peakF**, **meanF**, **minF** global region uji; **ImpF** = ∫F·dt trapesium seluruh region. **TpeakF**, **DUR**, **RFD** = **—**. Baris **t @ maks** / **t @ min** berisi timestamp; marker merah pada plot = peakF. |
-| **Metode B — per siklus (Andrade)** | Sinyal Force difilter **Butterworth low-pass orde 4** (default cutoff **7 Hz**, dapat diatur pada spinbox **Filter Butterworth (Andrade)**). Valley (minF lokal) → segmentasi per kayuhan → peakF, meanF, minF, **ImpF**, **TpeakF**, **DUR**, **RFD** per siklus → rata-rata antar siklus. **ImpF** per siklus = ∫F·dt antar dua minF. **t @ maks/min** Force = **—**. Fallback global jika siklus tidak terdeteksi. |
+| **Metode A — global (Amaro / Carrasco-Poyatos)** | Default. **peakF**, **meanF**, **minF** global region uji; **ImpF** = ∫F·dt trapesium seluruh region. **TpeakF**, **DUR**, **RFD**, **dF** = **—**. **FI** dihitung jika durasi region ≥ 15 s. Baris **t @ maks** / **t @ min** berisi timestamp; marker merah pada plot = peakF. |
+| **Metode B — per siklus (Andrade)** | Sinyal Force difilter **Butterworth low-pass orde 4** (default cutoff **7 Hz**, dapat diatur pada spinbox **Filter Butterworth (Andrade)**). Valley (minF lokal) → segmentasi per kayuhan → peakF, meanF, minF, **ImpF**, **TpeakF**, **DUR**, **RFD**, **dF** per siklus → rata-rata antar siklus. **ImpF** per siklus = ∫F·dt antar dua minF. **t @ maks/min** Force = **—**. **FI** dihitung global pada region uji (≥ 15 s). Fallback global jika siklus tidak terdeteksi. |
 
 Spinbox **Filter Butterworth (Andrade)** hanya aktif pada Metode B; rentang **0,5–30 Hz** (langkah 0,5 Hz). Nilai default **7 Hz** mengikuti Andrade et al. (2018).
 
@@ -200,13 +200,13 @@ Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
 - Isi ringkas:
   - Metadata (nama perenang, gaya renang, waktu ekspor, nama berkas sumber).
   - Baris **`Timestampstart (s)`** + nilai (waktu awal deret, sama dengan yang ditampilkan di panel statistik).
-  - Tabel **`Metrik, Nilai, Satuan, Waktu (s)`** untuk metode dan metrik Force (**Metode_statistik_Force**, opsional **Filter_Andrade_cutoff**, **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_impulse_ImpF**, opsional **Force_TpeakF**, **Force_DUR**, **Force_RFD** (Metode B), **Force_minimum_minF**; roll/pitch min/maks) — lihat §4.6.
+  - Tabel **`Metrik, Nilai, Satuan, Waktu (s)`** untuk metode dan metrik Force (**Metode_statistik_Force**, opsional **Filter_Andrade_cutoff**, **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_impulse_ImpF**, opsional **Force_TpeakF**, **Force_DUR**, **Force_RFD**, **Force_dF** (Metode B), opsional **Force_Fatigue_Index**, **Force_minimum_minF**; roll/pitch min/maks) — lihat §4.6.
   - Dua baris kosong, lalu tabel **`Metrik, Frekuensi Dominan (Hz), Metode`** dengan baris **Force**, **Roll**, **Pitch** (metode sama untuk ketiga saluran pada satu ekspor).
   - Blok **`Gap rekaman CSV (estimasi)`** — metode yang dipilih, Δt nominal, laju sampel efektif, sampel tercatat, sampel hilang, persen hilang; Metode A menyertakan jumlah gap; Metode B menyertakan sampel diharapkan.
 
-### 4.6 Parameter gaya tethered — peakF, meanF, minF, ImpF, TpeakF, DUR, RFD (kolom Force)
+### 4.6 Parameter gaya tethered — peakF, meanF, minF, ImpF, TpeakF, DUR, RFD, dF, FI (kolom Force)
 
-Parameter ini hanya dihitung pada **saluran Force**, pada **region data uji** (region biru), dari deret yang sudah melalui koreksi aktif di **Analisa Setting** (batas bawah Force mentah, zero offset, koreksi sudut tali jika dicentang). Satuan gaya: **Kg**; impuls: **Kg·s**; waktu: **s**; laju perubahan gaya: **Kg/s** (literatur sering memakai **N·s** atau **N/s** — konversi dengan × *g* jika diperlukan).
+Parameter ini hanya dihitung pada **saluran Force**, pada **region data uji** (region biru), dari deret yang sudah melalui koreksi aktif di **Analisa Setting** (batas bawah Force mentah, zero offset, koreksi sudut tali jika dicentang). Satuan gaya: **Kg**; impuls: **Kg·s**; waktu: **s**; laju perubahan gaya: **Kg/s**; indeks variasi/kelelahan: **%** (literatur sering memakai **N·s**, **N/s**, atau **N** — konversi dengan × *g* jika diperlukan).
 
 Cara perhitungan dipilih di **Statistik Force** (§4.3): **Metode A (global)** atau **Metode B (per siklus, Andrade)**.
 
@@ -218,6 +218,8 @@ Cara perhitungan dipilih di **Statistik Force** (§4.3): **Metode A (global)** a
 | **TpeakF (s)** | TpeakF | **—** | Rata-rata \(t_{\mathrm{peak}} - t_{\mathrm{minF\_awal}}\) per siklus |
 | **DUR (s)** | DUR | **—** | Rata-rata \(t_{\mathrm{minF}_{i+1}} - t_{\mathrm{minF}_i}\) per siklus |
 | **RFD (Kg/s)** | RFD | **—** | Rata-rata \((\mathrm{peakF} - \mathrm{minF}) / \mathrm{TpeakF}\) per siklus |
+| **dF (%)** | dF | **—** | Rata-rata variasi intrasiklus gaya per siklus (Morouço 2018) |
+| **Fatigue Index (FI) (%)** | FI | Penurunan gaya akhir vs awal region | Sama (global, tidak per siklus) |
 | **Minimum** | minF | Minimum global region uji | Rata-rata minF (valley) per siklus |
 | **t @ maks / t @ min** | — | Timestamp peakF / minF global | **—** (agregat) |
 | **Metode gaya Force** | — | Label metode + opsi **n** siklus | |
@@ -240,7 +242,7 @@ Baris **Roll** dan **Pitch** pada **Maksimum** / **Minimum** tetap ekstremum sud
 1. **Filter** deret Force dengan **Butterworth low-pass orde 4** (`scipy.signal.butter` + `sosfiltfilt`); cutoff default **7 Hz** (dapat diubah di Analisa Setting).
 2. Deteksi **minimum lokal** (*valley*) = penanda **minF** tiap kayuhan pada sinyal terfilter.
 3. Segmentasi antar dua minF berurutan = satu siklus.
-4. Per siklus pada sinyal terfilter: **peakF**, **meanF**, **minF**, **ImpF** (= ∫F·dt trapesium dalam segmen), **TpeakF** = waktu dari minF awal ke peakF, **DUR** = waktu antar dua minF berurutan, **RFD** = (peakF − minF) / TpeakF (siklus dengan TpeakF ≈ 0 diabaikan).
+4. Per siklus pada sinyal terfilter: **peakF**, **meanF**, **minF**, **ImpF** (= ∫F·dt trapesium dalam segmen), **TpeakF** = waktu dari minF awal ke peakF, **DUR** = waktu antar dua minF berurutan, **RFD** = (peakF − minF) / TpeakF (siklus dengan TpeakF ≈ 0 diabaikan), **dF** = variasi intrasiklus gaya (Persamaan Morouço 2018/2024).
 5. Nilai di tabel = **rata-rata** parameter antar siklus terdeteksi.
 
 Jika valley tidak cukup, nilai **fallback global** (Metode A) dengan catatan di baris metode.
@@ -249,13 +251,48 @@ Jika valley tidak cukup, nilai **fallback global** (Metode A) dengan catatan di 
 
 - Andrade, R. M., Figueira, A. J., Metz, V., Amadio, A. C., & Cerca, J. (2018). *Interpretation of propulsive force in tethered swimming through principal component analysis.* **Revista Brasileira de Medicina do Esporte**, 24(3), 206–210. https://doi.org/10.1590/1517-869220182403175155
 
+#### dF — Intracyclic Variation of Force (Metode B)
+
+**dF** mengukur seberapa **bergelombang** kurva F(t) **dalam satu siklus kayuhan** — indikator kemampuan menerapkan gaya secara kontinyu di air. Nilai **lebih tinggi** umumnya berkorelasi dengan performa renang bebas **lebih rendah** (Morouço et al., 2018).
+
+\[
+dF = \frac{\sqrt{\sum_i (F_i - \bar{F})^2 / n}}{\bar{F}} \times 100 \quad [\%]
+\]
+
+dengan \(F_i\) = gaya instan dalam segmen siklus, \(\bar{F}\) = meanF siklus, \(n\) = jumlah sampel siklus. Aplikasi menghitung **dF per siklus** lalu **merata-rata** antar siklus (Metode B). Metode A menampilkan **—**.
+
+**Referensi:**
+
+- Morouço, P. G., Barbosa, T. M., Arellano, R., & Vilas-Boas, J. P. (2018). *Intracyclic variation of force and swimming performance.* **International Journal of Sports Physiology and Performance**, 13(7), 897–902. https://doi.org/10.1123/ijspp.2017-0223
+- Morouço, P., Tavares, D., & Silva, H. P. (2024). *Tethered Swimming: Historical Notes and Future Prospects.* **Encyclopedia**, 4(3), 1044–1061. https://doi.org/10.3390/encyclopedia4030067
+
+#### FI — Fatigue Index (global, kedua metode)
+
+**FI** mengevaluasi **penurunan gaya relatif** dari awal ke akhir region uji — indikator kapasitas anaerobik / kelelahan pada tes all-out (protokol umum: 30 s).
+
+\[
+FI = \left(\frac{F_{\mathrm{akhir}}}{F_{\mathrm{awal}}} - 1\right) \times 100 \quad [\%]
+\]
+
+- \(F_{\mathrm{awal}}\) = meanF pada jendela **awal** region (default **10 s** pertama, atau sepertiga durasi jika region lebih pendek).
+- \(F_{\mathrm{akhir}}\) = meanF pada jendela **akhir** region (10 s terakhir, atau sepertiga durasi).
+- Region uji harus **≥ 15 s** agar FI dihitung; jika lebih pendek, baris FI = **—**.
+- **FI positif** = gaya menurun (kelelahan); **FI negatif** = gaya akhir lebih tinggi dari awal.
+
+FI dihitung pada deret Force terkoreksi di region uji, **independen** dari pilihan Metode A/B.
+
+**Referensi:**
+
+- Morouço, P. G., Vilas-Boas, J. P., & Fernandes, R. J. (2012). *Evaluation of adolescent swimmers through a 30-s tethered test.* **Pediatric Exercise Science**, 24(2), 312–321. https://doi.org/10.1123/pes.24.2.312
+- Morouço, P., Tavares, D., & Silva, H. P. (2024). *Tethered Swimming: Historical Notes and Future Prospects.* **Encyclopedia**, 4(3), 1044–1061. https://doi.org/10.3390/encyclopedia4030067
+
 #### Hubungan ImpF dengan meanF (Metode A)
 
 Kira-kira \(I \approx \overline{F} \times T\) untuk sampling reguler, dengan \(\overline{F}\) = meanF dan \(T\) = durasi region uji; trapesium pada Δt tidak seragam memberi perbedaan kecil.
 
 #### Ekspor DataStatistik
 
-Blok metrik Force mencantumkan **Metode_statistik_Force**, opsional **Jumlah_siklus_Force_Andrade**, opsional **Filter_Andrade_cutoff** (Hz), serta **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_impulse_ImpF**, opsional **Force_TpeakF**, **Force_DUR**, **Force_RFD** (Metode B), dan **Force_minimum_minF** sesuai metode aktif.
+Blok metrik Force mencantumkan **Metode_statistik_Force**, opsional **Jumlah_siklus_Force_Andrade**, opsional **Filter_Andrade_cutoff** (Hz), serta **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_impulse_ImpF**, opsional **Force_TpeakF**, **Force_DUR**, **Force_RFD**, opsional **Force_dF** (Metode B), opsional **Force_Fatigue_Index**, dan **Force_minimum_minF** sesuai metode aktif.
 
 ---
 
