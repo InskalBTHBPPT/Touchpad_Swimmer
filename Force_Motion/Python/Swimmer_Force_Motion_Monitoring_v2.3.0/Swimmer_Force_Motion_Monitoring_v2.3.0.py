@@ -14,6 +14,14 @@ Changelog (2.2.0 → 2.3.0)
 - **Sinkron video ↔ plot** — metadata di CSV (``VideoFile``, ``LogWallStartEpoch``,
   footer ``SyncCsvT0`` / ``SyncLogWallStart`` / ``SyncFirstSampleWall``); playhead
   memakai titik acuan rekaman (fallback ke sinkron kasar untuk CSV lama).
+- **Tab Analisa — koreksi & region** — region biru (data uji) / hijau (zero offset);
+  checkbox Zero Offset; koreksi sudut tali (default 7°); batas bawah Force mentah
+  (−1 Kg).
+- **Tab Analisa — statistik gaya tethered** — Metode A global (peakF, meanF, minF,
+  ImpF, FI) dan Metode B per siklus Andrade (TpeakF, DUR, RFD, dF); modul
+  ``analyze_tethered_force_metrics.py``.
+- **Tab Analisa — tooltip** — baris tabel statistik dan tombol video; modul
+  ``ui_tooltip.py``.
 
 Changelog (2.1.0 → 2.2.0)
 ==========================
@@ -78,8 +86,11 @@ Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
    ke nol per sesi **Start Log**, serta tombol **About** / **Help**.
 2. **Analisa** — muat satu CSV hasil tab Live, plot waktu dengan marker ekstremum,
    **playback video** pasangan (playhead pink; sinkron dari metadata CSV atau fallback
-   kasar), ringkasan statistik (frekuensi dominan FFT/Welch **tanpa plot spektrum
-   visual**, **gap rekaman CSV** Metode A/B), ekspor ringkasan ke ``DataStatistik/``.
+   kasar), region data uji (biru) dan zero offset (hijau), koreksi sudut tali /
+   batas bawah Force mentah, statistik gaya tethered **Metode A/B** (peakF, meanF,
+   ImpF, TpeakF, DUR, RFD, dF, FI), frekuensi dominan FFT/Welch **tanpa plot spektrum
+   visual**, **gap rekaman CSV** Metode A/B, tooltip per baris statistik, ekspor ke
+   ``DataStatistik/``.
 3. **Analisa multifile** — hingga lima CSV; ringkasan metrik dalam **tabel**;
    **plot perbandingan** opsional di **jendela terpisah** (metrik & gaya plot dipilih
    di jendela); **Clear tabel** per kolom atau semua; simpan tabel ke ``TableMultiFile/``.
@@ -162,9 +173,23 @@ opsional). **Analisa multifile** di ``analyze_multi_file_tab.py``.
 
 Tombol **Simpan statistik** menulis CSV ke ``DataStatistik/`` dengan nama
 ``<nama_file_log>_DataStatistik.csv`` (tanpa dialog Save As), berisi meta baris
-``Timestampstart (s)``, tabel metrik ekstremum, blok frekuensi dominan per saluran,
-lalu blok **Gap rekaman CSV** (metode, Δt nominal, sampel tercatat/hilang, persen;
-Metode A menyertakan jumlah gap, Metode B menyertakan sampel diharapkan).
+``Timestampstart (s)``, tabel metrik (termasuk **Metode_statistik_Force**, peakF,
+meanF, ImpF, TpeakF, DUR, RFD, dF, FI sesuai metode aktif), blok frekuensi dominan
+per saluran, lalu blok **Gap rekaman CSV** (metode, Δt nominal, sampel
+tercatat/hilang, persen; Metode A menyertakan jumlah gap, Metode B menyertakan
+sampel diharapkan).
+
+Statistik gaya tethered (tab Analisa)
+========================================
+Modul ``analyze_tethered_force_metrics.py``; UI di ``analyze_single_file_tab.py``.
+
+- **Metode A (global):** peakF, meanF, minF, ImpF (∫F·dt trapesium), FI (≥ 15 s);
+  TpeakF, DUR, RFD, dF = tidak berlaku.
+- **Metode B (Andrade):** filter Butterworth orde 4 (cutoff default 7 Hz), deteksi
+  valley → siklus → rata-rata peakF, meanF, minF, ImpF, TpeakF, DUR, RFD, dF;
+  FI global pada region uji.
+- Perhitungan pada **region data uji** (biru) setelah koreksi aktif (zero offset,
+  sudut tali, batas bawah Force mentah).
 
 Gap rekaman CSV (tab Analisa)
 ==============================
@@ -199,6 +224,8 @@ Berkas terkait di folder yang sama
 - ``live_camera_core.py`` — pemindaian kamera (probe MSMF/DSHOW).
 - ``live_camera_panel.py`` — panel kamera tab Live (preview + rekam video).
 - ``analyze_video_panel.py`` — playback video rekaman di tab Analisa.
+- ``analyze_tethered_force_metrics.py`` — metrik gaya tethered (Metode A/B).
+- ``ui_tooltip.py`` — tema dan teks tooltip aplikasi.
 - ``UserManual_Force_Motion_v2.3.0.md`` — manual pengguna (Markdown).
 - ``UserManual_Force_Motion_v2.3.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
 - ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +

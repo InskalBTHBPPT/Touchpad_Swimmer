@@ -13,14 +13,19 @@ Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
 - **Tab Live — kamera** — panel pindai/pilih perangkat video, preview live, rekam `.mp4` ke `DataLog/` (basename sama dengan CSV) saat **Start Log**; modul `live_camera_core.py`, `live_camera_panel.py`.
 - **Tab Analisa — video** — tiga plot spektrum diganti panel **playback video** (auto-load `.mp4` pasangan CSV); frekuensi dominan FFT/Welch tetap di **kartu statistik** (tanpa plot spektrum visual); modul `analyze_video_panel.py`.
 - **Sinkron video ↔ plot** — metadata di CSV (`VideoFile`, `LogWallStartEpoch`, footer `SyncCsvT0` / `SyncLogWallStart` / `SyncFirstSampleWall`); playhead memakai titik acuan rekaman; CSV lama fallback sinkron kasar (`TimeStamp` baris pertama + detik video).
+- **Tab Analisa — koreksi & region** — region **biru** (data uji) dan **hijau** (zero offset) pada plot; checkbox **Zero Offset**; **Koreksi sudut tali** (default 7°); **Koreksi batas bawah Force mentah** (−1 Kg, default aktif).
+- **Tab Analisa — statistik gaya tethered** — **Metode A** global (peakF, meanF, minF, ImpF, FI) dan **Metode B** per siklus Andrade (Butterworth orde 4, cutoff default 7 Hz): TpeakF, DUR, RFD, **dF** (Morouço); modul `analyze_tethered_force_metrics.py`.
+- **Tab Analisa — tooltip** — penjelasan singkat per baris tabel statistik dan tombol video; modul `ui_tooltip.py` (tema latar terang).
 - **`LogSyncMeta`** di `live_csv_io.py` — parser metadata sinkron opsional.
 - **Dependensi** — `opencv-python`, `pygrabber` (`requirements.txt`).
-- **Manual v2.3.0** — `UserManual_Force_Motion_v2.3.0.md` / `.pdf` di folder `Swimmer_Force_Motion_Monitoring_v2.3.0/`.
+- **Manual v2.3.0** — `UserManual_Force_Motion_v2.3.0.md` / `.pdf` di folder `Swimmer_Force_Motion_Monitoring_v2.3.0/` (§4.3–4.6a: metrik Force, dF, FI, koreksi, tooltip).
 
 ### Diubah
 
-- **Tab Analisa** — layout: plot waktu | panel video | panel kanan; tidak ada plot spektrum visual.
-- **Docstring** modul utama v2.3.0, manual, dan modul kamera/video diselaraskan dengan fitur di atas.
+- **Tab Analisa** — layout: plot waktu | panel video | panel kanan; tidak ada plot spektrum visual; pengaturan analisa di dialog **Setting…** (koreksi, metode Force, spektrum, gap).
+- **Gap rekaman CSV** — perhitungan memakai **seluruh deret timestamp CSV** (bukan hanya region uji biru).
+- **Ekspor `DataStatistik/`** — kolom metrik Force diperluas (Metode A/B, Filter Andrade, TpeakF, DUR, RFD, dF, FI, zero offset, koreksi).
+- **Docstring** modul utama v2.3.0, `analyze_single_file_tab.py`, manual, dan modul kamera/video/metrik diselaraskan dengan fitur di atas.
 
 ### Kompatibilitas
 

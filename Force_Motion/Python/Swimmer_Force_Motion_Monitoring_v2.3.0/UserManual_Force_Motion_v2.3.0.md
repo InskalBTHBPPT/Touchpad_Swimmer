@@ -1,6 +1,6 @@
 # Manual Pengguna — Swimmer Force Motion Monitoring v2.3.0
 
-Dokumen ini menjelaskan pemakaian aplikasi desktop **Swimmer Force Motion Monitoring** (berkas utama: `Swimmer_Force_Motion_Monitoring_v2.3.0.py`) untuk memantau beban dan orientasi (roll, pitch) perenang melalui koneksi serial, merekam data ke CSV dan **video kamera** (opsional), menampilkan **baterai transmitter** (opsional) di tab Live, serta menganalisis rekaman dengan **playback video** (sinkron playhead), **frekuensi dominan** (FFT/Welch di statistik), **estimasi gap rekaman CSV**, **perbandingan multi-berkas** dalam tabel, dan ekspor statistik yang diperluas.
+Dokumen ini menjelaskan pemakaian aplikasi desktop **Swimmer Force Motion Monitoring** (berkas utama: `Swimmer_Force_Motion_Monitoring_v2.3.0.py`) untuk memantau beban dan orientasi (roll, pitch) perenang melalui koneksi serial, merekam data ke CSV dan **video kamera** (opsional), menampilkan **baterai transmitter** (opsional) di tab Live, serta menganalisis rekaman dengan **playback video** (sinkron playhead), **statistik gaya tethered** (Metode A/B, dF, FI), **koreksi & region** (zero offset, sudut tali), **frekuensi dominan** (FFT/Welch di statistik), **estimasi gap rekaman CSV**, **perbandingan multi-berkas** dalam tabel, dan ekspor statistik yang diperluas.
 
 ---
 
@@ -33,7 +33,7 @@ python Swimmer_Force_Motion_Monitoring_v2.3.0.py
 Aplikasi memiliki **tiga tab**:
 
 - **Live** — koneksi serial, plot waktu-nyata, indikator nilai terakhir (force, roll, pitch, **baterai %** jika perangkat mengirim kolom kelima), panel **kamera** (pindai, preview, rekam `.mp4` saat **Start Log**), rekaman CSV empat kolom, opsi timestamp CSV, tombol **About** dan **Help**.
-- **Analisa** — muat **satu** file CSV hasil rekaman Live, tiga plot waktu penuh dengan marker ekstremum, **playback video** pasangan (playhead pink pada plot), kartu statistik (frekuensi dominan FFT/Welch **tanpa plot spektrum visual**, **gap rekaman CSV** Metode A/B), ekspor ringkasan ke `DataStatistik/`.
+- **Analisa** — muat **satu** file CSV hasil rekaman Live, tiga plot waktu penuh dengan marker ekstremum dan region data uji / zero offset, **playback video** pasangan (playhead pink pada plot), kartu statistik (metrik gaya tethered Metode A/B, frekuensi dominan FFT/Welch **tanpa plot spektrum visual**, **gap rekaman CSV** Metode A/B), ekspor ringkasan ke `DataStatistik/`.
 - **Analisa multifile** — hingga **lima** berkas CSV sekaligus; ringkasan metrik dalam **tabel**; **plot perbandingan** (jendela terpisah, pyqtgraph); simpan tabel ke `TableMultiFile/`; metode spektrum (FFT / Welch) mengisi ulang semua kolom.
 
 Modul pendukung di folder yang sama:
@@ -43,8 +43,10 @@ Modul pendukung di folder yang sama:
 - `live_camera_panel.py` — panel kamera tab Live (preview + rekam).
 - `analyze_video_panel.py` — pemutar video MP4 di tab Analisa.
 - `analyze_single_file_tab.py` — implementasi tab Analisa (satu berkas).
+- `analyze_tethered_force_metrics.py` — metrik gaya tethered (Metode A global / Metode B Andrade).
 - `analyze_metrics_core.py` — perhitungan metrik + spektrum + **gap rekaman CSV** (`compute_gap_loss`).
 - `analyze_multi_file_tab.py` — implementasi tab Analisa multifile.
+- `ui_tooltip.py` — tema tooltip aplikasi (latar terang, teks gelap).
 
 ---
 
@@ -161,6 +163,20 @@ Setelah berhasil dimuat:
 - **Kanan:** panel statistik dan pengaturan.
 - Marker menandai titik ekstrem pada plot (force maksimum; roll/pitch min dan max) dengan label waktu.
 - Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start/Stop Uji**, **Metode gaya Force**, **Mean (meanF)**, **Impulse (ImpF)**, **TpeakF**, **DUR**, **RFD**, **dF**, **Fatigue Index (FI)** (kolom Force; dF dan temporal hanya Metode B; FI global), dan ekstremum gaya (**Maksimum** = peakF, **Minimum** = minF) pada kolom Force, **frekuensi dominan** (Hz) per kanal, serta kartu **GAP REKAMAN CSV** (lihat §4.4 dan §4.6). **Tooltip:** arahkan kursor ke nama baris di kolom **Parameter** untuk penjelasan singkat; panduan awam lengkap di §4.6a.
+- Tombol **Setting…** membuka dialog pengaturan: koreksi & region, metode statistik Force, spektrum, gap CSV (lihat §4.2a dan §4.3).
+
+### 4.2a Koreksi & region (dialog Setting…)
+
+Grup **Koreksi & region** mengatur data yang dipakai statistik dan tampilan plot:
+
+| Kontrol | Fungsi |
+|---------|--------|
+| **Region biru** (plot) | Batas **data uji** — geser ujung region pada plot Force/Roll/Pitch. Hanya data di dalam region inilah yang dipakai statistik gaya dan sudut (kecuali gap CSV). |
+| **Zero Offset** (checkbox) | Menampilkan region **hijau** (baseline) dan mengurangi rata-rata Force/Roll/Pitch di region hijau dari seluruh deret. Region data uji (biru) dimulai setelah jeda **2 s** dari akhir region hijau. |
+| **Koreksi sudut tali** | Jika dicentang: gaya horizontal = Force terukur × cos(sudut). Sudut diukur di atas permukaan air (horizontal = 0°); default **7,00°**. |
+| **Koreksi batas bawah Force mentah (−1 Kg)** | Default aktif. Nilai Force mentah di bawah −1 Kg dibatasi menjadi −1 Kg sebelum koreksi lain dan statistik. |
+
+Baris tabel **Zero offset start/stop**, **Durasi region zero offset**, dan **Rata-rata offset** muncul saat Zero Offset aktif.
 
 ### 4.3 Analisa Setting — metode spektrum dan statistik Force
 
@@ -399,8 +415,10 @@ Jika gap besar, pertimbangkan ulang rekaman atau periksa koneksi/logging sebelum
 | `live_camera_panel.py` | Panel kamera tab Live |
 | `analyze_video_panel.py` | Pemutar video tab Analisa |
 | `analyze_single_file_tab.py` | Tab Analisa (plot + video + statistik + ekspor) |
+| `analyze_tethered_force_metrics.py` | Metrik gaya tethered (Metode A/B) |
 | `analyze_metrics_core.py` | Metrik rekaman + spektrum (multifile) |
 | `analyze_multi_file_tab.py` | Tab Analisa multifile |
+| `ui_tooltip.py` | Tema dan teks tooltip |
 | `requirements.txt` | Daftar dependensi Python (termasuk OpenCV) |
 | `UserManual_Force_Motion_v2.3.0.md` | Manual ini (Markdown) |
 | `UserManual_Force_Motion_v2.3.0.pdf` | Manual ini (PDF, opsional) |
@@ -442,7 +460,7 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 
 ## 9. Versi dokumen
 
-- **Manual:** selaras dengan aplikasi **v2.3.0** (kamera Live, video Analisa, sinkron playhead, baterai Live, gap rekaman CSV Metode A/B; frekuensi dominan di statistik tanpa plot spektrum visual).
+- **Manual:** selaras dengan aplikasi **v2.3.0** (kamera Live, video Analisa, sinkron playhead, baterai Live, statistik gaya tethered Metode A/B, dF, FI, zero offset, koreksi sudut tali, tooltip, gap rekaman CSV Metode A/B; frekuensi dominan di statistik tanpa plot spektrum visual).
 - Ringkasan perubahan antar versi ada di `Force_Motion/Python/Changelog.md` dan docstring `Swimmer_Force_Motion_Monitoring_v2.3.0.py`.
 
 ---

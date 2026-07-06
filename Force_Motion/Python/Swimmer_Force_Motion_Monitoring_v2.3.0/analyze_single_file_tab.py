@@ -5,26 +5,24 @@ Fungsi utama
 ============
 - **Load CSV** rekaman tab Live (parser ``live_csv_io.parse_logged_csv``): dialog
   buka berkas, default folder ``DataLog/``.
-- **Plot waktu** penuh untuk Force, Roll, Pitch; **marker** titik ekstrem (min
-  hijau / maks merah) dan label waktu pada plot.
-- **Playback video** rekaman kamera tab Live (``.mp4`` pasangan basename CSV) di
-  samping plot waktu; muat otomatis saat **Load CSV**. **Sinkron video:** garis
-  vertikal playhead pada plot Force/Roll/Pitch mengikuti posisi video; memakai
-  metadata ``SyncCsvT0`` di CSV jika ada (fallback kasar: ``ts_awal + video_t``).
+- **Plot waktu** penuh untuk Force, Roll, Pitch; **region biru** (data uji) dan
+  **region hijau** (zero offset); **marker** titik ekstrem (min hijau / maks merah).
+- **Playback video** rekaman kamera tab Live (``.mp4`` pasangan basename CSV);
+  **sinkron playhead** dari metadata ``SyncCsvT0`` (fallback kasar untuk CSV lama).
+- **Koreksi & region** (dialog Setting…): Zero Offset, koreksi sudut tali (default
+  7°), batas bawah Force mentah (−1 Kg).
+- **Statistik gaya tethered** — Metode A global (peakF, meanF, minF, ImpF, FI) atau
+  Metode B per siklus Andrade (TpeakF, DUR, RFD, dF); modul
+  ``analyze_tethered_force_metrics``.
 - Metode **FFT** / **Welch PSD** untuk **frekuensi dominan** di kartu statistik
-  (tanpa plot spektrum).
-  kartu **gap rekaman CSV** (Metode A per gap / Metode B global, pilih radio).
-- **Simpan statistik** — menulis ``DataStatistik/<nama_log>_DataStaistik.csv``
-  (UTF-8): metadata, ``Timestampstart (s)``, tabel ekstremum, lalu blok frekuensi
-  dominan per saluran + kolom metode.
+  (tanpa plot spektrum); kartu **gap rekaman CSV** (Metode A/B).
+- **Tooltip** per baris tabel statistik (``ui_tooltip``).
+- **Simpan statistik** — ``DataStatistik/<nama_log>_DataStaistik.csv`` (UTF-8):
+  metadata, metrik Force/Roll/Pitch, frekuensi dominan, gap CSV.
 
 Dependensi tambahan (selain GUI): ``numpy``, ``scipy``.
 
-Fungsi modul ``make_three_stack_plots`` membangun tiga ``PlotWidget`` deret waktu
-dengan gaya konsisten; dipakai jendela utama saat menyusun tab Live.
-
-Tab **Analisa multifile** (hingga lima berkas) adalah tab terpisah; kelas ini
-tetap fokus satu berkas tanpa mengubah kontraknya.
+Tab **Analisa multifile** (hingga lima berkas) adalah tab terpisah.
 """
 
 from __future__ import annotations
