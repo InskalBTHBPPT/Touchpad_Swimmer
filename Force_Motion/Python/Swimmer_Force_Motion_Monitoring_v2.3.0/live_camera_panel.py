@@ -109,9 +109,9 @@ def _section_widget(parent: QWidget | None = None) -> tuple[QWidget, QVBoxLayout
 
 
 class PreviewAspectContainer(QWidget):
-    """Bingkai preview dengan rasio lebar:tinggi tetap 16:9."""
+    """Bingkai preview; rasio default 16:9, disesuaikan dari resolusi stream kamera."""
 
-    _ASPECT = 16.0 / 9.0
+    _DEFAULT_ASPECT = 16.0 / 9.0
 
     def __init__(
         self,
@@ -123,6 +123,7 @@ class PreviewAspectContainer(QWidget):
         super().__init__(parent)
         self._preview = preview
         self._on_layout = on_layout
+        self._aspect = self._DEFAULT_ASPECT
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -132,20 +133,34 @@ class PreviewAspectContainer(QWidget):
             QSizePolicy.Policy.Expanding,
         )
 
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
+    def set_aspect_ratio(self, width: int, height: int) -> None:
+        if width > 0 and height > 0:
+            self._aspect = width / height
+        else:
+            self._aspect = self._DEFAULT_ASPECT
+        self._apply_preview_size()
+
+    def reset_aspect_ratio(self) -> None:
+        self._aspect = self._DEFAULT_ASPECT
+        self._apply_preview_size()
+
+    def _apply_preview_size(self) -> None:
         avail_w = max(self.width(), 1)
         avail_h = max(self.height(), 1)
         w = avail_w
-        h = int(round(w / self._ASPECT))
+        h = int(round(w / self._aspect))
         if h > avail_h:
             h = avail_h
-            w = int(round(h * self._ASPECT))
+            w = int(round(h * self._aspect))
         w = max(w, 1)
         h = max(h, 1)
         self._preview.setFixedSize(w, h)
         if self._on_layout is not None:
             self._on_layout()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._apply_preview_size()
 
 
 class CameraCaptureThread(QThread):
@@ -360,9 +375,7 @@ class LiveCameraPanel(QWidget):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(8)
-
-        view_box, view_layout = _section_widget(self)
+        root.setSpacing(4)
 
         self._preview_label = QLabel("Belum ada kamera dipilih.", self)
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -375,7 +388,7 @@ class LiveCameraPanel(QWidget):
             self,
             on_layout=self._apply_frame_to_preview,
         )
-        view_layout.addWidget(self._preview_aspect, 1)
+        root.addWidget(self._preview_aspect, 1)
 
         self._status_bar = QLabel(
             "Atur kamera: menu Setting → Live → Camera.",
@@ -383,11 +396,9 @@ class LiveCameraPanel(QWidget):
         )
         self._status_bar.setWordWrap(True)
         self._status_bar.setStyleSheet(_STATUS_BAR_STYLE)
-        view_layout.addWidget(self._status_bar, 0)
+        root.addWidget(self._status_bar, 0)
 
-        root.addWidget(view_box, 1)
-
-        self.setMinimumWidth(260)
+        self.setMinimumWidth(200)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
@@ -518,6 +529,7 @@ class LiveCameraPanel(QWidget):
         self._live_width = 0
         self._live_height = 0
         self._live_fps = 0.0
+        self._preview_aspect.reset_aspect_ratio()
         self._preview_label.clear()
         self._preview_label.setText(message)
 
@@ -625,6 +637,7 @@ class LiveCameraPanel(QWidget):
         self._live_width = width
         self._live_height = height
         self._live_fps = fps
+        self._preview_aspect.set_aspect_ratio(width, height)
         self._update_status_bar()
 
     def _on_camera_opened(self, ok: bool) -> None:
@@ -636,8 +649,10 @@ class LiveCameraPanel(QWidget):
 
     def _on_frame(self, image: QImage) -> None:
         self._last_frame = image
-        self._live_width = image.width()
-        self._live_height = image.height()
+        if image.width() > 0 and image.height() > 0:
+            self._live_width = image.width()
+            self._live_height = image.height()
+            self._preview_aspect.set_aspect_ratio(image.width(), image.height())
         self._apply_frame_to_preview()
 
     def resizeEvent(self, event) -> None:

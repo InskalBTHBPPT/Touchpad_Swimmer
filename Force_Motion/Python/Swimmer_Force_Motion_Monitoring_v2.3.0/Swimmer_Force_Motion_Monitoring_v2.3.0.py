@@ -368,25 +368,27 @@ def _safe_filename_part(s: str) -> str:
     return s or "TanpaNama"
 
 
-_LIVE_METRIC_GAP_Y = 8  # px jeda vertikal sebelum & sesudah tiap parameter
+_LIVE_METRIC_GAP_Y = 4
 
 
 def _live_metric_block(title: str, parent: QWidget) -> tuple[QLabel, QWidget]:
-    """Judul statis di atas, nilai dinamis di bawah (satu kolom vertikal)."""
+    """Judul + nilai kompak untuk grid 2×2 di panel kanan atas tab Live."""
     block = QWidget(parent)
-    block.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    block.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     lay = QVBoxLayout(block)
-    lay.setContentsMargins(0, _LIVE_METRIC_GAP_Y, 0, _LIVE_METRIC_GAP_Y)
-    lay.setSpacing(2)
+    lay.setContentsMargins(4, _LIVE_METRIC_GAP_Y, 4, _LIVE_METRIC_GAP_Y)
+    lay.setSpacing(0)
     title_lbl = QLabel(title, block)
-    title_lbl.setStyleSheet("color: #9ca3af; font-size: 15pt; font-weight: 600;")
-    title_lbl.setFixedHeight(24)
+    title_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    title_lbl.setStyleSheet("color: #9ca3af; font-size: 10pt; font-weight: 600;")
+    title_lbl.setFixedHeight(18)
     value_lbl = QLabel("—", block)
+    value_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
     value_lbl.setStyleSheet(
-        "color: #f9fafb; font-size: 36pt; font-weight: 700;"
+        "color: #f9fafb; font-size: 22pt; font-weight: 700;"
         " font-family: Consolas, 'Courier New', monospace;"
     )
-    value_lbl.setFixedHeight(50)
+    value_lbl.setFixedHeight(36)
     lay.addWidget(title_lbl)
     lay.addWidget(value_lbl)
     return value_lbl, block
@@ -399,7 +401,7 @@ class MainWindow(QMainWindow):
         if app is not None:
             apply_app_tooltip_theme(app)
         self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
-        self.resize(1280, 700)
+        self.resize(1360, 760)
 
         self.ser: serial.Serial | None = None
         self.serial_timer = QTimer(self)
@@ -476,13 +478,13 @@ class MainWindow(QMainWindow):
             QSizePolicy.Policy.Preferred,
         )
         ind_outer = QVBoxLayout(indicators)
-        ind_outer.setContentsMargins(10, 10, 10, 10)
-        ind_outer.setSpacing(4)
+        ind_outer.setContentsMargins(8, 8, 8, 8)
+        ind_outer.setSpacing(2)
 
         metrics_grid = QGridLayout()
         metrics_grid.setContentsMargins(0, 0, 0, 0)
-        metrics_grid.setHorizontalSpacing(12)
-        metrics_grid.setVerticalSpacing(4)
+        metrics_grid.setHorizontalSpacing(8)
+        metrics_grid.setVerticalSpacing(2)
 
         self.force_label, force_block = _live_metric_block("Force (Kg)", indicators)
         self.roll_label, roll_block = _live_metric_block("Roll (°)", indicators)
@@ -574,11 +576,12 @@ class MainWindow(QMainWindow):
             QSizePolicy.Policy.Expanding,
         )
         camera_group_layout = QVBoxLayout(camera_group)
-        camera_group_layout.setContentsMargins(8, 8, 8, 8)
+        camera_group_layout.setContentsMargins(6, 6, 6, 4)
+        camera_group_layout.setSpacing(4)
         camera_group_layout.addWidget(self.camera_panel)
 
-        # Atas ~38% / bawah ~62% — preview kamera butuh ruang vertikal lebih besar.
-        right_layout.addWidget(right_top, 2)
+        # Atas ~25% / bawah ~75% — lebih banyak ruang untuk preview kamera.
+        right_layout.addWidget(right_top, 1)
         right_layout.addWidget(camera_group, 3)
 
         plots_scroll = wrap_in_scroll_area(plots_panel, self)
@@ -587,8 +590,8 @@ class MainWindow(QMainWindow):
             QSizePolicy.Policy.Expanding,
         )
 
-        live_layout.addWidget(plots_scroll, 3)
-        live_layout.addWidget(right_panel, 2)
+        live_layout.addWidget(plots_scroll, 1)
+        live_layout.addWidget(right_panel, 1)
 
         # ---------- Tab Analisa (satu berkas) + tab Analisa multifile ----------
         self.analyze_single_file_tab = AnalyzeSingleFileTab(
