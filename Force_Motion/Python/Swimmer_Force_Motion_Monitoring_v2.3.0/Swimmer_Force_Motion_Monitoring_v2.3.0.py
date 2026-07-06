@@ -610,6 +610,7 @@ class MainWindow(QMainWindow):
     def _setup_menu_bar(self) -> None:
         self._setup_file_menu()
         self._setup_view_menu()
+        self._setup_settings_menu()
         self._setup_help_menu()
 
     def _setup_file_menu(self) -> None:
@@ -662,6 +663,22 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_file_save_stats_action"):
             self._file_save_stats_action.setEnabled(enabled)
 
+    def _setup_settings_menu(self) -> None:
+        settings_menu = self.menuBar().addMenu("&Setting")
+
+        analyze_menu = settings_menu.addMenu("Analisa SingleFile")
+
+        stats_setting_action = QAction("Statistik Setting", self)
+        stats_setting_action.setStatusTip(
+            "Buka pengaturan analisa: koreksi, region, metode spektrum, statistik Force, gap CSV"
+        )
+        stats_setting_action.triggered.connect(self._settings_menu_analyze_stats)
+        analyze_menu.addAction(stats_setting_action)
+
+    def _settings_menu_analyze_stats(self) -> None:
+        self._show_view_tab(TAB_ANALYZE)
+        self.analyze_single_file_tab.show_analyze_settings()
+
     def _setup_view_menu(self) -> None:
         view_menu = self.menuBar().addMenu("&View")
         self._view_action_group = QActionGroup(self)
@@ -671,7 +688,7 @@ class MainWindow(QMainWindow):
         for label, index, shortcut in (
             ("Live", TAB_LIVE, "Ctrl+1"),
             ("Analisa SingleFile", TAB_ANALYZE, "Ctrl+2"),
-            ("Analisa multifile", TAB_MULTI_FILE, "Ctrl+3"),
+            ("Analisa MultiFile", TAB_MULTI_FILE, "Ctrl+3"),
         ):
             action = QAction(label, self)
             action.setCheckable(True)

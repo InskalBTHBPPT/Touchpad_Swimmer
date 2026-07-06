@@ -9,7 +9,7 @@ Fungsi utama
   **region hijau** (zero offset); **marker** titik ekstrem (min hijau / maks merah).
 - **Playback video** rekaman kamera tab Live (``.mp4`` pasangan basename CSV);
   **sinkron playhead** dari metadata ``SyncCsvT0`` (fallback kasar untuk CSV lama).
-- **Koreksi & region** (dialog Setting…): Zero Offset, koreksi sudut tali (default
+- **Koreksi & region** (menu **Setting → Analisa SingleFile → Statistik Setting**): Zero Offset, koreksi sudut tali (default
   7°), batas bawah Force mentah (−1 Kg).
 - **Statistik gaya tethered** — Metode A global (peakF, meanF, minF, ImpF, FI) atau
   Metode B per siklus Andrade (TpeakF, DUR, RFD, dF); modul
@@ -1219,22 +1219,6 @@ class AnalyzeSingleFileTab(QWidget):
         stats_inner.setContentsMargins(10, 10, 10, 10)
         stats_inner.setSpacing(6)
 
-        stats_actions = QHBoxLayout()
-        stats_actions.setSpacing(8)
-        self.settings_btn = QPushButton("Setting…", self)
-        self.settings_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
-        self.settings_btn.setToolTip(
-            _tooltip(
-                "Buka pengaturan analisa:",
-                "metode spektrum, koreksi sudut tali, zero offset,",
-                "segmen waktu, metode gap CSV.",
-            )
-        )
-        self.settings_btn.clicked.connect(self._show_analyze_settings)
-        stats_actions.addWidget(self.settings_btn, 0)
-        stats_actions.addStretch(1)
-        stats_inner.addLayout(stats_actions)
-
         self.stats_table = QTableWidget(self.stats_group)
         _configure_stats_matrix_table(self.stats_table)
         _clear_stats_matrix_table(self.stats_table)
@@ -1301,7 +1285,7 @@ class AnalyzeSingleFileTab(QWidget):
             return
         _fill_stats_matrix_table(self.stats_table, self._stats_snapshot)
 
-    def _show_analyze_settings(self) -> None:
+    def show_analyze_settings(self) -> None:
         self._settings_dialog.show()
         self._settings_dialog.raise_()
         self._settings_dialog.activateWindow()
