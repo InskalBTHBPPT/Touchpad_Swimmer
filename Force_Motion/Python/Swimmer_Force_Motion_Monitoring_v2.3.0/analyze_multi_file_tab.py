@@ -1,12 +1,11 @@
 """
 Tab **Analisa multifile** — bandingkan hingga lima berkas ``DataStatistik/`` dalam
 satu tabel (``QTableWidget``). **Add file** menambah kolom; **Clear tabel** menghapus
-kolom terpilih. Simpan tabel dan plot perbandingan — belum diaktifkan.
+kolom terpilih. Plot perbandingan — belum diaktifkan.
 """
 
 from __future__ import annotations
 
-import csv
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -236,16 +235,6 @@ TABLE_ROWS = _build_table_row_specs()
 DATA_ROWS = len(TABLE_ROWS)
 TOTAL_ROWS = HEADER_ROWS + DATA_ROWS
 
-TABLE_MULTIFILE_DIRNAME = "TableMultiFile"
-TABLE_MULTIFILE_SUFFIX = "_TableMultiFile"
-
-
-def _path_text_for_dialog(path: Path | str) -> str:
-    s = path.as_posix() if isinstance(path, Path) else str(path).replace("\\", "/")
-    if len(s) >= 3 and s[0].isalpha() and s[1] == ":" and s[2] == "/":
-        s = s[:2] + "\u2060" + s[2:]
-    return s
-
 
 def _group_style(group: str) -> _GroupStyle:
     return _GROUP_STYLES.get(group, _GROUP_STYLES[GROUP_REGION])
@@ -258,13 +247,11 @@ class AnalyzeMultiFileTab(QWidget):
         self,
         *,
         datastatistik_dir: Path,
-        table_multi_file_dir: Path,
         themed_stat_message: Callable[..., None],
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._datastatistik_dir = datastatistik_dir
-        self._table_multi_file_dir = table_multi_file_dir
         self._themed_stat_message = themed_stat_message
 
         self._entries: list[dict[str, object]] = []
@@ -280,13 +267,7 @@ class AnalyzeMultiFileTab(QWidget):
             "Setiap berkas menambah satu kolom di tabel."
         )
         self.add_btn.clicked.connect(self._on_add_file)
-        self.save_btn = QPushButton("Simpan tabel ke CSV", self)
-        self.save_btn.setObjectName("SaveTableGrayButton")
-        self.save_btn.setEnabled(False)
-        self.save_btn.setToolTip("Segera hadir — ekspor tabel multifile belum diaktifkan.")
-        self.save_btn.clicked.connect(self._on_save_csv)
         row1.addWidget(self.add_btn)
-        row1.addWidget(self.save_btn)
         self.plot_btn = QPushButton("Plot data", self)
         self.plot_btn.setObjectName("PlotDataGreenButton")
         self.plot_btn.setEnabled(False)
@@ -335,19 +316,6 @@ class AnalyzeMultiFileTab(QWidget):
             }
             QPushButton:hover { background-color: #2563eb; }
             QPushButton:disabled {
-                background-color: #4b5563;
-                color: #9ca3af;
-            }
-            QPushButton#SaveTableGrayButton {
-                padding: 8px 14px;
-                background-color: #6b7280;
-                color: #ffffff;
-                border: none;
-                border-radius: 8px;
-            }
-            QPushButton#SaveTableGrayButton:hover { background-color: #4b5563; }
-            QPushButton#SaveTableGrayButton:pressed { background-color: #374151; }
-            QPushButton#SaveTableGrayButton:disabled {
                 background-color: #4b5563;
                 color: #9ca3af;
             }
@@ -631,26 +599,6 @@ class AnalyzeMultiFileTab(QWidget):
             style = _group_style(spec.group)
             text = spec.getter(rec)
             self.table.setItem(row, col, self._make_value_item(text, style))
-
-    def _on_save_csv(self) -> None:
-        self._themed_stat_message(
-            QMessageBox.Icon.Information,
-            "Simpan tabel",
-            "Fitur simpan tabel multifile belum diaktifkan.",
-        )
-
-    def _cell_text(self, row: int, col: int) -> str:
-        it = self.table.item(row, col)
-        return it.text() if it is not None else ""
-
-    def _write_table_csv(self, path: Path) -> None:
-        """Simpan isi tabel baris-per-baris (header multi-baris sesuai tampilan)."""
-        rows = self.table.rowCount()
-        cols = self.table.columnCount()
-        with path.open("w", newline="", encoding="utf-8") as f:
-            w = csv.writer(f)
-            for r in range(rows):
-                w.writerow([self._cell_text(r, c) for c in range(cols)])
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)

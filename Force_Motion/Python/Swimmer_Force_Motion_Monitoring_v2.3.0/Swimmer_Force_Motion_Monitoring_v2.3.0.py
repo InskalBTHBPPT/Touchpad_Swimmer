@@ -288,7 +288,6 @@ from live_csv_io import LIVE_CSV_DATA_HEADER
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATALOG_DIR = SCRIPT_DIR / "DataLog"
 DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
-TABLE_MULTIFILE_DIR = SCRIPT_DIR / "TableMultiFile"
 # Sufiks nama file ekspor statistik: <nama_file_log>_DataStatistik_<ddmmyy-HHMMSS>.csv
 STATISTIK_FILE_SUFFIX = "_DataStatistik"
 
@@ -594,7 +593,6 @@ class MainWindow(QMainWindow):
 
         self.analyze_multi_file_tab = AnalyzeMultiFileTab(
             datastatistik_dir=DATASTATISTIK_DIR,
-            table_multi_file_dir=TABLE_MULTIFILE_DIR,
             themed_stat_message=self._show_statistik_message_box,
             parent=self,
         )
