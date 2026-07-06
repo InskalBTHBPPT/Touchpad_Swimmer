@@ -870,33 +870,6 @@ class AnalyzeSingleFileTab(QWidget):
         settings_inner.setContentsMargins(4, 4, 4, 4)
         settings_inner.setSpacing(10)
 
-        spectrum_box, spectrum_lay = _make_analyze_settings_group(
-            "Spektrum (statistik)", self
-        )
-        spectrum_method_row = QHBoxLayout()
-        spectrum_method_row.setSpacing(10)
-        spectrum_lbl = QLabel("Metode:", self)
-        spectrum_lbl.setStyleSheet("color: #e5e7eb; font-size: 10pt; font-weight: normal;")
-        spectrum_lbl.setToolTip(
-            _tooltip(
-                "Frekuensi dominan pada kartu statistik dan ekspor DataStatistik.",
-                "Dihitung terpisah per saluran Force, Roll, dan Pitch.",
-                "Plot spektrum tidak ditampilkan di v2.3.0.",
-            )
-        )
-        self._spectrum_method_combo = QComboBox(self)
-        self._spectrum_method_combo.addItem("FFT", userData=False)
-        self._spectrum_method_combo.addItem("Welch PSD", userData=True)
-        self._spectrum_method_combo.blockSignals(True)
-        self._spectrum_method_combo.setCurrentIndex(0)
-        self._spectrum_method_combo.blockSignals(False)
-        self._spectrum_method_combo.setMinimumWidth(160)
-        self._spectrum_method_combo.currentIndexChanged.connect(self._on_spectrum_method_changed)
-        spectrum_method_row.addWidget(spectrum_lbl, 0)
-        spectrum_method_row.addWidget(self._spectrum_method_combo, 1)
-        spectrum_lay.addLayout(spectrum_method_row)
-        settings_inner.addWidget(spectrum_box)
-
         correction_box, correction_lay = _make_analyze_settings_group(
             "Koreksi & region", self
         )
@@ -948,6 +921,33 @@ class AnalyzeSingleFileTab(QWidget):
         tether_angle_row.addWidget(self._tether_angle_spin, 0, Qt.AlignmentFlag.AlignRight)
         correction_lay.addLayout(tether_angle_row)
         settings_inner.addWidget(correction_box)
+
+        spectrum_box, spectrum_lay = _make_analyze_settings_group(
+            "Spektrum (statistik)", self
+        )
+        spectrum_method_row = QHBoxLayout()
+        spectrum_method_row.setSpacing(10)
+        spectrum_lbl = QLabel("Metode:", self)
+        spectrum_lbl.setStyleSheet("color: #e5e7eb; font-size: 10pt; font-weight: normal;")
+        spectrum_lbl.setToolTip(
+            _tooltip(
+                "Frekuensi dominan pada kartu statistik dan ekspor DataStatistik.",
+                "Dihitung terpisah per saluran Force, Roll, dan Pitch.",
+                "Plot spektrum tidak ditampilkan di v2.3.0.",
+            )
+        )
+        self._spectrum_method_combo = QComboBox(self)
+        self._spectrum_method_combo.addItem("FFT", userData=False)
+        self._spectrum_method_combo.addItem("Welch PSD", userData=True)
+        self._spectrum_method_combo.blockSignals(True)
+        self._spectrum_method_combo.setCurrentIndex(0)
+        self._spectrum_method_combo.blockSignals(False)
+        self._spectrum_method_combo.setMinimumWidth(160)
+        self._spectrum_method_combo.currentIndexChanged.connect(self._on_spectrum_method_changed)
+        spectrum_method_row.addWidget(spectrum_lbl, 0)
+        spectrum_method_row.addWidget(self._spectrum_method_combo, 1)
+        spectrum_lay.addLayout(spectrum_method_row)
+        settings_inner.addWidget(spectrum_box)
 
         gap_box, gap_lay = _make_analyze_settings_group("Gap rekaman CSV", self)
         self._gap_method_group = QButtonGroup(self)
