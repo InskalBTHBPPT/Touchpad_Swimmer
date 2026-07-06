@@ -64,6 +64,11 @@ from PySide6.QtWidgets import (
 from scipy import signal
 
 from analyze_metrics_core import GAP_LOSS_TOLERANCE_FACTOR, GapLossStats, compute_gap_loss
+from analyze_tethered_force_metrics import (
+    FORCE_STATS_METHOD_ANDRADE,
+    FORCE_STATS_METHOD_GLOBAL,
+    compute_force_tethered_stats,
+)
 from analyze_video_panel import AnalyzeVideoPanel, _ANALYZE_TRANSPORT_BUTTON_STYLE
 from live_csv_io import LogSyncMeta, parse_logged_csv
 
@@ -167,6 +172,7 @@ _STATS_MATRIX_ROW_LABELS = (
     "Zero offset stop (s)",
     "Durasi (s) region zero offset",
     "Rata-rata offset",
+    "Metode gaya Force",
     "Maksimum",
     "t @ maks (s)",
     "Mean (meanF)",
@@ -189,6 +195,7 @@ _STATS_MERGED_VALUE_ROWS = frozenset({
     _STATS_MATRIX_ROW_LABELS.index("Zero offset start (s)"),
     _STATS_MATRIX_ROW_LABELS.index("Zero offset stop (s)"),
     _STATS_MATRIX_ROW_LABELS.index("Durasi (s) region zero offset"),
+    _STATS_MATRIX_ROW_LABELS.index("Metode gaya Force"),
     _STATS_MATRIX_ROW_LABELS.index("Metode spektrum"),
     _STATS_MATRIX_ROW_LABELS.index("Gap — metode"),
     _STATS_MATRIX_ROW_LABELS.index("Gap — Δt nominal (s)"),
@@ -197,6 +204,16 @@ _STATS_MERGED_VALUE_ROWS = frozenset({
     _STATS_MATRIX_ROW_LABELS.index("Gap — hilang (%)"),
     _STATS_MATRIX_ROW_LABELS.index("Gap — jumlah / diharapkan"),
 })
+
+
+def _force_stats_method_table_text(snap: dict[str, float | str | None]) -> str:
+    label = str(snap.get("force_stats_method") or "—")
+    n = snap.get("force_stroke_count")
+    if n is not None and int(n) > 0:
+        label += f" · n={int(n)}"
+    if snap.get("force_stats_fallback_global"):
+        label += " · fallback global"
+    return label
 
 
 def _stats_table_text(value: float | str | None, *, unit: str = "", decimals: int = 2) -> str:
@@ -322,13 +339,14 @@ def _fill_stats_matrix_table(
             _stats_table_text(snap.get("offset_mean_roll_deg"), unit="°"),
             _stats_table_text(snap.get("offset_mean_pitch_deg"), unit="°"),
         ),
+        (_force_stats_method_table_text(snap), "—", "—"),
         (
             _stats_table_text(snap["force_max_kg"], unit="Kg"),
             _stats_table_text(snap["roll_max_deg"], unit="°"),
             _stats_table_text(snap["pitch_max_deg"], unit="°"),
         ),
         (
-            _stats_table_text(snap["force_max_t_s"]),
+            _stats_table_text(snap.get("force_max_t_s")),
             _stats_table_text(snap["roll_max_t_s"]),
             _stats_table_text(snap["pitch_max_t_s"]),
         ),
@@ -343,7 +361,7 @@ def _fill_stats_matrix_table(
             _stats_table_text(snap["pitch_min_deg"], unit="°"),
         ),
         (
-            _stats_table_text(snap["force_min_t_s"]),
+            _stats_table_text(snap.get("force_min_t_s")),
             _stats_table_text(snap["roll_min_t_s"]),
             _stats_table_text(snap["pitch_min_t_s"]),
         ),
@@ -955,6 +973,46 @@ class AnalyzeSingleFileTab(QWidget):
         self._force_floor_checkbox.toggled.connect(self._on_force_floor_setting_changed)
         correction_lay.addWidget(self._force_floor_checkbox)
         settings_inner.addWidget(correction_box)
+
+        force_stats_box, force_stats_lay = _make_analyze_settings_group(
+            "Statistik Force (peakF / meanF / minF)", self
+        )
+        self._force_stats_method_group = QButtonGroup(self)
+        self._force_stats_method_a_radio = QRadioButton(
+            "Metode A — global (Amaro / Carrasco-Poyatos)", self
+        )
+        self._force_stats_method_b_radio = QRadioButton(
+            "Metode B — per siklus (Andrade)", self
+        )
+        self._force_stats_method_a_radio.setToolTip(
+            _tooltip(
+                "peakF = maksimum global region uji;",
+                "meanF = rata-rata semua sampel;",
+                "minF = minimum global.",
+                "Baris t @ maks / t @ min berisi timestamp titik tersebut.",
+            )
+        )
+        self._force_stats_method_b_radio.setToolTip(
+            _tooltip(
+                "Deteksi valley (minF lokal) → segmentasi per kayuhan;",
+                "peakF, meanF, minF dihitung per siklus lalu dirata-rata.",
+                "Baris t @ maks / t @ min Force = — (nilai agregat).",
+                "Frekuensi dominan Force membantu jarak minimum antar valley.",
+            )
+        )
+        for rb in (self._force_stats_method_a_radio, self._force_stats_method_b_radio):
+            rb.setStyleSheet(
+                "QRadioButton { color: #e5e7eb; font-size: 10pt; font-weight: normal; }"
+            )
+        self._force_stats_method_group.addButton(self._force_stats_method_a_radio, 0)
+        self._force_stats_method_group.addButton(self._force_stats_method_b_radio, 1)
+        self._force_stats_method_a_radio.setChecked(True)
+        self._force_stats_method_group.idClicked.connect(
+            self._on_force_stats_method_changed
+        )
+        force_stats_lay.addWidget(self._force_stats_method_a_radio)
+        force_stats_lay.addWidget(self._force_stats_method_b_radio)
+        settings_inner.addWidget(force_stats_box)
 
         spectrum_box, spectrum_lay = _make_analyze_settings_group(
             "Spektrum (statistik)", self
@@ -1698,6 +1756,15 @@ class AnalyzeSingleFileTab(QWidget):
         """``A`` = per gap; ``B`` = global."""
         return "A" if self._gap_method_a_radio.isChecked() else "B"
 
+    def _force_stats_method_key(self) -> str:
+        if self._force_stats_method_b_radio.isChecked():
+            return FORCE_STATS_METHOD_ANDRADE
+        return FORCE_STATS_METHOD_GLOBAL
+
+    def _on_force_stats_method_changed(self, _button_id: int) -> None:
+        if self._loaded_ts is not None:
+            self._reanalyze_current_segment()
+
     def _on_gap_loss_method_changed(self, _button_id: int) -> None:
         if self._loaded_ts is not None:
             self._reanalyze_current_segment()
@@ -1857,14 +1924,6 @@ class AnalyzeSingleFileTab(QWidget):
         def _argmax_first(vals: list[float]) -> int:
             return max(range(len(vals)), key=lambda i: vals[i])
 
-        i_fmax = _argmax_first(f_list)
-        i_fmin = _argmin_first(f_list)
-        t_fmax = ts_list[i_fmax]
-        v_fmax = f_list[i_fmax]
-        t_fmin = ts_list[i_fmin]
-        v_fmin = f_list[i_fmin]
-        v_fmean = float(statistics.mean(f_list))
-
         i_rmin = _argmin_first(r_list)
         i_rmax = _argmax_first(r_list)
         i_pmin = _argmin_first(p_list)
@@ -1881,25 +1940,39 @@ class AnalyzeSingleFileTab(QWidget):
         peak_r = _spectrum_peak_frequency_hz(r_list, fs, use_welch=use_welch)
         peak_p = _spectrum_peak_frequency_hz(p_list, fs, use_welch=use_welch)
 
+        force_stats = compute_force_tethered_stats(
+            ts_list,
+            f_list,
+            fs,
+            method=self._force_stats_method_key(),
+            stroke_hz_hint=peak_f,
+        )
+        v_fmax = force_stats.peak_f_kg
+        v_fmean = force_stats.mean_f_kg
+        v_fmin = force_stats.min_f_kg
+        t_fmax = force_stats.peak_t_s
+        t_fmin = force_stats.min_t_s
+
         gap_stats = compute_gap_loss(ts_list, method=self._gap_loss_method_key())
 
-        self._scatter_force = pg.ScatterPlotItem(
-            pos=[(t_fmax, v_fmax)],
-            size=14,
-            symbol="o",
-            pen=pg.mkPen("#f8fafc", width=2),
-            brush=pg.mkBrush(MARKER_MAX_COLOR),
-        )
-        self._scatter_force.setZValue(10)
-        self.force_plot_widget.addItem(self._scatter_force)
-        self._add_marker_label(
-            self.force_plot_widget,
-            t_fmax,
-            v_fmax,
-            f"t: {t_fmax:.2f} s\nmax: {v_fmax:.2f} Kg",
-            ts_min,
-            ts_max,
-        )
+        if t_fmax is not None:
+            self._scatter_force = pg.ScatterPlotItem(
+                pos=[(t_fmax, v_fmax)],
+                size=14,
+                symbol="o",
+                pen=pg.mkPen("#f8fafc", width=2),
+                brush=pg.mkBrush(MARKER_MAX_COLOR),
+            )
+            self._scatter_force.setZValue(10)
+            self.force_plot_widget.addItem(self._scatter_force)
+            self._add_marker_label(
+                self.force_plot_widget,
+                t_fmax,
+                v_fmax,
+                f"t: {t_fmax:.2f} s\nmax: {v_fmax:.2f} Kg",
+                ts_min,
+                ts_max,
+            )
 
         self._scatter_roll = pg.ScatterPlotItem(
             pos=[
@@ -1967,10 +2040,14 @@ class AnalyzeSingleFileTab(QWidget):
             "timestamp_start_s": float(t_start),
             "timestamp_stop_s": float(t_stop),
             "force_max_kg": float(v_fmax),
-            "force_max_t_s": float(t_fmax),
-            "force_mean_kg": v_fmean,
+            "force_max_t_s": float(t_fmax) if t_fmax is not None else None,
+            "force_mean_kg": float(v_fmean),
             "force_min_kg": float(v_fmin),
-            "force_min_t_s": float(t_fmin),
+            "force_min_t_s": float(t_fmin) if t_fmin is not None else None,
+            "force_stats_method": force_stats.method_label,
+            "force_stats_method_key": force_stats.method_key,
+            "force_stroke_count": force_stats.stroke_count,
+            "force_stats_fallback_global": force_stats.used_fallback_global,
             "roll_min_deg": float(r_list[i_rmin]),
             "roll_min_t_s": float(ts_list[i_rmin]),
             "roll_max_deg": float(r_list[i_rmax]),
@@ -2122,13 +2199,28 @@ class AnalyzeSingleFileTab(QWidget):
                     ]
                 )
             w.writerow([])
+            if snap.get("force_stats_method"):
+                w.writerow(["Metode_statistik_Force", str(snap["force_stats_method"])])
+            if snap.get("force_stroke_count") is not None:
+                w.writerow(
+                    [
+                        "Jumlah_siklus_Force_Andrade",
+                        f"{int(snap['force_stroke_count'])}",
+                    ]
+                )
+            if snap.get("force_stats_fallback_global"):
+                w.writerow(["Force_Andrade_fallback_global", "Ya"])
             w.writerow(["Metrik", "Nilai", "Satuan", "Waktu (s)"])
             w.writerow(
                 [
                     "Force_maksimum_peakF",
                     f"{snap['force_max_kg']:.6g}",
                     "Kg",
-                    f"{snap['force_max_t_s']:.6g}",
+                    (
+                        f"{float(snap['force_max_t_s']):.6g}"
+                        if snap.get("force_max_t_s") is not None
+                        else ""
+                    ),
                 ]
             )
             w.writerow(
@@ -2144,7 +2236,11 @@ class AnalyzeSingleFileTab(QWidget):
                     "Force_minimum_minF",
                     f"{snap['force_min_kg']:.6g}",
                     "Kg",
-                    f"{snap['force_min_t_s']:.6g}",
+                    (
+                        f"{float(snap['force_min_t_s']):.6g}"
+                        if snap.get("force_min_t_s") is not None
+                        else ""
+                    ),
                 ]
             )
             w.writerow(
