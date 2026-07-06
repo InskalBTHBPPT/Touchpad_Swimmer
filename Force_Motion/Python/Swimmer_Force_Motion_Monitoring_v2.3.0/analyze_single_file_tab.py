@@ -39,7 +39,7 @@ from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor, QFont
+from PySide6.QtGui import QBrush, QColor, QFont, QPalette
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -644,7 +644,19 @@ QToolTip {
     padding: 6px 10px;
     font-size: 10pt;
 }
+QToolTip QLabel {
+    color: #000000;
+    background-color: transparent;
+}
 """
+
+
+def apply_app_tooltip_theme(app) -> None:
+    """Palette tooltip eksplisit — di Windows teks tooltip bisa mewarisi warna widget."""
+    palette = app.palette()
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#f8fafc"))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#000000"))
+    app.setPalette(palette)
 
 
 def _tooltip(*lines: str) -> str:
@@ -872,7 +884,7 @@ class AnalyzeSingleFileTab(QWidget):
         )
         self._zero_offset_checkbox = QCheckBox("Zero Offset", self)
         self._zero_offset_checkbox.setStyleSheet(
-            "color: #e5e7eb; font-size: 10pt; font-weight: normal;"
+            "QCheckBox { color: #e5e7eb; font-size: 10pt; font-weight: normal; }"
         )
         self._zero_offset_checkbox.setToolTip(
             _tooltip(
@@ -891,7 +903,7 @@ class AnalyzeSingleFileTab(QWidget):
             "Koreksi sudut tali (permukaan air)", self
         )
         self._tether_angle_checkbox.setStyleSheet(
-            "color: #e5e7eb; font-size: 10pt; font-weight: normal;"
+            "QCheckBox { color: #e5e7eb; font-size: 10pt; font-weight: normal; }"
         )
         self._tether_angle_checkbox.setToolTip(
             _tooltip(
@@ -926,7 +938,9 @@ class AnalyzeSingleFileTab(QWidget):
         spectrum_method_row = QHBoxLayout()
         spectrum_method_row.setSpacing(10)
         spectrum_lbl = QLabel("Metode:", self)
-        spectrum_lbl.setStyleSheet("color: #e5e7eb; font-size: 10pt; font-weight: normal;")
+        spectrum_lbl.setStyleSheet(
+            "QLabel { color: #e5e7eb; font-size: 10pt; font-weight: normal; }"
+        )
         spectrum_lbl.setToolTip(
             _tooltip(
                 "Frekuensi dominan pada kartu statistik dan ekspor DataStatistik.",
@@ -964,7 +978,9 @@ class AnalyzeSingleFileTab(QWidget):
             )
         )
         for rb in (self._gap_method_a_radio, self._gap_method_b_radio):
-            rb.setStyleSheet("color: #e5e7eb; font-size: 10pt; font-weight: normal;")
+            rb.setStyleSheet(
+                "QRadioButton { color: #e5e7eb; font-size: 10pt; font-weight: normal; }"
+            )
         self._gap_method_group.addButton(self._gap_method_a_radio, 0)
         self._gap_method_group.addButton(self._gap_method_b_radio, 1)
         self._gap_method_b_radio.setChecked(True)

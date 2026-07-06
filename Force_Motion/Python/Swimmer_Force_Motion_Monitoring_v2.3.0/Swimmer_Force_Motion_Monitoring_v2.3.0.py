@@ -250,6 +250,7 @@ from analyze_multi_file_tab import AnalyzeMultiFileTab
 from analyze_single_file_tab import (
     APP_QTOOLTIP_STYLESHEET,
     AnalyzeSingleFileTab,
+    apply_app_tooltip_theme,
     make_three_stack_plots,
     wrap_in_scroll_area,
 )
@@ -350,6 +351,9 @@ def _live_metric_block(title: str, parent: QWidget) -> tuple[QLabel, QWidget]:
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
+        app = QApplication.instance()
+        if app is not None:
+            apply_app_tooltip_theme(app)
         self.setWindowTitle(f"{APP_NAME} v{APP_VERSION}")
         self.resize(1280, 700)
 
@@ -1046,6 +1050,7 @@ def _present_main_window(win: QMainWindow) -> None:
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    apply_app_tooltip_theme(app)
     win = MainWindow()
     _present_main_window(win)
     sys.exit(app.exec())
