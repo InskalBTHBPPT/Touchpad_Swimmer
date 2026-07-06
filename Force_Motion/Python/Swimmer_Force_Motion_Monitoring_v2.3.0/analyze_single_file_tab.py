@@ -82,6 +82,7 @@ _SEGMENT_PEN_PITCH = pg.mkPen("#a78bfa", width=1)
 _ZERO_OFFSET_DEFAULT_DURATION_S = 2.0
 _ZERO_OFFSET_TEST_GAP_S = 2.0
 _TETHER_ANGLE_DEFAULT_DEG = 7.0
+_FORCE_RAW_FLOOR_KG = -1.0
 _OFFSET_BRUSH_FORCE = pg.mkBrush(34, 197, 94, 42)
 _OFFSET_PEN_FORCE = pg.mkPen("#22c55e", width=1)
 _OFFSET_BRUSH_ROLL = pg.mkBrush(34, 197, 94, 30)
@@ -930,6 +931,23 @@ class AnalyzeSingleFileTab(QWidget):
         tether_angle_row.addWidget(self._tether_angle_checkbox, 1)
         tether_angle_row.addWidget(self._tether_angle_spin, 0, Qt.AlignmentFlag.AlignRight)
         correction_lay.addLayout(tether_angle_row)
+
+        self._force_floor_checkbox = QCheckBox(
+            f"Koreksi batas bawah Force mentah ({_FORCE_RAW_FLOOR_KG:.0f} Kg)", self
+        )
+        self._force_floor_checkbox.setChecked(True)
+        self._force_floor_checkbox.setStyleSheet(
+            "QCheckBox { color: #e5e7eb; font-size: 10pt; font-weight: normal; }"
+        )
+        self._force_floor_checkbox.setToolTip(
+            _tooltip(
+                "Nilai Force mentah di bawah −1 Kg dibatasi menjadi −1 Kg",
+                "sebelum zero offset, koreksi sudut tali, dan statistik.",
+                "Default aktif.",
+            )
+        )
+        self._force_floor_checkbox.toggled.connect(self._on_force_floor_setting_changed)
+        correction_lay.addWidget(self._force_floor_checkbox)
         settings_inner.addWidget(correction_box)
 
         spectrum_box, spectrum_lay = _make_analyze_settings_group(
@@ -1147,6 +1165,23 @@ class AnalyzeSingleFileTab(QWidget):
     def _tether_angle_correction_enabled(self) -> bool:
         return self._tether_angle_checkbox.isChecked()
 
+    def _force_raw_floor_enabled(self) -> bool:
+        return self._force_floor_checkbox.isChecked()
+
+    @staticmethod
+    def _corrected_raw_force(v: float, *, floor_enabled: bool) -> float:
+        if floor_enabled and v < _FORCE_RAW_FLOOR_KG:
+            return _FORCE_RAW_FLOOR_KG
+        return v
+
+    def _processing_raw_force_list(self) -> list[float]:
+        if self._raw_f is None:
+            return []
+        floor_on = self._force_raw_floor_enabled()
+        return [
+            self._corrected_raw_force(v, floor_enabled=floor_on) for v in self._raw_f
+        ]
+
     def _tether_angle_scale(self) -> float:
         if not self._tether_angle_correction_enabled():
             return 1.0
@@ -1156,11 +1191,10 @@ class AnalyzeSingleFileTab(QWidget):
         if self._raw_ts is None:
             return
         scale = self._tether_angle_scale()
+        f_src = self._processing_raw_force_list()
         self._loaded_ts = list(self._raw_ts)
         if self._zero_offset_mode():
-            self._loaded_f = [
-                (v - self._offset_mean_f) * scale for v in self._raw_f  # type: ignore[union-attr]
-            ]
+            self._loaded_f = [(v - self._offset_mean_f) * scale for v in f_src]
             self._loaded_r = [
                 v - self._offset_mean_r for v in self._raw_r  # type: ignore[union-attr]
             ]
@@ -1168,7 +1202,7 @@ class AnalyzeSingleFileTab(QWidget):
                 v - self._offset_mean_p for v in self._raw_p  # type: ignore[union-attr]
             ]
         else:
-            self._loaded_f = [v * scale for v in self._raw_f]  # type: ignore[union-attr]
+            self._loaded_f = [v * scale for v in f_src]
             self._loaded_r = list(self._raw_r)  # type: ignore[arg-type]
             self._loaded_p = list(self._raw_p)  # type: ignore[arg-type]
 
@@ -1266,6 +1300,16 @@ class AnalyzeSingleFileTab(QWidget):
     def _on_tether_angle_setting_changed(self, *_args: object) -> None:
         self._tether_angle_spin.setEnabled(self._tether_angle_correction_enabled())
         if self._raw_ts is None:
+            return
+        self._rebuild_loaded_from_raw()
+        self._replot_loaded_curves()
+        self._reanalyze_current_segment()
+
+    def _on_force_floor_setting_changed(self, *_args: object) -> None:
+        if self._raw_ts is None:
+            return
+        if self._zero_offset_mode():
+            self._apply_zero_offset_live(warn=False)
             return
         self._rebuild_loaded_from_raw()
         self._replot_loaded_curves()
@@ -1535,7 +1579,12 @@ class AnalyzeSingleFileTab(QWidget):
         if bounds is None:
             return False
         means = self._means_in_bounds(
-            self._raw_ts, self._raw_f, self._raw_r, self._raw_p, bounds[0], bounds[1]
+            self._raw_ts,
+            self._processing_raw_force_list(),
+            self._raw_r,
+            self._raw_p,
+            bounds[0],
+            bounds[1],
         )
         if means is None:
             if warn:
@@ -1615,6 +1664,13 @@ class AnalyzeSingleFileTab(QWidget):
                 )
             else:
                 self._stats_snapshot["tether_angle_deg"] = None
+            self._stats_snapshot["force_raw_floor_correction"] = (
+                self._force_raw_floor_enabled()
+            )
+            if self._force_raw_floor_enabled():
+                self._stats_snapshot["force_raw_floor_kg"] = _FORCE_RAW_FLOOR_KG
+            else:
+                self._stats_snapshot["force_raw_floor_kg"] = None
             self._stats_snapshot["test_region_duration_s"] = max(
                 0.0,
                 float(self._stats_snapshot["timestamp_stop_s"])
@@ -1989,6 +2045,16 @@ class AnalyzeSingleFileTab(QWidget):
                         [
                             "Sudut_tali_terhadap_air (deg)",
                             f"{float(angle_deg):.2f}",
+                        ]
+                    )
+            if snap.get("force_raw_floor_correction"):
+                w.writerow(["Koreksi_batas_bawah_Force_mentah", "Ya"])
+                floor_kg = snap.get("force_raw_floor_kg")
+                if floor_kg is not None:
+                    w.writerow(
+                        [
+                            "Batas_bawah_Force_mentah (Kg)",
+                            f"{float(floor_kg):.6g}",
                         ]
                     )
             if snap.get("offset_mean_force_kg") is not None:
