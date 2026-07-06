@@ -3,8 +3,8 @@ Tab **Analisa (satu berkas)** — ``AnalyzeSingleFileTab`` (PySide6 + pyqtgraph)
 
 Fungsi utama
 ============
-- **Load CSV** rekaman tab Live (parser ``live_csv_io.parse_logged_csv``): dialog
-  buka berkas, default folder ``DataLog/``.
+- **Load CSV** rekaman tab Live (menu **File → Analisa → Load csv**; parser
+  ``live_csv_io.parse_logged_csv``): dialog buka berkas, default folder ``DataLog/``.
 - **Plot waktu** penuh untuk Force, Roll, Pitch; **region biru** (data uji) dan
   **region hijau** (zero offset); **marker** titik ekstrem (min hijau / maks merah).
 - **Playback video** rekaman kamera tab Live (``.mp4`` pasangan basename CSV);
@@ -934,11 +934,6 @@ class AnalyzeSingleFileTab(QWidget):
         meta_row1.setSpacing(16)
         meta_row1.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
-        self.load_csv_btn = QPushButton("Load CSV…", self)
-        self.load_csv_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
-        self.load_csv_btn.clicked.connect(self.load_csv)
-        meta_row1.addWidget(self.load_csv_btn, 0)
-
         self._swimmer_meta_label, swimmer_meta_block = _analyze_meta_block("Perenang", self)
         meta_row1.addWidget(swimmer_meta_block, 0)
 
@@ -999,7 +994,6 @@ class AnalyzeSingleFileTab(QWidget):
             )
         )
         self.video_panel.position_changed.connect(self._on_video_position_changed)
-        self.video_panel.load_video_requested.connect(self.load_video)
 
         video_scroll = wrap_in_scroll_area(self.video_panel, self)
         video_scroll.setSizePolicy(

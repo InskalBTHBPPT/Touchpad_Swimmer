@@ -49,10 +49,8 @@ Changelog (2.0.0 → 2.1.0)
 - **Tab Analisa multifile** — hingga **lima** berkas CSV dalam **tabel** (header
   multi-baris: nama perenang, gaya, nama file, *Value*); isi angka **rata tengah**
   pada sel data.
-- **Kontrol baris pertama** — **Add file**; **Simpan tabel ke CSV** (tombol abu-abu);
-  **Plot data** (hijau) di samping simpan; blok **Hapus kolom** + combo + **Clear
-  tabel** (merah); baris kedua **Metode spektrum** (FFT / Welch) mengisi ulang
-  tabel.
+- **Kontrol baris pertama** — **Plot data** (hijau); blok **Hapus kolom** + combo +
+  **Clear tabel** (merah); tambah berkas lewat menu **File → Analisa MultiFile → Add File**.
 - **Jendela plot** (``MultiFilePlotDialog``, non-modal) — pilihan **Metrik** dan
   **Gaya plot** di dalam jendela: diagram batang, **garis + penanda** (default),
   atau titik saja (pyqtgraph).

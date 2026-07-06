@@ -1,7 +1,7 @@
 """
 Tab **Analisa multifile** — bandingkan hingga lima berkas ``DataStatistik/`` dalam
-satu tabel (``QTableWidget``). **Add file** menambah kolom; **Clear tabel** menghapus
-kolom terpilih. **Plot data** membuka jendela perbandingan metrik (pyqtgraph).
+satu tabel (``QTableWidget``). **File → Analisa MultiFile → Add File** menambah kolom;
+**Clear tabel** menghapus kolom terpilih. **Plot data** membuka jendela perbandingan metrik (pyqtgraph).
 """
 
 from __future__ import annotations
@@ -308,13 +308,6 @@ class AnalyzeMultiFileTab(QWidget):
         root.setSpacing(8)
 
         row1 = QHBoxLayout()
-        self.add_btn = QPushButton("Add file", self)
-        self.add_btn.setToolTip(
-            f"Tambah berkas DataStatistik (maks. {MAX_FILES}). "
-            "Setiap berkas menambah satu kolom di tabel."
-        )
-        self.add_btn.clicked.connect(self._on_add_file)
-        row1.addWidget(self.add_btn)
         self.plot_btn = QPushButton("Plot data", self)
         self.plot_btn.setObjectName("PlotDataGreenButton")
         self.plot_btn.setEnabled(False)
