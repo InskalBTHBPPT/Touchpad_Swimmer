@@ -65,6 +65,8 @@ from scipy import signal
 
 from analyze_metrics_core import GAP_LOSS_TOLERANCE_FACTOR, GapLossStats, compute_gap_loss
 from analyze_tethered_force_metrics import (
+    ANDRADE_FILTER_CUTOFF_DEFAULT_HZ,
+    ANDRADE_FILTER_ORDER,
     FORCE_STATS_METHOD_ANDRADE,
     FORCE_STATS_METHOD_GLOBAL,
     compute_force_tethered_stats,
@@ -177,6 +179,9 @@ _STATS_MATRIX_ROW_LABELS = (
     "t @ maks (s)",
     "Mean (meanF)",
     "Impulse (ImpF)",
+    "TpeakF (s)",
+    "DUR (s)",
+    "RFD (Kg/s)",
     "Minimum",
     "t @ min (s)",
     "Frekuensi dominan (Hz)",
@@ -358,6 +363,21 @@ def _fill_stats_matrix_table(
         ),
         (
             _stats_table_text(snap.get("force_impulse_kg_s"), unit="Kg·s", decimals=3),
+            "—",
+            "—",
+        ),
+        (
+            _stats_table_text(snap.get("force_t_peak_f_s"), decimals=3),
+            "—",
+            "—",
+        ),
+        (
+            _stats_table_text(snap.get("force_dur_s"), decimals=3),
+            "—",
+            "—",
+        ),
+        (
+            _stats_table_text(snap.get("force_rfd_kg_s"), unit="Kg/s", decimals=2),
             "—",
             "—",
         ),
@@ -981,7 +1001,7 @@ class AnalyzeSingleFileTab(QWidget):
         settings_inner.addWidget(correction_box)
 
         force_stats_box, force_stats_lay = _make_analyze_settings_group(
-            "Statistik Force (peakF / meanF / minF / ImpF)", self
+            "Statistik Force (peakF / meanF / ImpF / temporal)", self
         )
         self._force_stats_method_group = QButtonGroup(self)
         self._force_stats_method_a_radio = QRadioButton(
@@ -1001,11 +1021,11 @@ class AnalyzeSingleFileTab(QWidget):
         )
         self._force_stats_method_b_radio.setToolTip(
             _tooltip(
-                "Deteksi valley (minF lokal) → segmentasi per kayuhan;",
-                "peakF, meanF, minF, ImpF dihitung per siklus lalu dirata-rata.",
-                "ImpF per siklus = ∫F·dt antar dua minF (trapesium).",
-                "Baris t @ maks / t @ min Force = — (nilai agregat).",
-                "Frekuensi dominan Force membantu jarak minimum antar valley.",
+                "Deteksi valley (minF lokal) pada sinyal terfilter;",
+                "peakF, meanF, minF, ImpF, TpeakF, DUR, RFD per siklus → rata-rata.",
+                f"Filter: Butterworth orde-{ANDRADE_FILTER_ORDER}, cutoff dapat diatur",
+                f"(default {ANDRADE_FILTER_CUTOFF_DEFAULT_HZ:.0f} Hz, Andrade 2018).",
+                "Baris t @ maks / t @ min Force = —.",
             )
         )
         for rb in (self._force_stats_method_a_radio, self._force_stats_method_b_radio):
@@ -1020,6 +1040,36 @@ class AnalyzeSingleFileTab(QWidget):
         )
         force_stats_lay.addWidget(self._force_stats_method_a_radio)
         force_stats_lay.addWidget(self._force_stats_method_b_radio)
+        andrade_filter_row = QHBoxLayout()
+        andrade_filter_row.setSpacing(10)
+        andrade_filter_lbl = QLabel("Filter Butterworth (Andrade):", self)
+        andrade_filter_lbl.setStyleSheet(
+            "QLabel { color: #e5e7eb; font-size: 10pt; font-weight: normal; }"
+        )
+        andrade_filter_lbl.setToolTip(
+            _tooltip(
+                f"Low-pass orde-{ANDRADE_FILTER_ORDER} sebelum deteksi siklus (Metode B).",
+                f"Default {ANDRADE_FILTER_CUTOFF_DEFAULT_HZ:.0f} Hz — Andrade et al. (2018).",
+                "Hanya aktif pada Metode B.",
+            )
+        )
+        self._andrade_filter_cutoff_spin = QDoubleSpinBox(self)
+        self._andrade_filter_cutoff_spin.setRange(0.5, 30.0)
+        self._andrade_filter_cutoff_spin.setDecimals(2)
+        self._andrade_filter_cutoff_spin.setSingleStep(0.5)
+        self._andrade_filter_cutoff_spin.setValue(ANDRADE_FILTER_CUTOFF_DEFAULT_HZ)
+        self._andrade_filter_cutoff_spin.setSuffix(" Hz")
+        self._andrade_filter_cutoff_spin.setEnabled(False)
+        self._andrade_filter_cutoff_spin.setFixedWidth(104)
+        self._andrade_filter_cutoff_spin.setToolTip(andrade_filter_lbl.toolTip())
+        self._andrade_filter_cutoff_spin.valueChanged.connect(
+            self._on_andrade_filter_cutoff_changed
+        )
+        andrade_filter_row.addWidget(andrade_filter_lbl, 1)
+        andrade_filter_row.addWidget(
+            self._andrade_filter_cutoff_spin, 0, Qt.AlignmentFlag.AlignRight
+        )
+        force_stats_lay.addLayout(andrade_filter_row)
         settings_inner.addWidget(force_stats_box)
 
         spectrum_box, spectrum_lay = _make_analyze_settings_group(
@@ -1774,8 +1824,22 @@ class AnalyzeSingleFileTab(QWidget):
         return FORCE_STATS_METHOD_GLOBAL
 
     def _on_force_stats_method_changed(self, _button_id: int) -> None:
+        self._sync_andrade_filter_ui()
         if self._loaded_ts is not None:
             self._reanalyze_current_segment()
+
+    def _sync_andrade_filter_ui(self) -> None:
+        method_b = self._force_stats_method_b_radio.isChecked()
+        self._andrade_filter_cutoff_spin.setEnabled(method_b)
+
+    def _on_andrade_filter_cutoff_changed(self, *_args: object) -> None:
+        if not self._force_stats_method_b_radio.isChecked():
+            return
+        if self._loaded_ts is not None:
+            self._reanalyze_current_segment()
+
+    def _andrade_filter_cutoff_hz(self) -> float:
+        return float(self._andrade_filter_cutoff_spin.value())
 
     def _on_gap_loss_method_changed(self, _button_id: int) -> None:
         if self._loaded_ts is not None:
@@ -1958,6 +2022,7 @@ class AnalyzeSingleFileTab(QWidget):
             fs,
             method=self._force_stats_method_key(),
             stroke_hz_hint=peak_f,
+            andrade_filter_cutoff_hz=self._andrade_filter_cutoff_hz(),
         )
         v_fmax = force_stats.peak_f_kg
         v_fmean = force_stats.mean_f_kg
@@ -2057,6 +2122,18 @@ class AnalyzeSingleFileTab(QWidget):
             "force_max_t_s": float(t_fmax) if t_fmax is not None else None,
             "force_mean_kg": float(v_fmean),
             "force_impulse_kg_s": float(v_fimp),
+            "force_t_peak_f_s": (
+                float(force_stats.t_peak_f_s)
+                if force_stats.t_peak_f_s is not None
+                else None
+            ),
+            "force_dur_s": (
+                float(force_stats.dur_s) if force_stats.dur_s is not None else None
+            ),
+            "force_rfd_kg_s": (
+                float(force_stats.rfd_kg_s) if force_stats.rfd_kg_s is not None else None
+            ),
+            "andrade_filter_cutoff_hz": force_stats.andrade_filter_cutoff_hz,
             "force_min_kg": float(v_fmin),
             "force_min_t_s": float(t_fmin) if t_fmin is not None else None,
             "force_stats_method": force_stats.method_label,
@@ -2225,6 +2302,14 @@ class AnalyzeSingleFileTab(QWidget):
                 )
             if snap.get("force_stats_fallback_global"):
                 w.writerow(["Force_Andrade_fallback_global", "Ya"])
+            if snap.get("andrade_filter_cutoff_hz") is not None:
+                w.writerow(
+                    [
+                        "Filter_Andrade_cutoff",
+                        f"{float(snap['andrade_filter_cutoff_hz']):.6g}",
+                        "Hz",
+                    ]
+                )
             w.writerow(["Metrik", "Nilai", "Satuan", "Waktu (s)"])
             w.writerow(
                 [
@@ -2254,6 +2339,33 @@ class AnalyzeSingleFileTab(QWidget):
                     "",
                 ]
             )
+            if snap.get("force_t_peak_f_s") is not None:
+                w.writerow(
+                    [
+                        "Force_TpeakF",
+                        f"{float(snap['force_t_peak_f_s']):.6g}",
+                        "s",
+                        "",
+                    ]
+                )
+            if snap.get("force_dur_s") is not None:
+                w.writerow(
+                    [
+                        "Force_DUR",
+                        f"{float(snap['force_dur_s']):.6g}",
+                        "s",
+                        "",
+                    ]
+                )
+            if snap.get("force_rfd_kg_s") is not None:
+                w.writerow(
+                    [
+                        "Force_RFD",
+                        f"{float(snap['force_rfd_kg_s']):.6g}",
+                        "Kg/s",
+                        "",
+                    ]
+                )
             w.writerow(
                 [
                     "Force_minimum_minF",
