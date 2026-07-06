@@ -1845,58 +1845,65 @@ class AnalyzeSingleFileTab(QWidget):
             self._refresh_stats_table()
             return
         self._apply_statistics(ts_list, f_list, r_list, p_list)
+        self._enrich_stats_snapshot_context()
+        if ts_list:
+            self._fs_hz = _estimate_sample_rate_hz(ts_list)
+        self._refresh_stats_table()
+
+    def _enrich_stats_snapshot_context(self) -> None:
+        """Isi metadata region, zero offset, dan koreksi dari state UI ke snapshot."""
+        if self._stats_snapshot is None:
+            return
         bounds = self._segment_time_bounds()
-        if bounds is not None and self._stats_snapshot is not None:
+        if bounds is not None:
             self._stats_snapshot["segment_start_s"] = float(bounds[0])
             self._stats_snapshot["segment_end_s"] = float(bounds[1])
-            if self._zero_offset_mode():
-                off = self._offset_time_bounds()
-                if off is not None:
-                    self._stats_snapshot["zero_offset_start_s"] = float(off[0])
-                    self._stats_snapshot["zero_offset_stop_s"] = float(off[1])
-                else:
-                    self._stats_snapshot["zero_offset_start_s"] = None
-                    self._stats_snapshot["zero_offset_stop_s"] = None
+        if self._zero_offset_mode():
+            off = self._offset_time_bounds()
+            if off is not None:
+                self._stats_snapshot["zero_offset_start_s"] = float(off[0])
+                self._stats_snapshot["zero_offset_stop_s"] = float(off[1])
             else:
                 self._stats_snapshot["zero_offset_start_s"] = None
                 self._stats_snapshot["zero_offset_stop_s"] = None
-            self._stats_snapshot["zero_offset_applied"] = self._zero_offset_mode()
-            mean_f, mean_r, mean_p = self._offset_means_for_snapshot()
-            self._stats_snapshot["offset_mean_force_kg"] = mean_f
-            self._stats_snapshot["offset_mean_roll_deg"] = mean_r
-            self._stats_snapshot["offset_mean_pitch_deg"] = mean_p
-            self._stats_snapshot["tether_angle_correction"] = (
-                self._tether_angle_correction_enabled()
+        else:
+            self._stats_snapshot["zero_offset_start_s"] = None
+            self._stats_snapshot["zero_offset_stop_s"] = None
+        self._stats_snapshot["zero_offset_applied"] = self._zero_offset_mode()
+        mean_f, mean_r, mean_p = self._offset_means_for_snapshot()
+        self._stats_snapshot["offset_mean_force_kg"] = mean_f
+        self._stats_snapshot["offset_mean_roll_deg"] = mean_r
+        self._stats_snapshot["offset_mean_pitch_deg"] = mean_p
+        self._stats_snapshot["tether_angle_correction"] = (
+            self._tether_angle_correction_enabled()
+        )
+        if self._tether_angle_correction_enabled():
+            self._stats_snapshot["tether_angle_deg"] = float(
+                self._tether_angle_spin.value()
             )
-            if self._tether_angle_correction_enabled():
-                self._stats_snapshot["tether_angle_deg"] = float(
-                    self._tether_angle_spin.value()
-                )
-            else:
-                self._stats_snapshot["tether_angle_deg"] = None
-            self._stats_snapshot["force_raw_floor_correction"] = (
-                self._force_raw_floor_enabled()
-            )
-            if self._force_raw_floor_enabled():
-                self._stats_snapshot["force_raw_floor_kg"] = _FORCE_RAW_FLOOR_KG
-            else:
-                self._stats_snapshot["force_raw_floor_kg"] = None
+        else:
+            self._stats_snapshot["tether_angle_deg"] = None
+        self._stats_snapshot["force_raw_floor_correction"] = (
+            self._force_raw_floor_enabled()
+        )
+        if self._force_raw_floor_enabled():
+            self._stats_snapshot["force_raw_floor_kg"] = _FORCE_RAW_FLOOR_KG
+        else:
+            self._stats_snapshot["force_raw_floor_kg"] = None
+        if "timestamp_start_s" in self._stats_snapshot and "timestamp_stop_s" in self._stats_snapshot:
             self._stats_snapshot["test_region_duration_s"] = max(
                 0.0,
                 float(self._stats_snapshot["timestamp_stop_s"])
                 - float(self._stats_snapshot["timestamp_start_s"]),
             )
-            z_lo = self._stats_snapshot.get("zero_offset_start_s")
-            z_hi = self._stats_snapshot.get("zero_offset_stop_s")
-            if z_lo is not None and z_hi is not None:
-                self._stats_snapshot["zero_offset_duration_s"] = max(
-                    0.0, float(z_hi) - float(z_lo)
-                )
-            else:
-                self._stats_snapshot["zero_offset_duration_s"] = None
-        if ts_list:
-            self._fs_hz = _estimate_sample_rate_hz(ts_list)
-        self._refresh_stats_table()
+        z_lo = self._stats_snapshot.get("zero_offset_start_s")
+        z_hi = self._stats_snapshot.get("zero_offset_stop_s")
+        if z_lo is not None and z_hi is not None:
+            self._stats_snapshot["zero_offset_duration_s"] = max(
+                0.0, float(z_hi) - float(z_lo)
+            )
+        else:
+            self._stats_snapshot["zero_offset_duration_s"] = None
 
     def _gap_loss_method_key(self) -> str:
         """``A`` = per gap; ``B`` = global."""
@@ -2256,6 +2263,20 @@ class AnalyzeSingleFileTab(QWidget):
         self.save_stats_btn.setEnabled(self._export_ctx is not None)
 
     @staticmethod
+    def _csv_float_cell(value: float | str | None) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        return f"{float(value):.6g}"
+
+    @staticmethod
+    def _csv_int_cell(value: float | str | int | None) -> str:
+        if value is None:
+            return ""
+        return str(int(value))
+
+    @staticmethod
     def _csv_dominant_hz_cell(v: float | str | None) -> str:
         if v is None:
             return ""
@@ -2296,21 +2317,45 @@ class AnalyzeSingleFileTab(QWidget):
                 )
             z_lo = snap.get("zero_offset_start_s")
             z_hi = snap.get("zero_offset_stop_s")
-            if z_lo is not None and z_hi is not None:
-                w.writerow(
-                    [
-                        "Zero_offset_start (s)",
-                        f"{float(z_lo):.6g}",
-                    ]
-                )
-                w.writerow(
-                    [
-                        "Zero_offset_stop (s)",
-                        f"{float(z_hi):.6g}",
-                    ]
-                )
-            if snap.get("zero_offset_applied"):
-                w.writerow(["Zero_offset_diterapkan", "Ya"])
+            w.writerow(
+                [
+                    "Zero_offset_diterapkan",
+                    "Ya" if snap.get("zero_offset_applied") else "Tidak",
+                ]
+            )
+            w.writerow(
+                [
+                    "Zero_offset_start (s)",
+                    AnalyzeSingleFileTab._csv_float_cell(z_lo),
+                ]
+            )
+            w.writerow(
+                [
+                    "Zero_offset_stop (s)",
+                    AnalyzeSingleFileTab._csv_float_cell(z_hi),
+                ]
+            )
+            w.writerow(
+                [
+                    "Rata_rata_offset_Force",
+                    AnalyzeSingleFileTab._csv_float_cell(snap.get("offset_mean_force_kg")),
+                    "Kg",
+                ]
+            )
+            w.writerow(
+                [
+                    "Rata_rata_offset_Roll",
+                    AnalyzeSingleFileTab._csv_float_cell(snap.get("offset_mean_roll_deg")),
+                    "deg",
+                ]
+            )
+            w.writerow(
+                [
+                    "Rata_rata_offset_Pitch",
+                    AnalyzeSingleFileTab._csv_float_cell(snap.get("offset_mean_pitch_deg")),
+                    "deg",
+                ]
+            )
             if snap.get("tether_angle_correction"):
                 w.writerow(["Koreksi_sudut_tali", "Ya"])
                 angle_deg = snap.get("tether_angle_deg")
@@ -2331,30 +2376,6 @@ class AnalyzeSingleFileTab(QWidget):
                             f"{float(floor_kg):.6g}",
                         ]
                     )
-            if snap.get("offset_mean_force_kg") is not None:
-                w.writerow(
-                    [
-                        "Rata_rata_offset_Force",
-                        f"{float(snap['offset_mean_force_kg']):.6g}",
-                        "Kg",
-                    ]
-                )
-            if snap.get("offset_mean_roll_deg") is not None:
-                w.writerow(
-                    [
-                        "Rata_rata_offset_Roll",
-                        f"{float(snap['offset_mean_roll_deg']):.6g}",
-                        "deg",
-                    ]
-                )
-            if snap.get("offset_mean_pitch_deg") is not None:
-                w.writerow(
-                    [
-                        "Rata_rata_offset_Pitch",
-                        f"{float(snap['offset_mean_pitch_deg']):.6g}",
-                        "deg",
-                    ]
-                )
             w.writerow([])
             w.writerow(
                 [
@@ -2375,13 +2396,12 @@ class AnalyzeSingleFileTab(QWidget):
                         f"{float(snap['test_region_duration_s']):.6g}",
                     ]
                 )
-            if snap.get("zero_offset_duration_s") is not None:
-                w.writerow(
-                    [
-                        "Durasi_region_zero_offset (s)",
-                        f"{float(snap['zero_offset_duration_s']):.6g}",
-                    ]
-                )
+            w.writerow(
+                [
+                    "Durasi_region_zero_offset (s)",
+                    AnalyzeSingleFileTab._csv_float_cell(snap.get("zero_offset_duration_s")),
+                ]
+            )
             w.writerow([])
             if snap.get("force_stats_method"):
                 w.writerow(["Metode_statistik_Force", str(snap["force_stats_method"])])
@@ -2547,62 +2567,60 @@ class AnalyzeSingleFileTab(QWidget):
             w.writerow([])
             w.writerow(["Gap rekaman CSV (estimasi)"])
             w.writerow(["Metrik", "Nilai"])
-            w.writerow(["Metode", str(snap.get("gap_loss_method", ""))])
-            if snap.get("gap_dt_nominal_s") is not None:
-                w.writerow(
-                    [
-                        "Delta_t_nominal",
-                        f"{float(snap['gap_dt_nominal_s']):.6g}",
-                        "s",
-                    ]
-                )
-                w.writerow(
-                    [
-                        "Laju_sampel_efektif",
-                        f"{float(snap['gap_fs_hz']):.6g}",
-                        "Hz",
-                    ]
-                )
-            if snap.get("gap_samples_actual") is not None:
-                w.writerow(
-                    [
-                        "Sampel_tercatat",
-                        str(int(snap["gap_samples_actual"])),
-                        "baris",
-                    ]
-                )
-            if snap.get("gap_samples_expected") is not None:
-                w.writerow(
-                    [
-                        "Sampel_diharapkan",
-                        str(int(snap["gap_samples_expected"])),
-                        "baris",
-                    ]
-                )
-            if snap.get("gap_count") is not None:
-                w.writerow(
-                    [
-                        "Jumlah_gap",
-                        str(int(snap["gap_count"])),
-                        "kejadian",
-                    ]
-                )
-            if snap.get("gap_samples_lost") is not None:
-                w.writerow(
-                    [
-                        "Sampel_hilang_estimasi",
-                        str(int(snap["gap_samples_lost"])),
-                        "sampel",
-                    ]
-                )
-            if snap.get("gap_loss_pct") is not None:
-                w.writerow(
-                    [
-                        "Persen_hilang",
-                        f"{float(snap['gap_loss_pct']):.4g}",
-                        "%",
-                    ]
-                )
+            w.writerow(["Metode", str(snap.get("gap_loss_method") or "")])
+            w.writerow(
+                [
+                    "Delta_t_nominal",
+                    AnalyzeSingleFileTab._csv_float_cell(snap.get("gap_dt_nominal_s")),
+                    "s",
+                ]
+            )
+            w.writerow(
+                [
+                    "Laju_sampel_efektif",
+                    AnalyzeSingleFileTab._csv_float_cell(snap.get("gap_fs_hz")),
+                    "Hz",
+                ]
+            )
+            w.writerow(
+                [
+                    "Sampel_tercatat",
+                    AnalyzeSingleFileTab._csv_int_cell(snap.get("gap_samples_actual")),
+                    "baris",
+                ]
+            )
+            w.writerow(
+                [
+                    "Sampel_diharapkan",
+                    AnalyzeSingleFileTab._csv_int_cell(snap.get("gap_samples_expected")),
+                    "baris",
+                ]
+            )
+            w.writerow(
+                [
+                    "Jumlah_gap",
+                    AnalyzeSingleFileTab._csv_int_cell(snap.get("gap_count")),
+                    "kejadian",
+                ]
+            )
+            w.writerow(
+                [
+                    "Sampel_hilang_estimasi",
+                    AnalyzeSingleFileTab._csv_int_cell(snap.get("gap_samples_lost")),
+                    "sampel",
+                ]
+            )
+            w.writerow(
+                [
+                    "Persen_hilang",
+                    (
+                        f"{float(snap['gap_loss_pct']):.4g}"
+                        if snap.get("gap_loss_pct") is not None
+                        else ""
+                    ),
+                    "%",
+                ]
+            )
 
     def save_statistics_csv(self) -> None:
         if self._export_ctx is None or self._stats_snapshot is None:
@@ -2614,7 +2632,16 @@ class AnalyzeSingleFileTab(QWidget):
             return
 
         ctx = self._export_ctx
+        if self._loaded_ts is not None:
+            self._reanalyze_current_segment()
         snap = self._stats_snapshot
+        if snap is None:
+            self._themed_stat_message(
+                QMessageBox.Icon.Information,
+                "Simpan statistik",
+                "Belum ada data analisa. Muat file CSV di tab Analisa terlebih dahulu.",
+            )
+            return
 
         try:
             self._datastatistik_dir.mkdir(parents=True, exist_ok=True)
