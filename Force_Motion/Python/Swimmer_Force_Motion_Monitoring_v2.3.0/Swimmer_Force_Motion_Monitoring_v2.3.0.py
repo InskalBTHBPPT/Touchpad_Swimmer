@@ -89,7 +89,7 @@ Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
    roll, pitch, **baterai %** jika dikirim perangkat), panel **kamera** (pindai,
    preview, rekam ``.mp4`` ke ``DataLog/`` saat **Start Log**), rekaman ke berkas CSV
    di folder ``DataLog/`` (empat kolom data saja), opsi menggeser kolom waktu di CSV
-   ke nol per sesi **Start Log**, serta tombol **About** / **Help**.
+   ke nol per sesi **Start Log**.
 2. **Analisa** — muat satu CSV hasil tab Live, plot waktu dengan marker ekstremum,
    **playback video** pasangan (playhead pink; sinkron dari metadata CSV atau fallback
    kasar), region data uji (biru) dan zero offset (hijau), koreksi sudut tali /
@@ -246,7 +246,7 @@ Berkas terkait di folder yang sama
 
 Lihat juga
 ==========
-Tombol **Help** di tab Live membuka PDF manual jika berkas ada; **About**
+Menu **Help** membuka PDF manual jika berkas ada; **Tentang**
 menampilkan ringkasan versi dan tujuan aplikasi.
 """
 
@@ -562,20 +562,6 @@ class MainWindow(QMainWindow):
         ind_outer.addLayout(metrics_column, 0)
         ind_outer.addStretch(1)
 
-        about_help_row = QHBoxLayout()
-        about_help_row.addStretch(1)
-        self.about_btn = QPushButton("About", self)
-        self.about_btn.setObjectName("AboutHelpButton")
-        self.about_btn.setToolTip("Informasi aplikasi dan versi.")
-        self.about_btn.clicked.connect(self.show_about_dialog)
-        self.help_btn = QPushButton("Help", self)
-        self.help_btn.setObjectName("AboutHelpButton")
-        self.help_btn.setToolTip(f"Buka manual PDF ({USER_MANUAL_PDF.name}).")
-        self.help_btn.clicked.connect(self.open_user_manual_pdf)
-        about_help_row.addWidget(self.about_btn)
-        about_help_row.addWidget(self.help_btn)
-        ind_outer.addLayout(about_help_row)
-
         right_layout.addWidget(controls, 0)
         right_layout.addWidget(indicators, 1)
 
@@ -763,17 +749,6 @@ class MainWindow(QMainWindow):
                 border: none;
                 padding: 0px;
             }
-            QPushButton#AboutHelpButton {
-                background-color: #475569;
-                font-size: 10pt;
-                padding: 6px 12px;
-            }
-            QPushButton#AboutHelpButton:hover {
-                background-color: #64748b;
-            }
-            QPushButton#AboutHelpButton:pressed {
-                background-color: #334155;
-            }
             """
             + APP_QTOOLTIP_STYLESHEET
         )
@@ -850,7 +825,7 @@ class MainWindow(QMainWindow):
             "dalam format CSV empat kolom per baris.\n\n"
             "Rekaman sesi disimpan ke folder DataLog; ringkasan statistik rekaman "
             "bisa diekspor dari tab Analisa ke folder DataStatistik.\n\n"
-            f"Bantuan lengkap: menu Help → Manual atau tombol Help membuka\n{USER_MANUAL_PDF.name}\n"
+            f"Bantuan lengkap: menu Help → Manual membuka\n{USER_MANUAL_PDF.name}\n"
             "(PDF di folder yang sama dengan aplikasi, jika sudah dibuat)."
         )
         self._show_statistik_message_box(QMessageBox.Icon.Information, "Tentang", text)
