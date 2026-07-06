@@ -299,3 +299,4 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 ## 10. Referensi
 
 - [NotebookLM — Swimmer Force Motion Monitoring](https://notebooklm.google.com/notebook/cbd512b8-4457-4a1f-937f-a022df17f8e5?authuser=1) — materi referensi tambahan terkait aplikasi dan analisa force/motion (memerlukan akun Google untuk membuka).
+- [1080Motion — Swimming performance and monitoring training with new technologies](https://www.1080motion.com/webinars/swimming-performance-and-monitoring-training-with-new-technologies) — webinar tentang teknologi pemantauan performa dan latihan renang di lingkungan air (Bjørn Harald Olstad, Norwegian School of Sport Sciences, 2020).
