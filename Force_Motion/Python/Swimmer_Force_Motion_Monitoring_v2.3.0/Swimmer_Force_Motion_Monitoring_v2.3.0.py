@@ -5,10 +5,10 @@ Versi modul ini: **2.3.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.3.0
 
 Changelog (2.2.0 → 2.3.0)
 ==========================
-- **Tab Live — kamera** — panel di samping tiga plot: **pindai & pilih** perangkat
-  video (OpenCV, backend MSMF/DSHOW) dan **tampilan live**; rekam ``.mp4`` ke
-  ``DataLog/`` dengan basename sama seperti CSV saat **Start Log**; berhenti saat
-  **Stop Log**. Modul ``live_camera_core.py``, ``live_camera_panel.py``.
+- **Tab Live — kamera** — preview live di samping tiga plot; pindai & pilih perangkat
+  lewat menu **Setting → Live → Camera**; rekam ``.mp4`` ke ``DataLog/`` dengan
+  basename sama seperti CSV saat **Start Log**; berhenti saat **Stop Log**.
+  Modul ``live_camera_core.py``, ``live_camera_panel.py``.
 - **Tab Analisa** — tiga plot FFT diganti **playback video** pasangan CSV (auto-load
   ``.mp4``); frekuensi dominan tetap di statistik. Modul ``analyze_video_panel.py``.
 - **Sinkron video ↔ plot** — metadata di CSV (``VideoFile``, ``LogWallStartEpoch``,
@@ -84,8 +84,9 @@ dalam format **teks CSV**: satu baris per sampel, empat kolom numerik dipisahkan
 Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
 
 1. **Live** — koneksi serial, plot tiga deret waktu, indikator nilai terakhir (force,
-   roll, pitch, **baterai %** jika dikirim perangkat), panel **kamera** (pindai,
-   preview, rekam ``.mp4`` ke ``DataLog/`` saat **Start Log**), rekaman ke berkas CSV
+   roll, pitch, **baterai %** jika dikirim perangkat), panel **kamera** (preview;
+   atur perangkat lewat **Setting → Live → Camera**), rekam ``.mp4`` ke ``DataLog/``
+   saat **Start Log**), rekaman ke berkas CSV
    di folder ``DataLog/`` (empat kolom data saja), opsi menggeser kolom waktu di CSV
    ke nol per sesi **Start Log**.
 2. **Analisa** — muat satu CSV hasil tab Live, plot waktu dengan marker ekstremum,
@@ -232,7 +233,7 @@ Berkas terkait di folder yang sama
 - ``parse_datastatistik_csv.py`` — parser ekspor ``DataStatistik/`` (tab multifile).
 - ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel + plot).
 - ``live_camera_core.py`` — pemindaian kamera (probe MSMF/DSHOW).
-- ``live_camera_panel.py`` — panel kamera tab Live (preview + rekam video).
+- ``live_camera_panel.py`` — preview kamera tab Live + dialog Setting → Live → Camera.
 - ``analyze_video_panel.py`` — playback video rekaman di tab Analisa.
 - ``analyze_tethered_force_metrics.py`` — metrik gaya tethered (Metode A/B).
 - ``ui_tooltip.py`` — tema dan teks tooltip aplikasi.
@@ -675,9 +676,20 @@ class MainWindow(QMainWindow):
         stats_setting_action.triggered.connect(self._settings_menu_analyze_stats)
         analyze_menu.addAction(stats_setting_action)
 
+        live_menu = settings_menu.addMenu("Live")
+
+        camera_action = QAction("Camera", self)
+        camera_action.setStatusTip("Pindai dan pilih kamera aktif untuk preview tab Live")
+        camera_action.triggered.connect(self._settings_menu_live_camera)
+        live_menu.addAction(camera_action)
+
     def _settings_menu_analyze_stats(self) -> None:
         self._show_view_tab(TAB_ANALYZE)
         self.analyze_single_file_tab.show_analyze_settings()
+
+    def _settings_menu_live_camera(self) -> None:
+        self._show_view_tab(TAB_LIVE)
+        self.camera_panel.show_settings_dialog()
 
     def _setup_view_menu(self) -> None:
         view_menu = self.menuBar().addMenu("&View")
