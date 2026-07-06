@@ -160,6 +160,7 @@ _STATS_MATRIX_ROW_LABELS = (
     "TimeStamp Stop (s)",
     "Zero offset start (s)",
     "Zero offset stop (s)",
+    "Rata-rata offset",
     "Maksimum",
     "t @ maks (s)",
     "Minimum",
@@ -173,6 +174,16 @@ _STATS_MATRIX_ROW_LABELS = (
     "Gap — hilang (%)",
     "Gap — jumlah / diharapkan",
 )
+
+_STATS_MERGED_VALUE_ROWS = frozenset({
+    _STATS_MATRIX_ROW_LABELS.index("Metode spektrum"),
+    _STATS_MATRIX_ROW_LABELS.index("Gap — metode"),
+    _STATS_MATRIX_ROW_LABELS.index("Gap — Δt nominal (s)"),
+    _STATS_MATRIX_ROW_LABELS.index("Gap — sampel tercatat"),
+    _STATS_MATRIX_ROW_LABELS.index("Gap — sampel hilang"),
+    _STATS_MATRIX_ROW_LABELS.index("Gap — hilang (%)"),
+    _STATS_MATRIX_ROW_LABELS.index("Gap — jumlah / diharapkan"),
+})
 
 
 def _stats_table_text(value: float | str | None, *, unit: str = "", decimals: int = 2) -> str:
@@ -227,7 +238,13 @@ def _set_stats_matrix_cell(
     table.setItem(row, col, item)
 
 
+def _set_stats_matrix_merged_row(table: QTableWidget, row: int, text: str) -> None:
+    _set_stats_matrix_cell(table, row, 1, text)
+    table.setSpan(row, 1, 1, 3)
+
+
 def _clear_stats_matrix_table(table: QTableWidget) -> None:
+    table.clearSpans()
     accents = ("", _STATS_COL_FORCE, _STATS_COL_ROLL, _STATS_COL_PITCH)
     for row in range(len(_STATS_MATRIX_ROW_LABELS)):
         for col in range(1, 4):
@@ -238,6 +255,7 @@ def _fill_stats_matrix_table(
     table: QTableWidget,
     snap: dict[str, float | str | None],
 ) -> None:
+    table.clearSpans()
     accents = ("", _STATS_COL_FORCE, _STATS_COL_ROLL, _STATS_COL_PITCH)
     t_start = float(snap["timestamp_start_s"])
     t_stop = float(snap["timestamp_stop_s"])
@@ -270,6 +288,11 @@ def _fill_stats_matrix_table(
             _stats_table_text(snap.get("zero_offset_stop_s")),
             _stats_table_text(snap.get("zero_offset_stop_s")),
             _stats_table_text(snap.get("zero_offset_stop_s")),
+        ),
+        (
+            _stats_table_text(snap.get("offset_mean_force_kg"), unit="Kg"),
+            _stats_table_text(snap.get("offset_mean_roll_deg"), unit="°"),
+            _stats_table_text(snap.get("offset_mean_pitch_deg"), unit="°"),
         ),
         (
             _stats_table_text(snap["force_max_kg"], unit="Kg"),
@@ -342,6 +365,9 @@ def _fill_stats_matrix_table(
     row_values[-1] = (gap_extra, "—", "—")
 
     for row, (f_val, r_val, p_val) in enumerate(row_values):
+        if row in _STATS_MERGED_VALUE_ROWS:
+            _set_stats_matrix_merged_row(table, row, f_val)
+            continue
         for col, text in enumerate((f_val, r_val, p_val), start=1):
             _set_stats_matrix_cell(table, row, col, text, accent=accents[col])
 
@@ -1090,6 +1116,33 @@ class AnalyzeSingleFileTab(QWidget):
             float(statistics.mean(p_vals)),
         )
 
+    def _offset_means_for_snapshot(self) -> tuple[float | None, float | None, float | None]:
+        if not self._zero_offset_mode():
+            return None, None, None
+        if self._offset_applied:
+            return self._offset_mean_f, self._offset_mean_r, self._offset_mean_p
+        if (
+            self._raw_ts is None
+            or self._raw_f is None
+            or self._raw_r is None
+            or self._raw_p is None
+        ):
+            return None, None, None
+        bounds = self._offset_time_bounds()
+        if bounds is None:
+            return None, None, None
+        means = self._means_in_bounds(
+            self._raw_ts,
+            self._raw_f,
+            self._raw_r,
+            self._raw_p,
+            bounds[0],
+            bounds[1],
+        )
+        if means is None:
+            return None, None, None
+        return means
+
     def _ensure_plot_regions(self) -> None:
         if self._segment_region_force is None:
             self._offset_region_force = pg.LinearRegionItem(
@@ -1507,6 +1560,10 @@ class AnalyzeSingleFileTab(QWidget):
             self._stats_snapshot["zero_offset_applied"] = (
                 self._offset_applied and not self._offset_stale
             )
+            mean_f, mean_r, mean_p = self._offset_means_for_snapshot()
+            self._stats_snapshot["offset_mean_force_kg"] = mean_f
+            self._stats_snapshot["offset_mean_roll_deg"] = mean_r
+            self._stats_snapshot["offset_mean_pitch_deg"] = mean_p
         if ts_list:
             self._fs_hz = _estimate_sample_rate_hz(ts_list)
         self._update_zero_offset_ui()
@@ -1864,6 +1921,30 @@ class AnalyzeSingleFileTab(QWidget):
                 )
             if snap.get("zero_offset_applied"):
                 w.writerow(["Zero_offset_diterapkan", "Ya"])
+            if snap.get("offset_mean_force_kg") is not None:
+                w.writerow(
+                    [
+                        "Rata_rata_offset_Force",
+                        f"{float(snap['offset_mean_force_kg']):.6g}",
+                        "Kg",
+                    ]
+                )
+            if snap.get("offset_mean_roll_deg") is not None:
+                w.writerow(
+                    [
+                        "Rata_rata_offset_Roll",
+                        f"{float(snap['offset_mean_roll_deg']):.6g}",
+                        "deg",
+                    ]
+                )
+            if snap.get("offset_mean_pitch_deg") is not None:
+                w.writerow(
+                    [
+                        "Rata_rata_offset_Pitch",
+                        f"{float(snap['offset_mean_pitch_deg']):.6g}",
+                        "deg",
+                    ]
+                )
             w.writerow([])
             w.writerow(
                 ["Timestampstart (s)", f"{float(snap['timestamp_start_s']):.6g}"]
