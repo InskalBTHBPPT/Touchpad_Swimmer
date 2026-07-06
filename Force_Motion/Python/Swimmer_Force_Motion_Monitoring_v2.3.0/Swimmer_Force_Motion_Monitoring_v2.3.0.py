@@ -458,14 +458,49 @@ class MainWindow(QMainWindow):
         self.pitch_time_data: list[float] = []
         self.pitch_data: list[float] = []
 
-        # ---------- Kanan: kontrol ----------
+        # ---------- Kanan: atas (indikator + kontrol) + bawah (kamera) ----------
         right_panel = QWidget(self)
-        right_panel.setMinimumWidth(260)
-        right_panel.setMaximumWidth(360)
+        right_panel.setMinimumWidth(420)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(8)
 
-        controls = QGroupBox("", self)
+        right_top = QWidget(self)
+        right_top_layout = QHBoxLayout(right_top)
+        right_top_layout.setContentsMargins(0, 0, 0, 0)
+        right_top_layout.setSpacing(8)
+
+        indicators = QGroupBox("Nilai terakhir", self)
+        indicators.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+        ind_outer = QVBoxLayout(indicators)
+        ind_outer.setContentsMargins(10, 10, 10, 10)
+        ind_outer.setSpacing(4)
+
+        metrics_grid = QGridLayout()
+        metrics_grid.setContentsMargins(0, 0, 0, 0)
+        metrics_grid.setHorizontalSpacing(12)
+        metrics_grid.setVerticalSpacing(4)
+
+        self.force_label, force_block = _live_metric_block("Force (Kg)", indicators)
+        self.roll_label, roll_block = _live_metric_block("Roll (°)", indicators)
+        self.pitch_label, pitch_block = _live_metric_block("Pitch (°)", indicators)
+        self.battery_label, battery_block = _live_metric_block("Baterai (%)", indicators)
+        metrics_grid.addWidget(force_block, 0, 0)
+        metrics_grid.addWidget(roll_block, 0, 1)
+        metrics_grid.addWidget(pitch_block, 1, 0)
+        metrics_grid.addWidget(battery_block, 1, 1)
+        metrics_grid.setColumnStretch(0, 1)
+        metrics_grid.setColumnStretch(1, 1)
+        ind_outer.addLayout(metrics_grid)
+
+        controls = QGroupBox("Kontrol sesi", self)
+        controls.setSizePolicy(
+            QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Preferred,
+        )
         controls.setLayout(QVBoxLayout())
         controls.layout().setContentsMargins(12, 12, 12, 12)
 
@@ -485,9 +520,9 @@ class MainWindow(QMainWindow):
         self.stroke_combo.addItems(STROKE_STYLES)
 
         grid.addWidget(name_label, 0, 0)
-        grid.addWidget(self.swimmer_name_edit, 0, 1, 1, 2)
+        grid.addWidget(self.swimmer_name_edit, 0, 1)
         grid.addWidget(stroke_label, 1, 0)
-        grid.addWidget(self.stroke_combo, 1, 1, 1, 2)
+        grid.addWidget(self.stroke_combo, 1, 1)
 
         controls.layout().addLayout(grid)
 
@@ -524,33 +559,8 @@ class MainWindow(QMainWindow):
         row_btn.addWidget(self.log_btn)
         controls.layout().addLayout(row_btn)
 
-        indicators = QGroupBox("Nilai terakhir", self)
-        indicators.setSizePolicy(
-            QSizePolicy.Policy.Preferred,
-            QSizePolicy.Policy.Expanding,
-        )
-        ind_outer = QVBoxLayout(indicators)
-        ind_outer.setContentsMargins(12, 12, 12, 12)
-        ind_outer.setSpacing(6)
-
-        metrics_column = QVBoxLayout()
-        metrics_column.setContentsMargins(0, 0, 0, 0)
-        metrics_column.setSpacing(0)
-
-        self.force_label, force_block = _live_metric_block("Force (Kg)", indicators)
-        metrics_column.addWidget(force_block)
-        self.roll_label, roll_block = _live_metric_block("Roll Motion (Deg)", indicators)
-        metrics_column.addWidget(roll_block)
-        self.pitch_label, pitch_block = _live_metric_block("Pitch Motion (Deg)", indicators)
-        metrics_column.addWidget(pitch_block)
-        self.battery_label, battery_block = _live_metric_block("Baterai (%)", indicators)
-        metrics_column.addWidget(battery_block)
-
-        ind_outer.addLayout(metrics_column, 0)
-        ind_outer.addStretch(1)
-
-        right_layout.addWidget(controls, 0)
-        right_layout.addWidget(indicators, 1)
+        right_top_layout.addWidget(indicators, 3)
+        right_top_layout.addWidget(controls, 2)
 
         self.camera_panel = LiveCameraPanel(self)
         self.camera_panel.setSizePolicy(
@@ -558,20 +568,27 @@ class MainWindow(QMainWindow):
             QSizePolicy.Policy.Expanding,
         )
 
+        camera_group = QGroupBox("Kamera", self)
+        camera_group.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        camera_group_layout = QVBoxLayout(camera_group)
+        camera_group_layout.setContentsMargins(8, 8, 8, 8)
+        camera_group_layout.addWidget(self.camera_panel)
+
+        # Atas ~38% / bawah ~62% — preview kamera butuh ruang vertikal lebih besar.
+        right_layout.addWidget(right_top, 2)
+        right_layout.addWidget(camera_group, 3)
+
         plots_scroll = wrap_in_scroll_area(plots_panel, self)
         plots_scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding,
         )
-        camera_scroll = wrap_in_scroll_area(self.camera_panel, self)
-        camera_scroll.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
-        )
 
-        live_layout.addWidget(plots_scroll, 2)
-        live_layout.addWidget(camera_scroll, 2)
-        live_layout.addWidget(right_panel, 0)
+        live_layout.addWidget(plots_scroll, 3)
+        live_layout.addWidget(right_panel, 2)
 
         # ---------- Tab Analisa (satu berkas) + tab Analisa multifile ----------
         self.analyze_single_file_tab = AnalyzeSingleFileTab(
