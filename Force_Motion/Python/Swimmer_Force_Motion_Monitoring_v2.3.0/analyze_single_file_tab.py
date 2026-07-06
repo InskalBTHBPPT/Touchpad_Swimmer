@@ -17,7 +17,7 @@ Fungsi utama
 - Metode **FFT** / **Welch PSD** untuk **frekuensi dominan** di kartu statistik
   (tanpa plot spektrum); kartu **gap rekaman CSV** (Metode A/B).
 - **Tooltip** per baris tabel statistik (``ui_tooltip``).
-- **Simpan statistik** — ``DataStatistik/<nama_log>_DataStaistik.csv`` (UTF-8):
+- **Simpan statistik** — ``DataStatistik/<nama_log>_DataStatistik_<ddmmyy-HHMMSS>.csv`` (UTF-8):
   metadata, metrik Force/Roll/Pitch, frekuensi dominan, gap CSV.
 
 Dependensi tambahan (selain GUI): ``numpy``, ``scipy``.
@@ -1242,7 +1242,8 @@ class AnalyzeSingleFileTab(QWidget):
         self.save_stats_btn.setToolTip(
             _tooltip(
                 "Simpan langsung ke folder DataStatistik/ di samping DataLog.",
-                "<nama_file_log>_DataStaistik.csv (UTF-8), tanpa dialog Save As.",
+                "<nama_file_log>_DataStatistik_<ddmmyy-HHMMSS>.csv (UTF-8),",
+                "tanpa dialog Save As; setiap ekspor memakai cap waktu baru.",
             )
         )
         self.save_stats_btn.setEnabled(False)
@@ -2627,7 +2628,8 @@ class AnalyzeSingleFileTab(QWidget):
 
         src_name = Path(ctx["source_file"])
         suffix = src_name.suffix if src_name.suffix else ".csv"
-        out_name = f"{src_name.stem}{self._statistik_suffix}{suffix}"
+        stamp = datetime.now().strftime("%d%m%y-%H%M%S")
+        out_name = f"{src_name.stem}{self._statistik_suffix}_{stamp}{suffix}"
         path = self._datastatistik_dir / out_name
         try:
             self._write_statistik_csv(path, ctx, snap)

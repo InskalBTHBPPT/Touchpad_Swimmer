@@ -172,7 +172,8 @@ opsional). **Analisa multifile** di ``analyze_multi_file_tab.py``.
 - CSV lama tanpa metadata: ``csv_t ≈ TimeStamp baris pertama + video_sec`` (sinkron kasar).
 
 Tombol **Simpan statistik** menulis CSV ke ``DataStatistik/`` dengan nama
-``<nama_file_log>_DataStatistik.csv`` (tanpa dialog Save As), berisi meta baris
+``<nama_file_log>_DataStatistik_<ddmmyy-HHMMSS>.csv`` (cap waktu ekspor lokal;
+tanpa dialog Save As), berisi meta baris
 ``Timestampstart (s)``, tabel metrik (termasuk **Metode_statistik_Force**, peakF,
 meanF, ImpF, TpeakF, DUR, RFD, dF, FI sesuai metode aktif), blok frekuensi dominan
 per saluran, lalu blok **Gap rekaman CSV** (metode, Δt nominal, sampel
@@ -288,7 +289,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DATALOG_DIR = SCRIPT_DIR / "DataLog"
 DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
 TABLE_MULTIFILE_DIR = SCRIPT_DIR / "TableMultiFile"
-# Sufiks nama file ekspor statistik (sesuai permintaan): <nama_file_log>_DataStatistik.csv
+# Sufiks nama file ekspor statistik: <nama_file_log>_DataStatistik_<ddmmyy-HHMMSS>.csv
 STATISTIK_FILE_SUFFIX = "_DataStatistik"
 
 APP_NAME = "Swimmer Force Motion Monitoring"

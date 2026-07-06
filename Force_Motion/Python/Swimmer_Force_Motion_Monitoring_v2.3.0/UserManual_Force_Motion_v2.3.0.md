@@ -212,7 +212,7 @@ Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
 ### 4.5 Simpan statistik
 
 - Tombol **Simpan statistik** menulis file CSV ke folder **`DataStatistik/`** tanpa dialog penyimpanan.
-- Nama file: `<nama_file_csv_yang_dimuat>_DataStaistik.csv` (sufiks persis seperti di aplikasi).
+- Nama file: `<nama_file_csv_yang_dimuat>_DataStatistik_<ddmmyy-HHMMSS>.csv` — cap waktu **saat tombol ditekan** (lokal); setiap ekspor menghasilkan berkas baru (tidak menimpa ekspor Metode A/B atau pengaturan lain sebelumnya).
 - Isi ringkas:
   - Metadata (nama perenang, gaya renang, waktu ekspor, nama berkas sumber).
   - Baris **`Timestampstart (s)`** + nilai (waktu awal deret, sama dengan yang ditampilkan di panel statistik).
