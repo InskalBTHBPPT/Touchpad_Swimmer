@@ -17,7 +17,8 @@ Fungsi utama
 - Metode **FFT** / **Welch PSD** untuk **frekuensi dominan** di kartu statistik
   (tanpa plot spektrum); kartu **gap rekaman CSV** (Metode A/B).
 - **Tooltip** per baris tabel statistik (``ui_tooltip``).
-- **Simpan statistik** — ``DataStatistik/<nama_log>_DataStatistik_<ddmmyy-HHMMSS>.csv`` (UTF-8):
+- **Simpan statistik** (menu **File → Analisa SingleFile → Simpan Statistik**) —
+  ``DataStatistik/<nama_log>_DataStatistik_<ddmmyy-HHMMSS>.csv`` (UTF-8):
   metadata, metrik Force/Roll/Pitch, frekuensi dominan, gap CSV.
 
 Dependensi tambahan (selain GUI): ``numpy``, ``scipy``.
@@ -878,6 +879,7 @@ class AnalyzeSingleFileTab(QWidget):
         datastatistik_dir: Path,
         statistik_file_suffix: str,
         themed_stat_message: Callable[[QMessageBox.Icon, str, str], None],
+        on_save_stats_enabled_changed: Callable[[bool], None] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -885,6 +887,7 @@ class AnalyzeSingleFileTab(QWidget):
         self._datastatistik_dir = datastatistik_dir
         self._statistik_suffix = statistik_file_suffix
         self._themed_stat_message = themed_stat_message
+        self._on_save_stats_enabled_changed = on_save_stats_enabled_changed
 
         self._loaded_ts: list[float] | None = None
         self._loaded_f: list[float] | None = None
@@ -1230,19 +1233,6 @@ class AnalyzeSingleFileTab(QWidget):
         self.settings_btn.clicked.connect(self._show_analyze_settings)
         stats_actions.addWidget(self.settings_btn, 0)
         stats_actions.addStretch(1)
-
-        self.save_stats_btn = QPushButton("Simpan statistik…", self)
-        self.save_stats_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
-        self.save_stats_btn.setToolTip(
-            _tooltip(
-                "Simpan langsung ke folder DataStatistik/ di samping DataLog.",
-                "<nama_file_log>_DataStatistik_<ddmmyy-HHMMSS>.csv (UTF-8),",
-                "tanpa dialog Save As; setiap ekspor memakai cap waktu baru.",
-            )
-        )
-        self.save_stats_btn.setEnabled(False)
-        self.save_stats_btn.clicked.connect(self.save_statistics_csv)
-        stats_actions.addWidget(self.save_stats_btn, 0)
         stats_inner.addLayout(stats_actions)
 
         self.stats_table = QTableWidget(self.stats_group)
@@ -1835,7 +1825,7 @@ class AnalyzeSingleFileTab(QWidget):
         self._clear_stat_markers()
         if not ts_list:
             self._stats_snapshot = None
-            self.save_stats_btn.setEnabled(False)
+            self._sync_save_stats_menu_enabled()
             self._refresh_stats_table()
             return
         self._apply_statistics(ts_list, f_list, r_list, p_list)
@@ -2075,7 +2065,7 @@ class AnalyzeSingleFileTab(QWidget):
         n = len(ts_list)
         if n == 0:
             self._stats_snapshot = None
-            self.save_stats_btn.setEnabled(False)
+            self._sync_save_stats_menu_enabled()
             self._refresh_stats_table()
             return
 
@@ -2254,7 +2244,13 @@ class AnalyzeSingleFileTab(QWidget):
             "gap_count": gap_stats.gap_count if gap_stats else None,
             "gap_samples_expected": gap_stats.samples_expected if gap_stats else None,
         }
-        self.save_stats_btn.setEnabled(self._export_ctx is not None)
+        self._sync_save_stats_menu_enabled()
+
+    def _sync_save_stats_menu_enabled(self) -> None:
+        if self._on_save_stats_enabled_changed is None:
+            return
+        enabled = self._export_ctx is not None and self._stats_snapshot is not None
+        self._on_save_stats_enabled_changed(enabled)
 
     @staticmethod
     def _csv_float_cell(value: float | str | None) -> str:

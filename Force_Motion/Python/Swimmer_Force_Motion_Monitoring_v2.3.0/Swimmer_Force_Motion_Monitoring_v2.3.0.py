@@ -175,7 +175,7 @@ opsional). **Analisa multifile** di ``analyze_multi_file_tab.py``.
   (metadata footer CSV).
 - CSV lama tanpa metadata: ``csv_t ≈ TimeStamp baris pertama + video_sec`` (sinkron kasar).
 
-Tombol **Simpan statistik** menulis CSV ke ``DataStatistik/`` dengan nama
+Tombol **Simpan statistik** (menu **File → Analisa SingleFile → Simpan Statistik**) menulis CSV ke ``DataStatistik/`` dengan nama
 ``<nama_file_log>_DataStatistik_<ddmmyy-HHMMSS>.csv`` (cap waktu ekspor lokal;
 tanpa dialog Save As), berisi metadata (termasuk zero offset, koreksi, segmen),
 tabel metrik (termasuk **Metode_statistik_Force**, peakF, meanF, ImpF, TpeakF,
@@ -590,6 +590,7 @@ class MainWindow(QMainWindow):
             datastatistik_dir=DATASTATISTIK_DIR,
             statistik_file_suffix=STATISTIK_FILE_SUFFIX,
             themed_stat_message=self._show_statistik_message_box,
+            on_save_stats_enabled_changed=self._on_analyze_save_stats_enabled_changed,
             parent=self,
         )
 
@@ -601,7 +602,7 @@ class MainWindow(QMainWindow):
 
         self.tab_widget.addTab(live_tab, "Live")
         self.tab_widget.addTab(self.analyze_single_file_tab, "Analisa")
-        self.tab_widget.addTab(self.analyze_multi_file_tab, "Analisa multifile")
+        self.tab_widget.addTab(self.analyze_multi_file_tab, "Analisa Multifile")
 
         self._setup_menu_bar()
         self._apply_styles(controls, indicators)
@@ -626,6 +627,14 @@ class MainWindow(QMainWindow):
         load_video_action.triggered.connect(self._file_menu_load_video)
         analyze_menu.addAction(load_video_action)
 
+        self._file_save_stats_action = QAction("Simpan Statistik", self)
+        self._file_save_stats_action.setEnabled(False)
+        self._file_save_stats_action.setStatusTip(
+            "Simpan ringkasan statistik ke folder DataStatistik/"
+        )
+        self._file_save_stats_action.triggered.connect(self._file_menu_save_statistics)
+        analyze_menu.addAction(self._file_save_stats_action)
+
         multifile_menu = file_menu.addMenu("Analisa MultiFile")
 
         add_file_action = QAction("Add File", self)
@@ -641,9 +650,17 @@ class MainWindow(QMainWindow):
         self._show_view_tab(TAB_ANALYZE)
         self.analyze_single_file_tab.load_video()
 
+    def _file_menu_save_statistics(self) -> None:
+        self._show_view_tab(TAB_ANALYZE)
+        self.analyze_single_file_tab.save_statistics_csv()
+
     def _file_menu_add_multifile(self) -> None:
         self._show_view_tab(TAB_MULTI_FILE)
         self.analyze_multi_file_tab._on_add_file()
+
+    def _on_analyze_save_stats_enabled_changed(self, enabled: bool) -> None:
+        if hasattr(self, "_file_save_stats_action"):
+            self._file_save_stats_action.setEnabled(enabled)
 
     def _setup_view_menu(self) -> None:
         view_menu = self.menuBar().addMenu("&View")
