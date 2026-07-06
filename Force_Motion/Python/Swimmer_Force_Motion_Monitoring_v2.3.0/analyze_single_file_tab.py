@@ -1051,12 +1051,16 @@ class AnalyzeSingleFileTab(QWidget):
             _tooltip(
                 "Jumlahkan sampel hilang per lubang Δt antar baris berurutan.",
                 f"Gap jika Δt > {GAP_LOSS_TOLERANCE_FACTOR:.1f}× median Δt.",
+                "Dihitung pada seluruh timestamp CSV yang dimuat,",
+                "bukan hanya region data uji.",
             )
         )
         self._gap_method_b_radio.setToolTip(
             _tooltip(
                 "Bandingkan jumlah baris aktual",
                 "dengan perkiraan dari durasi ÷ median Δt.",
+                "Dihitung pada seluruh timestamp CSV yang dimuat,",
+                "bukan hanya region data uji.",
             )
         )
         for rb in (self._gap_method_a_radio, self._gap_method_b_radio):
@@ -1953,7 +1957,8 @@ class AnalyzeSingleFileTab(QWidget):
         t_fmax = force_stats.peak_t_s
         t_fmin = force_stats.min_t_s
 
-        gap_stats = compute_gap_loss(ts_list, method=self._gap_loss_method_key())
+        gap_ts = self._loaded_ts if self._loaded_ts is not None else ts_list
+        gap_stats = compute_gap_loss(gap_ts, method=self._gap_loss_method_key())
 
         if t_fmax is not None:
             self._scatter_force = pg.ScatterPlotItem(

@@ -185,7 +185,8 @@ Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
 | **Metode A — per gap (lokal)** | Untuk setiap pasangan baris berurutan: jika selisih timestamp `Δt` lebih besar dari **1,5 × median(Δt)**, estimasi sampel hilang = `round(Δt / Δt_nominal) − 1`. Menampilkan **jumlah gap** (berapa kali lubang terdeteksi). |
 | **Metode B — global (ringkas)** | Default. `n_diharapkan = round(durasi / Δt_nominal) + 1`; `n_hilang = max(0, n_diharapkan − n_tercatat)`. Menampilkan **sampel diharapkan**. |
 
-- `Δt_nominal` = **median** selisih `TimeStamp(s)` antar baris (sama dasar dengan estimasi laju sampel untuk spektrum).
+- Perhitungan gap memakai **seluruh deret `TimeStamp(s)` dari CSV yang dimuat** (rekaman penuh), **bukan** region data uji (biru). Geser region uji atau aktifkan Zero Offset **tidak** mengubah angka gap.
+- `Δt_nominal` gap = **median** selisih `TimeStamp(s)` antar baris pada **rekaman penuh** (bisa berbeda dari laju sampel spektrum yang dihitung di region uji).
 - Kartu **GAP REKAMAN CSV** menampilkan metode, Δt nominal, laju efektif (Hz), sampel tercatat, sampel hilang (estimasi), dan persen hilang.
 - **Tujuan:** mengetahui kualitas rekaman CSV (lubang timestamp), **bukan** diagnosis LoRa atau transfer nirkabel.
 - Mengganti radio langsung menghitung ulang kartu (tanpa reload CSV).
