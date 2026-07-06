@@ -30,6 +30,7 @@ tetap fokus satu berkas tanpa mengubah kontraknya.
 from __future__ import annotations
 
 import csv
+import math
 import statistics
 from collections.abc import Callable
 from datetime import datetime
@@ -44,6 +45,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QDoubleSpinBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -79,6 +81,7 @@ _SEGMENT_PEN_PITCH = pg.mkPen("#a78bfa", width=1)
 
 _ZERO_OFFSET_DEFAULT_DURATION_S = 2.0
 _ZERO_OFFSET_TEST_GAP_S = 2.0
+_TETHER_ANGLE_DEFAULT_DEG = 7.0
 _OFFSET_BRUSH_FORCE = pg.mkBrush(34, 197, 94, 42)
 _OFFSET_PEN_FORCE = pg.mkPen("#22c55e", width=1)
 _OFFSET_BRUSH_ROLL = pg.mkBrush(34, 197, 94, 30)
@@ -817,6 +820,34 @@ class AnalyzeSingleFileTab(QWidget):
         self._zero_offset_checkbox.toggled.connect(self._on_zero_offset_checkbox_changed)
         settings_inner.addWidget(self._zero_offset_checkbox)
 
+        tether_angle_row = QHBoxLayout()
+        tether_angle_row.setSpacing(10)
+        self._tether_angle_checkbox = QCheckBox(
+            "Koreksi sudut tali (terhadap permukaan air)", self
+        )
+        self._tether_angle_checkbox.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        self._tether_angle_checkbox.setToolTip(
+            "Gaya horizontal = Force terukur × cos(sudut). "
+            "Sudut diukur di atas permukaan air (horizontal = 0°)."
+        )
+        self._tether_angle_checkbox.toggled.connect(self._on_tether_angle_setting_changed)
+        self._tether_angle_spin = QDoubleSpinBox(self)
+        self._tether_angle_spin.setRange(0.0, 89.99)
+        self._tether_angle_spin.setDecimals(2)
+        self._tether_angle_spin.setSingleStep(0.01)
+        self._tether_angle_spin.setValue(_TETHER_ANGLE_DEFAULT_DEG)
+        self._tether_angle_spin.setSuffix(" °")
+        self._tether_angle_spin.setEnabled(False)
+        self._tether_angle_spin.setMinimumWidth(96)
+        self._tether_angle_spin.setToolTip(
+            "Sudut tali terhadap permukaan air (derajat, dua desimal)."
+        )
+        self._tether_angle_spin.valueChanged.connect(self._on_tether_angle_setting_changed)
+        tether_angle_row.addWidget(self._tether_angle_checkbox, 0)
+        tether_angle_row.addWidget(self._tether_angle_spin, 0)
+        tether_angle_row.addStretch(1)
+        settings_inner.addLayout(tether_angle_row)
+
         self._offset_info_label = QLabel("Region offset: —", self)
         self._offset_info_label.setStyleSheet("color: #9ca3af; font-size: 10pt;")
         self._offset_info_label.setWordWrap(True)
@@ -868,7 +899,8 @@ class AnalyzeSingleFileTab(QWidget):
         self.settings_btn = QPushButton("Setting…", self)
         self.settings_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
         self.settings_btn.setToolTip(
-            "Buka pengaturan analisa: metode spektrum, segmen waktu, metode gap CSV."
+            "Buka pengaturan analisa: metode spektrum, koreksi sudut tali, "
+            "zero offset, segmen waktu, metode gap CSV."
         )
         self.settings_btn.clicked.connect(self._show_analyze_settings)
         stats_actions.addWidget(self.settings_btn, 0)
@@ -1030,13 +1062,36 @@ class AnalyzeSingleFileTab(QWidget):
         self._raw_r = list(self._loaded_r)  # type: ignore[arg-type]
         self._raw_p = list(self._loaded_p)  # type: ignore[arg-type]
 
-    def _restore_raw_to_loaded(self) -> None:
+    def _tether_angle_correction_enabled(self) -> bool:
+        return self._tether_angle_checkbox.isChecked()
+
+    def _tether_angle_scale(self) -> float:
+        if not self._tether_angle_correction_enabled():
+            return 1.0
+        return math.cos(math.radians(self._tether_angle_spin.value()))
+
+    def _rebuild_loaded_from_raw(self) -> None:
         if self._raw_ts is None:
             return
+        scale = self._tether_angle_scale()
         self._loaded_ts = list(self._raw_ts)
-        self._loaded_f = list(self._raw_f)  # type: ignore[arg-type]
-        self._loaded_r = list(self._raw_r)  # type: ignore[arg-type]
-        self._loaded_p = list(self._raw_p)  # type: ignore[arg-type]
+        if self._offset_applied:
+            self._loaded_f = [
+                (v - self._offset_mean_f) * scale for v in self._raw_f  # type: ignore[union-attr]
+            ]
+            self._loaded_r = [
+                v - self._offset_mean_r for v in self._raw_r  # type: ignore[union-attr]
+            ]
+            self._loaded_p = [
+                v - self._offset_mean_p for v in self._raw_p  # type: ignore[union-attr]
+            ]
+        else:
+            self._loaded_f = [v * scale for v in self._raw_f]  # type: ignore[union-attr]
+            self._loaded_r = list(self._raw_r)  # type: ignore[arg-type]
+            self._loaded_p = list(self._raw_p)  # type: ignore[arg-type]
+
+    def _restore_raw_to_loaded(self) -> None:
+        self._rebuild_loaded_from_raw()
 
     def _replot_loaded_curves(self) -> None:
         if self._loaded_ts is None:
@@ -1119,8 +1174,13 @@ class AnalyzeSingleFileTab(QWidget):
     def _offset_means_for_snapshot(self) -> tuple[float | None, float | None, float | None]:
         if not self._zero_offset_mode():
             return None, None, None
+        scale = self._tether_angle_scale()
         if self._offset_applied:
-            return self._offset_mean_f, self._offset_mean_r, self._offset_mean_p
+            return (
+                self._offset_mean_f * scale,
+                self._offset_mean_r,
+                self._offset_mean_p,
+            )
         if (
             self._raw_ts is None
             or self._raw_f is None
@@ -1141,7 +1201,15 @@ class AnalyzeSingleFileTab(QWidget):
         )
         if means is None:
             return None, None, None
-        return means
+        return means[0] * scale, means[1], means[2]
+
+    def _on_tether_angle_setting_changed(self, *_args: object) -> None:
+        self._tether_angle_spin.setEnabled(self._tether_angle_correction_enabled())
+        if self._raw_ts is None:
+            return
+        self._rebuild_loaded_from_raw()
+        self._replot_loaded_curves()
+        self._reanalyze_current_segment()
 
     def _ensure_plot_regions(self) -> None:
         if self._segment_region_force is None:
@@ -1496,11 +1564,8 @@ class AnalyzeSingleFileTab(QWidget):
             )
             return False
         self._offset_mean_f, self._offset_mean_r, self._offset_mean_p = means
-        self._loaded_f = [v - self._offset_mean_f for v in self._raw_f]
-        self._loaded_r = [v - self._offset_mean_r for v in self._raw_r]
-        self._loaded_p = [v - self._offset_mean_p for v in self._raw_p]
-        self._loaded_ts = list(self._raw_ts)
         self._offset_applied = True
+        self._rebuild_loaded_from_raw()
         self._offset_stale = False
         self._offset_applied_bounds = bounds
         self._replot_loaded_curves()
@@ -1564,6 +1629,15 @@ class AnalyzeSingleFileTab(QWidget):
             self._stats_snapshot["offset_mean_force_kg"] = mean_f
             self._stats_snapshot["offset_mean_roll_deg"] = mean_r
             self._stats_snapshot["offset_mean_pitch_deg"] = mean_p
+            self._stats_snapshot["tether_angle_correction"] = (
+                self._tether_angle_correction_enabled()
+            )
+            if self._tether_angle_correction_enabled():
+                self._stats_snapshot["tether_angle_deg"] = float(
+                    self._tether_angle_spin.value()
+                )
+            else:
+                self._stats_snapshot["tether_angle_deg"] = None
         if ts_list:
             self._fs_hz = _estimate_sample_rate_hz(ts_list)
         self._update_zero_offset_ui()
@@ -1634,15 +1708,13 @@ class AnalyzeSingleFileTab(QWidget):
             QMessageBox.warning(self, "Load CSV", str(e))
             return
 
-        self.force_curve.setData(ts_list, f_list)
-        self.roll_curve.setData(ts_list, r_list)
-        self.pitch_curve.setData(ts_list, p_list)
-
         self._loaded_ts = ts_list
         self._loaded_f = f_list
         self._loaded_r = r_list
         self._loaded_p = p_list
         self._store_raw_copy()
+        self._rebuild_loaded_from_raw()
+        self._replot_loaded_curves()
         self._reset_zero_offset_state(replot=False)
         self._zero_offset_checkbox.blockSignals(True)
         self._zero_offset_checkbox.setChecked(False)
@@ -1921,6 +1993,16 @@ class AnalyzeSingleFileTab(QWidget):
                 )
             if snap.get("zero_offset_applied"):
                 w.writerow(["Zero_offset_diterapkan", "Ya"])
+            if snap.get("tether_angle_correction"):
+                w.writerow(["Koreksi_sudut_tali", "Ya"])
+                angle_deg = snap.get("tether_angle_deg")
+                if angle_deg is not None:
+                    w.writerow(
+                        [
+                            "Sudut_tali_terhadap_air (deg)",
+                            f"{float(angle_deg):.2f}",
+                        ]
+                    )
             if snap.get("offset_mean_force_kg") is not None:
                 w.writerow(
                     [
