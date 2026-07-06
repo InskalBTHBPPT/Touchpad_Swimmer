@@ -609,8 +609,43 @@ class MainWindow(QMainWindow):
         self._apply_styles(controls, indicators)
 
     def _setup_menu_bar(self) -> None:
+        self._setup_file_menu()
         self._setup_view_menu()
         self._setup_help_menu()
+
+    def _setup_file_menu(self) -> None:
+        file_menu = self.menuBar().addMenu("&File")
+
+        analyze_menu = file_menu.addMenu("Analisa")
+
+        load_csv_action = QAction("Load csv", self)
+        load_csv_action.setStatusTip("Muat berkas CSV rekaman tab Live")
+        load_csv_action.triggered.connect(self._file_menu_load_csv)
+        analyze_menu.addAction(load_csv_action)
+
+        load_video_action = QAction("Load Video", self)
+        load_video_action.setStatusTip("Muat berkas video pasangan untuk sinkronisasi")
+        load_video_action.triggered.connect(self._file_menu_load_video)
+        analyze_menu.addAction(load_video_action)
+
+        multifile_menu = file_menu.addMenu("Analisa MultiFile")
+
+        add_file_action = QAction("Add File", self)
+        add_file_action.setStatusTip("Tambah berkas DataStatistik ke tabel perbandingan")
+        add_file_action.triggered.connect(self._file_menu_add_multifile)
+        multifile_menu.addAction(add_file_action)
+
+    def _file_menu_load_csv(self) -> None:
+        self._show_view_tab(TAB_ANALYZE)
+        self.analyze_single_file_tab.load_csv()
+
+    def _file_menu_load_video(self) -> None:
+        self._show_view_tab(TAB_ANALYZE)
+        self.analyze_single_file_tab.load_video()
+
+    def _file_menu_add_multifile(self) -> None:
+        self._show_view_tab(TAB_MULTI_FILE)
+        self.analyze_multi_file_tab._on_add_file()
 
     def _setup_view_menu(self) -> None:
         view_menu = self.menuBar().addMenu("&View")
