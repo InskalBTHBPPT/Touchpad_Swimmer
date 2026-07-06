@@ -263,7 +263,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtGui import QAction, QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -275,12 +275,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
     QStyle,
     QTabWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -306,6 +308,7 @@ APP_NAME = "Swimmer Force Motion Monitoring"
 APP_VERSION = "2.3.0"
 USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v2.3.0.md"
 USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v2.3.0.pdf"
+CHANGELOG_MD = SCRIPT_DIR.parent / "Changelog.md"
 
 STROKE_STYLES = [
     "Gaya Bebas",
@@ -612,12 +615,38 @@ class MainWindow(QMainWindow):
         self.tab_widget.addTab(self.analyze_single_file_tab, "Analisa")
         self.tab_widget.addTab(self.analyze_multi_file_tab, "Analisa multifile")
 
+        self._setup_help_menu()
         self._apply_styles(controls, indicators)
+
+    def _setup_help_menu(self) -> None:
+        help_menu = self.menuBar().addMenu("&Help")
+
+        manual_action = QAction("Manual", self)
+        manual_action.setShortcut("F1")
+        manual_action.setStatusTip(f"Buka manual PDF ({USER_MANUAL_PDF.name})")
+        manual_action.triggered.connect(self.open_user_manual_pdf)
+        help_menu.addAction(manual_action)
+
+        about_action = QAction("Tentang", self)
+        about_action.setStatusTip("Informasi aplikasi dan versi")
+        about_action.triggered.connect(self.show_about_dialog)
+        help_menu.addAction(about_action)
+
+        changelog_action = QAction("Changelog", self)
+        changelog_action.setStatusTip("Riwayat perubahan versi aplikasi")
+        changelog_action.triggered.connect(self.show_changelog_dialog)
+        help_menu.addAction(changelog_action)
 
     def _apply_styles(self, controls: QGroupBox, indicators: QGroupBox) -> None:
         self.setStyleSheet(
             """
             QWidget { font-family: 'Segoe UI', Arial; font-size: 11pt; }
+            QMenuBar { background-color: #111827; color: #e5e7eb; }
+            QMenuBar::item { background: transparent; padding: 6px 10px; }
+            QMenuBar::item:selected { background-color: #374151; }
+            QMenu { background-color: #1f2937; color: #e5e7eb; border: 1px solid #4b5563; }
+            QMenu::item { padding: 6px 28px 6px 20px; }
+            QMenu::item:selected { background-color: #374151; }
             QGroupBox { border: 1px solid #374151; border-radius: 10px; margin-top: 10px; background: #1f2937; }
             QGroupBox::title { color: #e5e7eb; }
             QLabel { color: #e5e7eb; }
@@ -778,7 +807,7 @@ class MainWindow(QMainWindow):
             "dalam format CSV empat kolom per baris.\n\n"
             "Rekaman sesi disimpan ke folder DataLog; ringkasan statistik rekaman "
             "bisa diekspor dari tab Analisa ke folder DataStatistik.\n\n"
-            f"Bantuan lengkap: tombol Help membuka\n{USER_MANUAL_PDF.name}\n"
+            f"Bantuan lengkap: menu Help → Manual atau tombol Help membuka\n{USER_MANUAL_PDF.name}\n"
             "(PDF di folder yang sama dengan aplikasi, jika sudah dibuat)."
         )
         self._show_statistik_message_box(QMessageBox.Icon.Information, "Tentang", text)
@@ -807,6 +836,53 @@ class MainWindow(QMainWindow):
                 "Tidak dapat membuka PDF dengan aplikasi default sistem.\n"
                 f"{_path_text_for_dialog(pdf)}",
             )
+
+    def show_changelog_dialog(self) -> None:
+        """Tampilkan isi ``Force_Motion/Python/Changelog.md`` dalam jendela baca-saja."""
+        path = CHANGELOG_MD.resolve()
+        if not path.is_file():
+            self._show_statistik_message_box(
+                QMessageBox.Icon.Warning,
+                "Changelog",
+                "Berkas changelog tidak ditemukan:\n"
+                f"{_path_text_for_dialog(path)}",
+            )
+            return
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as e:
+            self._show_statistik_message_box(
+                QMessageBox.Icon.Critical,
+                "Changelog",
+                f"Tidak bisa membaca changelog:\n{e}",
+            )
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Changelog")
+        dlg.resize(720, 520)
+        root = QVBoxLayout(dlg)
+        root.setContentsMargins(16, 16, 16, 12)
+        root.setSpacing(10)
+
+        editor = QTextEdit(dlg)
+        editor.setReadOnly(True)
+        editor.setPlainText(body)
+        editor.setFont(QFont("Consolas", 10))
+        editor.setStyleSheet(
+            "QTextEdit { background: #0f172a; color: #e5e7eb; border: 1px solid #374151; }"
+        )
+        root.addWidget(editor, 1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        close_btn = QPushButton("Tutup", dlg)
+        close_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(close_btn)
+        root.addLayout(btn_row)
+
+        dlg.setStyleSheet(THEMED_STATISTIK_DIALOG_STYLESHEET)
+        dlg.exec()
 
     def toggle_connection(self, checked: bool) -> None:
         if checked:
