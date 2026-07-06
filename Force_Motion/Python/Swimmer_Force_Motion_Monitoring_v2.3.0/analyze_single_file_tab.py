@@ -1510,6 +1510,7 @@ class AnalyzeSingleFileTab(QWidget):
         if ts_list:
             self._fs_hz = _estimate_sample_rate_hz(ts_list)
         self._update_zero_offset_ui()
+        self._refresh_stats_table()
 
     def _gap_loss_method_key(self) -> str:
         """``A`` = per gap; ``B`` = global."""
@@ -1806,7 +1807,6 @@ class AnalyzeSingleFileTab(QWidget):
             "gap_samples_expected": gap_stats.samples_expected if gap_stats else None,
         }
         self.save_stats_btn.setEnabled(self._export_ctx is not None)
-        self._refresh_stats_table()
 
     @staticmethod
     def _csv_dominant_hz_cell(v: float | str | None) -> str:
