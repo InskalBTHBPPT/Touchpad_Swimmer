@@ -294,6 +294,7 @@ from analyze_single_file_tab import (
     wrap_in_scroll_area,
 )
 from live_camera_panel import LiveCameraPanel
+from live_serial_settings_dialog import LiveSerialSettingsDialog
 from live_csv_io import LIVE_CSV_DATA_HEADER
 
 
@@ -472,17 +473,8 @@ class MainWindow(QMainWindow):
         grid.setHorizontalSpacing(8)
         grid.setVerticalSpacing(8)
 
-        port_label = QLabel("Port:")
-        self.port_combo = QComboBox(self)
-        self.refresh_ports()
-        self.refresh_btn = QPushButton("Refresh Ports", self)
-        self.refresh_btn.setObjectName("LivePrimaryButton")
-        self.refresh_btn.clicked.connect(self.refresh_ports)
-
-        baud_label = QLabel("Baud:")
-        self.baud_combo = QComboBox(self)
-        self.baud_combo.addItems(["115200", "57600", "38400", "19200", "9600", "230400"])
-        self.baud_combo.setCurrentText("115200")
+        self._init_serial_port_widgets()
+        self._serial_settings_dialog: LiveSerialSettingsDialog | None = None
 
         name_label = QLabel("Nama Perenang:")
         self.swimmer_name_edit = QLineEdit(self)
@@ -492,15 +484,10 @@ class MainWindow(QMainWindow):
         self.stroke_combo = QComboBox(self)
         self.stroke_combo.addItems(STROKE_STYLES)
 
-        grid.addWidget(port_label, 0, 0)
-        grid.addWidget(self.port_combo, 0, 1)
-        grid.addWidget(self.refresh_btn, 0, 2)
-        grid.addWidget(baud_label, 1, 0)
-        grid.addWidget(self.baud_combo, 1, 1)
-        grid.addWidget(name_label, 2, 0)
-        grid.addWidget(self.swimmer_name_edit, 2, 1, 1, 2)
-        grid.addWidget(stroke_label, 3, 0)
-        grid.addWidget(self.stroke_combo, 3, 1, 1, 2)
+        grid.addWidget(name_label, 0, 0)
+        grid.addWidget(self.swimmer_name_edit, 0, 1, 1, 2)
+        grid.addWidget(stroke_label, 1, 0)
+        grid.addWidget(self.stroke_combo, 1, 1, 1, 2)
 
         controls.layout().addLayout(grid)
 
@@ -514,14 +501,15 @@ class MainWindow(QMainWindow):
         controls.layout().addWidget(file_name_caption)
         controls.layout().addWidget(self.log_filename_label)
 
-        self.log_ts_zero_checkbox = QCheckBox("TimeStamp CSV mulai 0 saat Start Log", self)
+        # Preferensi dormant: TimeStamp CSV mulai 0 saat Start Log (tidak ditampilkan di UI).
+        self.log_ts_zero_checkbox = QCheckBox(self)
         self.log_ts_zero_checkbox.setChecked(False)
         self.log_ts_zero_checkbox.setToolTip(
             "Jika dicentang, kolom TimeStamp(s) di file CSV = waktu serial dikurangi "
             "timestamp sampel pertama setelah Anda menekan Start Log (bukan saat Connect). "
             "Baris pertama data ≈ 0 s; plot Live tetap memakai waktu dari perangkat."
         )
-        controls.layout().addWidget(self.log_ts_zero_checkbox)
+        self.log_ts_zero_checkbox.hide()
 
         row_btn = QHBoxLayout()
         self.connect_btn = QPushButton("Connect", self)
@@ -683,6 +671,11 @@ class MainWindow(QMainWindow):
         camera_action.triggered.connect(self._settings_menu_live_camera)
         live_menu.addAction(camera_action)
 
+        serial_action = QAction("Serial Port", self)
+        serial_action.setStatusTip("Atur port COM dan baud rate koneksi serial")
+        serial_action.triggered.connect(self._settings_menu_live_serial)
+        live_menu.addAction(serial_action)
+
     def _settings_menu_analyze_stats(self) -> None:
         self._show_view_tab(TAB_ANALYZE)
         self.analyze_single_file_tab.show_analyze_settings()
@@ -690,6 +683,10 @@ class MainWindow(QMainWindow):
     def _settings_menu_live_camera(self) -> None:
         self._show_view_tab(TAB_LIVE)
         self.camera_panel.show_settings_dialog()
+
+    def _settings_menu_live_serial(self) -> None:
+        self._show_view_tab(TAB_LIVE)
+        self.show_serial_settings_dialog()
 
     def _setup_view_menu(self) -> None:
         view_menu = self.menuBar().addMenu("&View")
@@ -831,6 +828,23 @@ class MainWindow(QMainWindow):
             """
             + APP_QTOOLTIP_STYLESHEET
         )
+
+    def _init_serial_port_widgets(self) -> None:
+        self.port_combo = QComboBox(self)
+        self.refresh_btn = QPushButton("Refresh Ports", self)
+        self.refresh_btn.setObjectName("LivePrimaryButton")
+        self.refresh_btn.clicked.connect(self.refresh_ports)
+        self.baud_combo = QComboBox(self)
+        self.baud_combo.addItems(["115200", "57600", "38400", "19200", "9600", "230400"])
+        self.baud_combo.setCurrentText("115200")
+        self.refresh_ports()
+
+    def show_serial_settings_dialog(self) -> None:
+        if self._serial_settings_dialog is None:
+            self._serial_settings_dialog = LiveSerialSettingsDialog(self, parent=self)
+        self._serial_settings_dialog.show()
+        self._serial_settings_dialog.raise_()
+        self._serial_settings_dialog.activateWindow()
 
     def refresh_ports(self) -> None:
         current = self.port_combo.currentText() if self.port_combo.count() else ""
