@@ -32,7 +32,7 @@ from parse_datastatistik_csv import StatistikExportRecord, parse_datastatistik_c
 MAX_FILES = 5
 HEADER_ROWS = 6
 EMPTY_CELL = "—"
-DATA_COLUMN_WIDTH_PX = 168
+DATA_COLUMN_WIDTH_PX = 252
 HEADER_WRAP_CHARS = 22
 HEADER_ROW_DEFAULT_HEIGHT = 28
 HEADER_ROW_FILENAME = 2
