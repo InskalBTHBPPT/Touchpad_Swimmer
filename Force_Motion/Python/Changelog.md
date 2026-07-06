@@ -24,7 +24,8 @@ Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
 
 - **Tab Analisa** — layout: plot waktu | panel video | panel kanan; tidak ada plot spektrum visual; pengaturan analisa di dialog **Setting…** (koreksi, metode Force, spektrum, gap).
 - **Gap rekaman CSV** — perhitungan memakai **seluruh deret timestamp CSV** (bukan hanya region uji biru).
-- **Ekspor `DataStatistik/`** — kolom metrik Force diperluas (Metode A/B, Filter Andrade, TpeakF, DUR, RFD, dF, FI, zero offset, koreksi); nama file memuat cap waktu ekspor (`_DataStatistik_<ddmmyy-HHMMSS>.csv`) agar tidak menimpa ekspor sebelumnya.
+- **Ekspor `DataStatistik/`** — kolom metrik Force diperluas; nama file memuat cap waktu ekspor (`_DataStatistik_<ddmmyy-HHMMSS>.csv`).
+- **Tab Analisa multifile** — muat berkas **DataStatistik** (bukan DataLog); tabel 32 metrik (Metode A/B, kosong = —); dropdown FFT dihapus; simpan tabel & plot ditunda.
 - **Docstring** modul utama v2.3.0, `analyze_single_file_tab.py`, manual, dan modul kamera/video/metrik diselaraskan dengan fitur di atas.
 
 ### Kompatibilitas

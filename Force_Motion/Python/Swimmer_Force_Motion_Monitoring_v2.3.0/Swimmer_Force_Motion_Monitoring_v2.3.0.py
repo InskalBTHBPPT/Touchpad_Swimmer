@@ -593,7 +593,7 @@ class MainWindow(QMainWindow):
         )
 
         self.analyze_multi_file_tab = AnalyzeMultiFileTab(
-            datalog_dir=DATALOG_DIR,
+            datastatistik_dir=DATASTATISTIK_DIR,
             table_multi_file_dir=TABLE_MULTIFILE_DIR,
             themed_stat_message=self._show_statistik_message_box,
             parent=self,
