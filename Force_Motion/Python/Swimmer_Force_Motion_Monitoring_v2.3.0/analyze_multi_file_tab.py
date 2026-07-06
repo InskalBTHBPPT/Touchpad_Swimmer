@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import csv
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QShowEvent
+from PySide6.QtGui import QBrush, QColor, QFont, QShowEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -30,64 +31,39 @@ from parse_datastatistik_csv import StatistikExportRecord, parse_datastatistik_c
 
 MAX_FILES = 5
 HEADER_ROWS = 6
-DATA_ROWS = 32
-TOTAL_ROWS = HEADER_ROWS + DATA_ROWS
-
-METRIC_LABELS = [
-    "Metode statistik Force",
-    "Timestamp start uji (s)",
-    "Timestamp stop uji (s)",
-    "Durasi region data uji (s)",
-    "Jumlah siklus Andrade (n)",
-    "Filter Andrade cutoff (Hz)",
-    "Force peakF (Kg)",
-    "Timestamp Force peakF (s)",
-    "Force meanF (Kg)",
-    "Force ImpF (Kg·s)",
-    "Force TpeakF (s)",
-    "Force DUR (s)",
-    "Force RFD (Kg/s)",
-    "Force dF (%)",
-    "Fatigue Index FI (%)",
-    "Force minF (Kg)",
-    "Timestamp Force minF (s)",
-    "Roll minimum (Deg)",
-    "Timestamp Roll minimum (s)",
-    "Roll maksimum (Deg)",
-    "Timestamp Roll maksimum (s)",
-    "Pitch minimum (Deg)",
-    "Timestamp Pitch minimum (s)",
-    "Pitch maksimum (Deg)",
-    "Timestamp Pitch maksimum (s)",
-    "Frekuensi dominan Force (Hz)",
-    "Frekuensi dominan Roll (Hz)",
-    "Frekuensi dominan Pitch (Hz)",
-    "Metode spektrum",
-    "Gap — metode",
-    "Gap — Δt nominal (s)",
-    "Gap — sampel hilang (%)",
-]
-
-TABLE_MULTIFILE_DIRNAME = "TableMultiFile"
-TABLE_MULTIFILE_SUFFIX = "_TableMultiFile"
 EMPTY_CELL = "—"
 
+GROUP_REGION = "region"
+GROUP_FORCE = "force"
+GROUP_ROLL = "roll"
+GROUP_PITCH = "pitch"
+GROUP_SPECTRUM = "spectrum"
+GROUP_GAP = "gap"
 
-def _path_text_for_dialog(path: Path | str) -> str:
-    s = path.as_posix() if isinstance(path, Path) else str(path).replace("\\", "/")
-    if len(s) >= 3 and s[0].isalpha() and s[1] == ":" and s[2] == "/":
-        s = s[:2] + "\u2060" + s[2:]
-    return s
+
+@dataclass(frozen=True)
+class _GroupStyle:
+    accent: str
+    header_bg: str
+    row_bg: str
 
 
-def _fmt_cell(v: float | int | str | None) -> str:
-    if v is None:
-        return EMPTY_CELL
-    if isinstance(v, str):
-        return v.strip() if v.strip() else EMPTY_CELL
-    if isinstance(v, float):
-        return f"{v:.6g}"
-    return str(v)
+_GROUP_STYLES: dict[str, _GroupStyle] = {
+    GROUP_REGION: _GroupStyle("#cbd5e1", "#334155", "#1e293b"),
+    GROUP_FORCE: _GroupStyle("#38bdf8", "#0c4a6e", "#0b1220"),
+    GROUP_ROLL: _GroupStyle("#f59e0b", "#78350f", "#1a1208"),
+    GROUP_PITCH: _GroupStyle("#a78bfa", "#4c1d95", "#120f1f"),
+    GROUP_SPECTRUM: _GroupStyle("#34d399", "#065f46", "#0a1512"),
+    GROUP_GAP: _GroupStyle("#94a3b8", "#475569", "#151a22"),
+}
+
+
+@dataclass(frozen=True)
+class _TableRowSpec:
+    kind: str
+    group: str
+    label: str
+    getter: Callable[[StatistikExportRecord], str] | None = None
 
 
 def _force_method_text(rec: StatistikExportRecord) -> str:
@@ -101,41 +77,89 @@ def _force_method_text(rec: StatistikExportRecord) -> str:
     return label
 
 
-def _statistik_to_cells(rec: StatistikExportRecord) -> list[str]:
-    return [
-        _force_method_text(rec),
-        _fmt_cell(rec.timestamp_start_s),
-        _fmt_cell(rec.timestamp_stop_s),
-        _fmt_cell(rec.test_region_duration_s),
-        _fmt_cell(rec.force_stroke_count),
-        _fmt_cell(rec.andrade_filter_cutoff_hz),
-        _fmt_cell(rec.force_peak_kg),
-        _fmt_cell(rec.force_peak_t_s),
-        _fmt_cell(rec.force_mean_kg),
-        _fmt_cell(rec.force_impulse_kg_s),
-        _fmt_cell(rec.force_t_peak_f_s),
-        _fmt_cell(rec.force_dur_s),
-        _fmt_cell(rec.force_rfd_kg_s),
-        _fmt_cell(rec.force_df_pct),
-        _fmt_cell(rec.force_fi_pct),
-        _fmt_cell(rec.force_min_kg),
-        _fmt_cell(rec.force_min_t_s),
-        _fmt_cell(rec.roll_min_deg),
-        _fmt_cell(rec.roll_min_t_s),
-        _fmt_cell(rec.roll_max_deg),
-        _fmt_cell(rec.roll_max_t_s),
-        _fmt_cell(rec.pitch_min_deg),
-        _fmt_cell(rec.pitch_min_t_s),
-        _fmt_cell(rec.pitch_max_deg),
-        _fmt_cell(rec.pitch_max_t_s),
-        _fmt_cell(rec.dom_freq_force_hz),
-        _fmt_cell(rec.dom_freq_roll_hz),
-        _fmt_cell(rec.dom_freq_pitch_hz),
-        _fmt_cell(rec.spectrum_method),
-        _fmt_cell(rec.gap_method),
-        _fmt_cell(rec.gap_dt_nominal_s),
-        _fmt_cell(rec.gap_loss_pct),
-    ]
+def _fmt_cell(v: float | int | str | None) -> str:
+    if v is None:
+        return EMPTY_CELL
+    if isinstance(v, str):
+        return v.strip() if v.strip() else EMPTY_CELL
+    if isinstance(v, float):
+        return f"{v:.6g}"
+    return str(v)
+
+
+def _build_table_row_specs() -> list[_TableRowSpec]:
+    specs: list[_TableRowSpec] = []
+
+    def grp(title: str, group: str) -> None:
+        specs.append(_TableRowSpec("group", group, title, None))
+
+    def met(group: str, label: str, fn: Callable[[StatistikExportRecord], str]) -> None:
+        specs.append(_TableRowSpec("metric", group, label, fn))
+
+    grp("Region uji", GROUP_REGION)
+    met(GROUP_REGION, "Timestamp start uji (s)", lambda r: _fmt_cell(r.timestamp_start_s))
+    met(GROUP_REGION, "Timestamp stop uji (s)", lambda r: _fmt_cell(r.timestamp_stop_s))
+    met(GROUP_REGION, "Durasi region data uji (s)", lambda r: _fmt_cell(r.test_region_duration_s))
+
+    grp("Force", GROUP_FORCE)
+    met(GROUP_FORCE, "Metode statistik Force", _force_method_text)
+    met(GROUP_FORCE, "Jumlah siklus Andrade (n)", lambda r: _fmt_cell(r.force_stroke_count))
+    met(GROUP_FORCE, "Filter Andrade cutoff (Hz)", lambda r: _fmt_cell(r.andrade_filter_cutoff_hz))
+    met(GROUP_FORCE, "peakF (Kg)", lambda r: _fmt_cell(r.force_peak_kg))
+    met(GROUP_FORCE, "Timestamp peakF (s)", lambda r: _fmt_cell(r.force_peak_t_s))
+    met(GROUP_FORCE, "meanF (Kg)", lambda r: _fmt_cell(r.force_mean_kg))
+    met(GROUP_FORCE, "ImpF (Kg·s)", lambda r: _fmt_cell(r.force_impulse_kg_s))
+    met(GROUP_FORCE, "TpeakF (s)", lambda r: _fmt_cell(r.force_t_peak_f_s))
+    met(GROUP_FORCE, "DUR (s)", lambda r: _fmt_cell(r.force_dur_s))
+    met(GROUP_FORCE, "RFD (Kg/s)", lambda r: _fmt_cell(r.force_rfd_kg_s))
+    met(GROUP_FORCE, "dF (%)", lambda r: _fmt_cell(r.force_df_pct))
+    met(GROUP_FORCE, "Fatigue Index FI (%)", lambda r: _fmt_cell(r.force_fi_pct))
+    met(GROUP_FORCE, "minF (Kg)", lambda r: _fmt_cell(r.force_min_kg))
+    met(GROUP_FORCE, "Timestamp minF (s)", lambda r: _fmt_cell(r.force_min_t_s))
+    met(GROUP_FORCE, "Frekuensi dominan (Hz)", lambda r: _fmt_cell(r.dom_freq_force_hz))
+
+    grp("Roll", GROUP_ROLL)
+    met(GROUP_ROLL, "Minimum (Deg)", lambda r: _fmt_cell(r.roll_min_deg))
+    met(GROUP_ROLL, "Timestamp minimum (s)", lambda r: _fmt_cell(r.roll_min_t_s))
+    met(GROUP_ROLL, "Maksimum (Deg)", lambda r: _fmt_cell(r.roll_max_deg))
+    met(GROUP_ROLL, "Timestamp maksimum (s)", lambda r: _fmt_cell(r.roll_max_t_s))
+    met(GROUP_ROLL, "Frekuensi dominan (Hz)", lambda r: _fmt_cell(r.dom_freq_roll_hz))
+
+    grp("Pitch", GROUP_PITCH)
+    met(GROUP_PITCH, "Minimum (Deg)", lambda r: _fmt_cell(r.pitch_min_deg))
+    met(GROUP_PITCH, "Timestamp minimum (s)", lambda r: _fmt_cell(r.pitch_min_t_s))
+    met(GROUP_PITCH, "Maksimum (Deg)", lambda r: _fmt_cell(r.pitch_max_deg))
+    met(GROUP_PITCH, "Timestamp maksimum (s)", lambda r: _fmt_cell(r.pitch_max_t_s))
+    met(GROUP_PITCH, "Frekuensi dominan (Hz)", lambda r: _fmt_cell(r.dom_freq_pitch_hz))
+
+    grp("Metode spektrum", GROUP_SPECTRUM)
+    met(GROUP_SPECTRUM, "Metode", lambda r: _fmt_cell(r.spectrum_method))
+
+    grp("Gap rekaman CSV", GROUP_GAP)
+    met(GROUP_GAP, "Metode", lambda r: _fmt_cell(r.gap_method))
+    met(GROUP_GAP, "Δt nominal (s)", lambda r: _fmt_cell(r.gap_dt_nominal_s))
+    met(GROUP_GAP, "Sampel hilang (%)", lambda r: _fmt_cell(r.gap_loss_pct))
+
+    return specs
+
+
+TABLE_ROWS = _build_table_row_specs()
+DATA_ROWS = len(TABLE_ROWS)
+TOTAL_ROWS = HEADER_ROWS + DATA_ROWS
+
+TABLE_MULTIFILE_DIRNAME = "TableMultiFile"
+TABLE_MULTIFILE_SUFFIX = "_TableMultiFile"
+
+
+def _path_text_for_dialog(path: Path | str) -> str:
+    s = path.as_posix() if isinstance(path, Path) else str(path).replace("\\", "/")
+    if len(s) >= 3 and s[0].isalpha() and s[1] == ":" and s[2] == "/":
+        s = s[:2] + "\u2060" + s[2:]
+    return s
+
+
+def _group_style(group: str) -> _GroupStyle:
+    return _GROUP_STYLES.get(group, _GROUP_STYLES[GROUP_REGION])
 
 
 class AnalyzeMultiFileTab(QWidget):
@@ -345,6 +369,36 @@ class AnalyzeMultiFileTab(QWidget):
             )
         return it
 
+    def _make_group_header_item(self, text: str, style: _GroupStyle) -> QTableWidgetItem:
+        it = QTableWidgetItem(text)
+        it.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        f = QFont("Segoe UI", 10)
+        f.setBold(True)
+        it.setFont(f)
+        it.setBackground(QBrush(QColor(style.header_bg)))
+        it.setForeground(QBrush(QColor(style.accent)))
+        align = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        it.setTextAlignment(align)
+        return it
+
+    def _make_param_item(self, text: str, style: _GroupStyle) -> QTableWidgetItem:
+        it = QTableWidgetItem(text)
+        it.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        it.setBackground(QBrush(QColor(style.row_bg)))
+        it.setForeground(QBrush(QColor("#9ca3af")))
+        it.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        return it
+
+    def _make_value_item(self, text: str, style: _GroupStyle) -> QTableWidgetItem:
+        it = QTableWidgetItem(text)
+        it.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        it.setBackground(QBrush(QColor(style.row_bg)))
+        it.setForeground(QBrush(QColor(style.accent)))
+        it.setTextAlignment(
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+        )
+        return it
+
     def _on_add_file(self) -> None:
         if len(self._entries) >= MAX_FILES:
             self._themed_stat_message(
@@ -397,8 +451,15 @@ class AnalyzeMultiFileTab(QWidget):
         self.table.setRowCount(TOTAL_ROWS)
         self.table.setItem(0, 0, self._make_item("Metrik", header=True))
         self.table.setSpan(0, 0, HEADER_ROWS, 1)
-        for i, label in enumerate(METRIC_LABELS):
-            self.table.setItem(HEADER_ROWS + i, 0, self._make_item(label))
+        for i, spec in enumerate(TABLE_ROWS):
+            row = HEADER_ROWS + i
+            style = _group_style(spec.group)
+            if spec.kind == "group":
+                for c in range(cols):
+                    label = spec.label if c == 0 else ""
+                    self.table.setItem(row, c, self._make_group_header_item(label, style))
+            else:
+                self.table.setItem(row, 0, self._make_param_item(spec.label, style))
         for j, ent in enumerate(self._entries, start=1):
             self._set_column_headers(
                 j,
@@ -430,10 +491,13 @@ class AnalyzeMultiFileTab(QWidget):
         self.table.setItem(5, col, self._make_item("Value", value_header=True))
 
     def _fill_metrics_column(self, col: int, rec: StatistikExportRecord) -> None:
-        cells = _statistik_to_cells(rec)
-        for i, text in enumerate(cells):
+        for i, spec in enumerate(TABLE_ROWS):
+            if spec.kind != "metric" or spec.getter is None:
+                continue
             row = HEADER_ROWS + i
-            self.table.setItem(row, col, self._make_item(text))
+            style = _group_style(spec.group)
+            text = spec.getter(rec)
+            self.table.setItem(row, col, self._make_value_item(text, style))
 
     def _on_save_csv(self) -> None:
         self._themed_stat_message(
