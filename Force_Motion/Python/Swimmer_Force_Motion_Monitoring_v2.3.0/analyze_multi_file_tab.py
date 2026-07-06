@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -32,6 +33,11 @@ from parse_datastatistik_csv import StatistikExportRecord, parse_datastatistik_c
 MAX_FILES = 5
 HEADER_ROWS = 6
 EMPTY_CELL = "—"
+DATA_COLUMN_WIDTH_PX = 168
+HEADER_WRAP_CHARS = 22
+HEADER_ROW_DEFAULT_HEIGHT = 28
+HEADER_ROW_FILENAME = 2
+HEADER_ROW_SOURCE = 4
 
 GROUP_REGION = "region"
 GROUP_OFFSET = "offset"
@@ -93,6 +99,27 @@ def _fmt_cell(v: float | int | str | None) -> str:
 
 def _fmt_bool(v: bool) -> str:
     return "Ya" if v else "Tidak"
+
+
+def _wrap_header_text(text: str, *, width: int = HEADER_WRAP_CHARS) -> str:
+    """Pecah teks panjang (nama berkas) menjadi beberapa baris untuk header kolom."""
+    if not text or text == EMPTY_CELL or len(text) <= width:
+        return text
+    lines: list[str] = []
+    rest = text
+    while rest:
+        if len(rest) <= width:
+            lines.append(rest)
+            break
+        chunk = rest[:width]
+        break_at = max(chunk.rfind("_"), chunk.rfind("-"), chunk.rfind("."))
+        if break_at > width // 3:
+            lines.append(rest[: break_at + 1])
+            rest = rest[break_at + 1 :]
+        else:
+            lines.append(chunk)
+            rest = rest[width:]
+    return "\n".join(lines)
 
 
 def _build_table_row_specs() -> list[_TableRowSpec]:
@@ -409,17 +436,28 @@ class AnalyzeMultiFileTab(QWidget):
             "Fitur plot perbandingan belum diaktifkan.",
         )
 
-    def _make_item(self, text: str, *, header: bool = False, value_header: bool = False) -> QTableWidgetItem:
+    def _make_item(
+        self,
+        text: str,
+        *,
+        header: bool = False,
+        value_header: bool = False,
+        tooltip: str | None = None,
+    ) -> QTableWidgetItem:
         it = QTableWidgetItem(text)
         it.setFlags(Qt.ItemFlag.ItemIsEnabled)
         f = QFont("Segoe UI", 10)
         if header or value_header:
             f.setBold(True)
         it.setFont(f)
+        if tooltip:
+            it.setToolTip(tooltip)
         if header:
             it.setBackground(QColor("#bbf7d0"))
             it.setForeground(QColor("#14532d"))
-            it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            it.setTextAlignment(
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+            )
         elif value_header:
             it.setBackground(QColor("#bae6fd"))
             it.setForeground(QColor("#0c4a6e"))
@@ -534,7 +572,24 @@ class AnalyzeMultiFileTab(QWidget):
             rec = ent["record"]
             assert isinstance(rec, StatistikExportRecord)
             self._fill_metrics_column(j, rec)
-        self.table.resizeColumnsToContents()
+        self._apply_table_column_layout()
+        self._apply_header_row_heights()
+
+    def _apply_table_column_layout(self) -> None:
+        hdr = self.table.horizontalHeader()
+        hdr.setStretchLastSection(False)
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        for c in range(1, self.table.columnCount()):
+            hdr.setSectionResizeMode(c, QHeaderView.ResizeMode.Fixed)
+            self.table.setColumnWidth(c, DATA_COLUMN_WIDTH_PX)
+        self.table.resizeColumnToContents(0)
+
+    def _apply_header_row_heights(self) -> None:
+        for row in range(HEADER_ROWS):
+            if row in (HEADER_ROW_FILENAME, HEADER_ROW_SOURCE):
+                self.table.resizeRowToContents(row)
+            else:
+                self.table.setRowHeight(row, HEADER_ROW_DEFAULT_HEIGHT)
 
     def _set_column_headers(
         self,
@@ -547,9 +602,25 @@ class AnalyzeMultiFileTab(QWidget):
     ) -> None:
         self.table.setItem(0, col, self._make_item(swimmer, header=True))
         self.table.setItem(1, col, self._make_item(stroke, header=True))
-        self.table.setItem(2, col, self._make_item(filename, header=True))
+        self.table.setItem(
+            2,
+            col,
+            self._make_item(
+                _wrap_header_text(filename),
+                header=True,
+                tooltip=filename,
+            ),
+        )
         self.table.setItem(3, col, self._make_item(exported_at, header=True))
-        self.table.setItem(4, col, self._make_item(source_file, header=True))
+        self.table.setItem(
+            4,
+            col,
+            self._make_item(
+                _wrap_header_text(source_file),
+                header=True,
+                tooltip=source_file,
+            ),
+        )
         self.table.setItem(5, col, self._make_item("Value", value_header=True))
 
     def _fill_metrics_column(self, col: int, rec: StatistikExportRecord) -> None:
@@ -583,7 +654,8 @@ class AnalyzeMultiFileTab(QWidget):
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
-        self.table.resizeColumnsToContents()
+        self._apply_table_column_layout()
+        self._apply_header_row_heights()
 
 
 class MultiFilePlotDialog(QDialog):
