@@ -263,11 +263,12 @@ PLOT_METRIC_SPECS: list[
 ]
 
 
-def _short_label(s: str, max_len: int = 22) -> str:
-    s = s.strip()
-    if len(s) <= max_len:
-        return s
-    return s[: max_len - 1] + "…"
+def _plot_point_tip(y_value: float | None, filename: str) -> str:
+    if y_value is None:
+        y_text = "—"
+    else:
+        y_text = f"{float(y_value):.6g}"
+    return f"Value: {y_text}\nNama file: {filename}"
 
 
 def _group_style(group: str) -> _GroupStyle:
@@ -689,7 +690,7 @@ class MultiFilePlotDialog(QDialog):
         self._pw.showGrid(x=False, y=True, alpha=0.25)
         self._pw.setLabel(
             "bottom",
-            "Urutan kolom (berkas dimuat)",
+            "Nomor kolom",
             color="#e5e7eb",
             **{"font-size": "10pt"},
         )
@@ -740,7 +741,7 @@ class MultiFilePlotDialog(QDialog):
 
     def _gather_series(
         self,
-    ) -> tuple[list[str], list[float | None], str, str]:
+    ) -> tuple[list[str], list[float | None], list[str], str, str]:
         entries = self._tab._entries
         ix = self._metric_combo.currentIndex()
         if ix < 0 or ix >= len(PLOT_METRIC_SPECS):
@@ -748,19 +749,54 @@ class MultiFilePlotDialog(QDialog):
         title_combo, y_axis_label, extractor = PLOT_METRIC_SPECS[ix]
         x_labels: list[str] = []
         y_raw: list[float | None] = []
-        for ent in entries:
+        filenames: list[str] = []
+        for col_idx, ent in enumerate(entries, start=1):
             rec = ent["record"]
             assert isinstance(rec, StatistikExportRecord)
             v = extractor(rec)
-            sw = str(ent["swimmer"]).strip()
-            fn = str(ent["filename"])
-            lab = sw if sw and sw not in ("—", "-") else fn
-            x_labels.append(_short_label(lab, 22))
+            x_labels.append(str(col_idx))
+            filenames.append(str(ent["filename"]))
             y_raw.append(float(v) if v is not None else None)
-        return x_labels, y_raw, y_axis_label, title_combo
+        return x_labels, y_raw, filenames, y_axis_label, title_combo
+
+    def _add_hover_markers(
+        self,
+        x: np.ndarray,
+        y_plot: np.ndarray,
+        y_raw: list[float | None],
+        filenames: list[str],
+    ) -> None:
+        spots: list[dict[str, object]] = []
+        for i in range(len(y_plot)):
+            spots.append(
+                {
+                    "pos": (float(x[i]), float(y_plot[i])),
+                    "size": 18,
+                    "brush": pg.mkBrush(0, 0, 0, 0),
+                    "pen": pg.mkPen(None),
+                    "data": {
+                        "y_raw": y_raw[i],
+                        "filename": filenames[i],
+                    },
+                }
+            )
+
+        def _tip(_x: float, _y: float, data: object) -> str:
+            if not isinstance(data, dict):
+                return ""
+            y_val = data.get("y_raw")
+            filename = str(data.get("filename") or "")
+            return _plot_point_tip(
+                float(y_val) if y_val is not None else None,
+                filename,
+            )
+
+        hover = pg.ScatterPlotItem(hoverable=True, pxMode=True, tip=_tip)
+        hover.addPoints(spots)
+        self._pw.addItem(hover)
 
     def _redraw(self) -> None:
-        x_labels, y_raw, y_axis_label, title_combo = self._gather_series()
+        x_labels, y_raw, filenames, y_axis_label, title_combo = self._gather_series()
         n = len(y_raw)
         self._pw.clear()
         self.setWindowTitle(f"Plot — {title_combo}")
@@ -779,11 +815,14 @@ class MultiFilePlotDialog(QDialog):
 
         if any(x is None for x in y_raw):
             self._footnote_lbl.setText(
-                "Catatan: nilai yang tidak tersedia (mis. metrik kosong pada ekspor) "
-                "ditampilkan sebagai 0 pada diagram."
+                "Catatan: nilai yang tidak tersedia ditampilkan sebagai 0 pada diagram. "
+                "Arahkan kursor ke penanda/batang untuk nilai asli dan nama file."
             )
         else:
-            self._footnote_lbl.setText("Nilai diambil dari ekspor DataStatistik tab Analisa.")
+            self._footnote_lbl.setText(
+                "Arahkan kursor ke penanda/batang untuk melihat nilai dan nama file. "
+                "Nilai dari ekspor DataStatistik tab Analisa."
+            )
 
         y_plot = np.array([0.0 if x is None else float(x) for x in y_raw], dtype=np.float64)
         x = np.arange(n, dtype=float)
@@ -829,6 +868,8 @@ class MultiFilePlotDialog(QDialog):
                 symbolBrush=sym_brush,
                 symbolPen=sym_pen,
             )
+
+        self._add_hover_markers(x, y_plot, y_raw, filenames)
 
         vb = self._pw.getViewBox()
         vb.setLimits(xMin=-0.6, xMax=max(float(n - 1) + 0.6, 0.6))
