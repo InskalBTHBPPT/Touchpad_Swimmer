@@ -247,7 +247,12 @@ from PySide6.QtWidgets import (
 )
 
 from analyze_multi_file_tab import AnalyzeMultiFileTab
-from analyze_single_file_tab import AnalyzeSingleFileTab, make_three_stack_plots, wrap_in_scroll_area
+from analyze_single_file_tab import (
+    APP_QTOOLTIP_STYLESHEET,
+    AnalyzeSingleFileTab,
+    make_three_stack_plots,
+    wrap_in_scroll_area,
+)
 from live_camera_panel import LiveCameraPanel
 from live_csv_io import LIVE_CSV_DATA_HEADER
 
@@ -658,6 +663,7 @@ class MainWindow(QMainWindow):
                 background-color: #334155;
             }
             """
+            + APP_QTOOLTIP_STYLESHEET
         )
 
     def refresh_ports(self) -> None:

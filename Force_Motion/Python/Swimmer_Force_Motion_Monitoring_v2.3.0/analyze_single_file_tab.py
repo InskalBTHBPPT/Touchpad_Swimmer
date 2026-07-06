@@ -612,7 +612,24 @@ def make_analyze_time_spectrum_row(
     return time_w, time_c, spec_w, spec_c
 
 
-_ANALYZE_SETTINGS_DIALOG_STYLESHEET = """
+APP_QTOOLTIP_STYLESHEET = """
+QToolTip {
+    color: #0f172a;
+    background-color: #f8fafc;
+    border: 1px solid #64748b;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 10pt;
+}
+"""
+
+
+def _tooltip(*lines: str) -> str:
+    return "\n".join(lines)
+
+
+_ANALYZE_SETTINGS_DIALOG_STYLESHEET = (
+    """
 QDialog { background-color: #1f2937; }
 QDialog QLabel { color: #e5e7eb; }
 QDialog QCheckBox { color: #e5e7eb; spacing: 8px; }
@@ -623,8 +640,21 @@ QDialog QComboBox {
     padding: 6px;
     border-radius: 8px;
 }
+QDialog QDoubleSpinBox {
+    background: #374151;
+    color: #e5e7eb;
+    border: 1px solid #4b5563;
+    padding: 4px 6px;
+    border-radius: 8px;
+}
+QDialog QDoubleSpinBox:disabled {
+    background: #2d3643;
+    color: #9ca3af;
+}
 QDialog QRadioButton { color: #e5e7eb; spacing: 8px; }
 """
+    + APP_QTOOLTIP_STYLESHEET
+)
 
 
 class AnalyzeSettingsDialog(QDialog):
@@ -772,9 +802,11 @@ class AnalyzeSingleFileTab(QWidget):
 
         self.video_panel = AnalyzeVideoPanel(self)
         self.video_panel.setToolTip(
-            "Sinkron dengan plot: garis vertikal pink = posisi video pada sumbu "
-            "Time (s). Rekaman baru memakai metadata SyncCsvT0 di CSV; file lama "
-            "memakai TimeStamp baris pertama + detik video."
+            _tooltip(
+                "Sinkron dengan plot: garis vertikal pink = posisi video pada sumbu Time (s).",
+                "Rekaman baru memakai metadata SyncCsvT0 di CSV.",
+                "File lama memakai TimeStamp baris pertama + detik video.",
+            )
         )
         self.video_panel.position_changed.connect(self._on_video_position_changed)
         self.video_panel.load_video_requested.connect(self.load_video)
@@ -794,8 +826,10 @@ class AnalyzeSingleFileTab(QWidget):
         spectrum_lbl = QLabel("Metode spektrum (statistik):", self)
         spectrum_lbl.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
         spectrum_lbl.setToolTip(
-            "Frekuensi dominan pada kartu statistik dan ekspor DataStatistik "
-            "(plot spektrum tidak ditampilkan)."
+            _tooltip(
+                "Frekuensi dominan pada kartu statistik dan ekspor DataStatistik.",
+                "Plot spektrum tidak ditampilkan di v2.3.0.",
+            )
         )
         self._spectrum_method_combo = QComboBox(self)
         self._spectrum_method_combo.addItem("FFT", userData=False)
@@ -813,9 +847,11 @@ class AnalyzeSingleFileTab(QWidget):
         self._zero_offset_checkbox = QCheckBox("Zero Offset", self)
         self._zero_offset_checkbox.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
         self._zero_offset_checkbox.setToolTip(
-            "Tampilkan region offset (hijau) di awal plot dan region data uji setelah "
-            f"jeda {_ZERO_OFFSET_TEST_GAP_S:.0f} s. Gunakan tombol Zero Offset untuk "
-            "mengurangi rata-rata region offset dari seluruh data."
+            _tooltip(
+                "Tampilkan region offset (hijau) di awal plot.",
+                f"Region data uji dimulai setelah jeda {_ZERO_OFFSET_TEST_GAP_S:.0f} s.",
+                "Tombol Zero Offset mengurangi rata-rata region offset dari seluruh data.",
+            )
         )
         self._zero_offset_checkbox.toggled.connect(self._on_zero_offset_checkbox_changed)
         settings_inner.addWidget(self._zero_offset_checkbox)
@@ -827,8 +863,10 @@ class AnalyzeSingleFileTab(QWidget):
         )
         self._tether_angle_checkbox.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
         self._tether_angle_checkbox.setToolTip(
-            "Gaya horizontal = Force terukur × cos(sudut). "
-            "Sudut diukur di atas permukaan air (horizontal = 0°)."
+            _tooltip(
+                "Gaya horizontal = Force terukur × cos(sudut).",
+                "Sudut diukur di atas permukaan air (horizontal = 0°).",
+            )
         )
         self._tether_angle_checkbox.toggled.connect(self._on_tether_angle_setting_changed)
         self._tether_angle_spin = QDoubleSpinBox(self)
@@ -840,7 +878,10 @@ class AnalyzeSingleFileTab(QWidget):
         self._tether_angle_spin.setEnabled(False)
         self._tether_angle_spin.setMinimumWidth(96)
         self._tether_angle_spin.setToolTip(
-            "Sudut tali terhadap permukaan air (derajat, dua desimal)."
+            _tooltip(
+                "Sudut tali terhadap permukaan air.",
+                "Format derajat, dua desimal.",
+            )
         )
         self._tether_angle_spin.valueChanged.connect(self._on_tether_angle_setting_changed)
         tether_angle_row.addWidget(self._tether_angle_checkbox, 0)
@@ -860,9 +901,11 @@ class AnalyzeSingleFileTab(QWidget):
         self.segment_info_label.setStyleSheet("color: #9ca3af; font-size: 10pt;")
         self.segment_info_label.setWordWrap(True)
         self.segment_info_label.setToolTip(
-            "Geser tepi area berwarna pada plot Force untuk membatasi region data uji. "
-            "Roll dan Pitch menampilkan area yang sama; statistik "
-            "dihitung hanya pada sampel di dalam region."
+            _tooltip(
+                "Geser tepi area berwarna pada plot Force untuk membatasi region data uji.",
+                "Roll dan Pitch menampilkan area yang sama.",
+                "Statistik dihitung hanya pada sampel di dalam region.",
+            )
         )
         settings_inner.addWidget(self.segment_info_label)
 
@@ -874,11 +917,16 @@ class AnalyzeSingleFileTab(QWidget):
         self._gap_method_a_radio = QRadioButton("Metode A — per gap (lokal)", self)
         self._gap_method_b_radio = QRadioButton("Metode B — global (ringkas)", self)
         self._gap_method_a_radio.setToolTip(
-            "Jumlahkan sampel hilang per lubang Δt antar baris berurutan "
-            f"(gap jika Δt > {GAP_LOSS_TOLERANCE_FACTOR:.1f}× median Δt)."
+            _tooltip(
+                "Jumlahkan sampel hilang per lubang Δt antar baris berurutan.",
+                f"Gap jika Δt > {GAP_LOSS_TOLERANCE_FACTOR:.1f}× median Δt.",
+            )
         )
         self._gap_method_b_radio.setToolTip(
-            "Bandingkan jumlah baris aktual dengan perkiraan dari durasi ÷ median Δt."
+            _tooltip(
+                "Bandingkan jumlah baris aktual",
+                "dengan perkiraan dari durasi ÷ median Δt.",
+            )
         )
         for rb in (self._gap_method_a_radio, self._gap_method_b_radio):
             rb.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
@@ -899,8 +947,11 @@ class AnalyzeSingleFileTab(QWidget):
         self.settings_btn = QPushButton("Setting…", self)
         self.settings_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
         self.settings_btn.setToolTip(
-            "Buka pengaturan analisa: metode spektrum, koreksi sudut tali, "
-            "zero offset, segmen waktu, metode gap CSV."
+            _tooltip(
+                "Buka pengaturan analisa:",
+                "metode spektrum, koreksi sudut tali, zero offset,",
+                "segmen waktu, metode gap CSV.",
+            )
         )
         self.settings_btn.clicked.connect(self._show_analyze_settings)
         stats_actions.addWidget(self.settings_btn, 0)
@@ -909,8 +960,10 @@ class AnalyzeSingleFileTab(QWidget):
         self.zero_offset_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
         self.zero_offset_btn.setEnabled(False)
         self.zero_offset_btn.setToolTip(
-            "Kurangi rata-rata tiap saluran pada region offset hijau dari seluruh data, "
-            "lalu hitung ulang statistik pada region data uji."
+            _tooltip(
+                "Kurangi rata-rata tiap saluran pada region offset hijau.",
+                "Hitung ulang statistik pada region data uji.",
+            )
         )
         self.zero_offset_btn.clicked.connect(self._on_zero_offset_button_clicked)
         stats_actions.addWidget(self.zero_offset_btn, 0)
@@ -919,8 +972,10 @@ class AnalyzeSingleFileTab(QWidget):
         self.save_stats_btn = QPushButton("Simpan statistik…", self)
         self.save_stats_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
         self.save_stats_btn.setToolTip(
-            "Simpan langsung ke folder DataStatistik/ di samping DataLog: "
-            "<nama_file_log>_DataStaistik.csv (UTF-8), tanpa dialog Save As."
+            _tooltip(
+                "Simpan langsung ke folder DataStatistik/ di samping DataLog.",
+                "<nama_file_log>_DataStaistik.csv (UTF-8), tanpa dialog Save As.",
+            )
         )
         self.save_stats_btn.setEnabled(False)
         self.save_stats_btn.clicked.connect(self.save_statistics_csv)
