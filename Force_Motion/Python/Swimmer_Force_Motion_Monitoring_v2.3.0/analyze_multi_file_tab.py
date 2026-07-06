@@ -271,6 +271,18 @@ def _plot_point_tip(y_value: float | None, filename: str) -> str:
     return f"Value: {y_text}\nNama file: {filename}"
 
 
+def _scatter_hover_tip(x: float, y: float, data: object) -> str:
+    """Callback ``tip`` untuk ``ScatterPlotItem`` (pyqtgraph memanggil dengan x, y, data)."""
+    del x, y
+    if not isinstance(data, dict):
+        return ""
+    y_val = data.get("y_raw")
+    filename = str(data.get("filename") or "")
+    if y_val is None:
+        return _plot_point_tip(None, filename)
+    return _plot_point_tip(float(y_val), filename)
+
+
 def _group_style(group: str) -> _GroupStyle:
     return _GROUP_STYLES.get(group, _GROUP_STYLES[GROUP_REGION])
 
@@ -781,19 +793,11 @@ class MultiFilePlotDialog(QDialog):
                 }
             )
 
-        def _tip(_x: float, _y: float, data: object) -> str:
-            if not isinstance(data, dict):
-                return ""
-            y_val = data.get("y_raw")
-            filename = str(data.get("filename") or "")
-            return _plot_point_tip(
-                float(y_val) if y_val is not None else None,
-                filename,
-            )
-
-        hover = pg.ScatterPlotItem(hoverable=True, pxMode=True, tip=_tip)
+        hover = pg.ScatterPlotItem(hoverable=True, pxMode=True, tip=_scatter_hover_tip)
         hover.addPoints(spots)
+        hover.setZValue(100)
         self._pw.addItem(hover)
+        self._pw.setMouseTracking(True)
 
     def _redraw(self) -> None:
         x_labels, y_raw, filenames, y_axis_label, title_combo = self._gather_series()
