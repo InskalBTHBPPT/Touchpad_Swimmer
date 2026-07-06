@@ -637,7 +637,7 @@ def make_analyze_time_spectrum_row(
 
 APP_QTOOLTIP_STYLESHEET = """
 QToolTip {
-    color: #0f172a;
+    color: #000000;
     background-color: #f8fafc;
     border: 1px solid #64748b;
     border-radius: 6px;
@@ -759,9 +759,6 @@ class AnalyzeSingleFileTab(QWidget):
         self._segment_region_pitch: pg.LinearRegionItem | None = None
         self._offset_syncing = False
         self._segment_syncing = False
-        self._offset_applied = False
-        self._offset_stale = False
-        self._offset_applied_bounds: tuple[float, float] | None = None
         self._offset_mean_f = 0.0
         self._offset_mean_r = 0.0
         self._offset_mean_p = 0.0
@@ -879,9 +876,10 @@ class AnalyzeSingleFileTab(QWidget):
         )
         self._zero_offset_checkbox.setToolTip(
             _tooltip(
-                "Tampilkan region offset (hijau) di awal plot.",
+                "Tampilkan region offset (hijau) dan kurangi rata-rata",
+                "dari seluruh deret Force, Roll, dan Pitch.",
                 f"Region data uji dimulai setelah jeda {_ZERO_OFFSET_TEST_GAP_S:.0f} s.",
-                "Tombol Zero Offset mengurangi rata-rata region offset dari seluruh data.",
+                "Geser region offset untuk menyesuaikan baseline.",
             )
         )
         self._zero_offset_checkbox.toggled.connect(self._on_zero_offset_checkbox_changed)
@@ -994,18 +992,6 @@ class AnalyzeSingleFileTab(QWidget):
         )
         self.settings_btn.clicked.connect(self._show_analyze_settings)
         stats_actions.addWidget(self.settings_btn, 0)
-
-        self.zero_offset_btn = QPushButton("Zero Offset", self)
-        self.zero_offset_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
-        self.zero_offset_btn.setEnabled(False)
-        self.zero_offset_btn.setToolTip(
-            _tooltip(
-                "Kurangi rata-rata tiap saluran pada region offset hijau.",
-                "Hitung ulang statistik pada region data uji.",
-            )
-        )
-        self.zero_offset_btn.clicked.connect(self._on_zero_offset_button_clicked)
-        stats_actions.addWidget(self.zero_offset_btn, 0)
         stats_actions.addStretch(1)
 
         self.save_stats_btn = QPushButton("Simpan statistik…", self)
@@ -1020,12 +1006,6 @@ class AnalyzeSingleFileTab(QWidget):
         self.save_stats_btn.clicked.connect(self.save_statistics_csv)
         stats_actions.addWidget(self.save_stats_btn, 0)
         stats_inner.addLayout(stats_actions)
-
-        self._offset_stale_label = QLabel("", self)
-        self._offset_stale_label.setStyleSheet("color: #fbbf24; font-size: 9pt;")
-        self._offset_stale_label.setWordWrap(True)
-        self._offset_stale_label.setVisible(False)
-        stats_inner.addWidget(self._offset_stale_label)
 
         self.stats_table = QTableWidget(self.stats_group)
         _configure_stats_matrix_table(self.stats_table)
@@ -1136,14 +1116,6 @@ class AnalyzeSingleFileTab(QWidget):
             line.setPos(csv_t)
             line.setVisible(True)
 
-    @staticmethod
-    def _bounds_equal(
-        a: tuple[float, float] | None, b: tuple[float, float] | None, *, eps: float = _BOUNDS_EPS_S
-    ) -> bool:
-        if a is None or b is None:
-            return False
-        return abs(a[0] - b[0]) <= eps and abs(a[1] - b[1]) <= eps
-
     def _store_raw_copy(self) -> None:
         if self._loaded_ts is None:
             self._raw_ts = None
@@ -1169,7 +1141,7 @@ class AnalyzeSingleFileTab(QWidget):
             return
         scale = self._tether_angle_scale()
         self._loaded_ts = list(self._raw_ts)
-        if self._offset_applied:
+        if self._zero_offset_mode():
             self._loaded_f = [
                 (v - self._offset_mean_f) * scale for v in self._raw_f  # type: ignore[union-attr]
             ]
@@ -1269,33 +1241,11 @@ class AnalyzeSingleFileTab(QWidget):
         if not self._zero_offset_mode():
             return None, None, None
         scale = self._tether_angle_scale()
-        if self._offset_applied:
-            return (
-                self._offset_mean_f * scale,
-                self._offset_mean_r,
-                self._offset_mean_p,
-            )
-        if (
-            self._raw_ts is None
-            or self._raw_f is None
-            or self._raw_r is None
-            or self._raw_p is None
-        ):
-            return None, None, None
-        bounds = self._offset_time_bounds()
-        if bounds is None:
-            return None, None, None
-        means = self._means_in_bounds(
-            self._raw_ts,
-            self._raw_f,
-            self._raw_r,
-            self._raw_p,
-            bounds[0],
-            bounds[1],
+        return (
+            self._offset_mean_f * scale,
+            self._offset_mean_r,
+            self._offset_mean_p,
         )
-        if means is None:
-            return None, None, None
-        return means[0] * scale, means[1], means[2]
 
     def _on_tether_angle_setting_changed(self, *_args: object) -> None:
         self._tether_angle_spin.setEnabled(self._tether_angle_correction_enabled())
@@ -1512,60 +1462,6 @@ class AnalyzeSingleFileTab(QWidget):
             self._segment_syncing = False
             self._sync_mirror_segment_regions(t_lo, t_hi)
 
-    def _update_zero_offset_ui(self) -> None:
-        has_data = self._raw_ts is not None
-        mode = self._zero_offset_mode()
-        self.zero_offset_btn.setEnabled(has_data and mode)
-        if not has_data or not mode:
-            self.zero_offset_btn.setText("Zero Offset")
-            self._offset_stale_label.setVisible(False)
-            return
-        if self._offset_applied and not self._offset_stale:
-            self.zero_offset_btn.setText("Reset Offset")
-        else:
-            self.zero_offset_btn.setText("Zero Offset")
-        stale_visible = self._offset_applied and self._offset_stale
-        self._offset_stale_label.setVisible(stale_visible)
-        if stale_visible:
-            self._offset_stale_label.setText(
-                "Region offset berubah — terapkan ulang Zero Offset."
-            )
-
-    def _mark_offset_stale_if_needed(self) -> None:
-        if not self._offset_applied:
-            return
-        current = self._offset_time_bounds()
-        if not self._bounds_equal(current, self._offset_applied_bounds):
-            self._offset_stale = True
-        self._update_zero_offset_ui()
-
-    def _patch_snapshot_offset_bounds(self) -> None:
-        if self._stats_snapshot is None:
-            return
-        if self._zero_offset_mode():
-            bounds = self._offset_time_bounds()
-            if bounds is not None:
-                self._stats_snapshot["zero_offset_start_s"] = float(bounds[0])
-                self._stats_snapshot["zero_offset_stop_s"] = float(bounds[1])
-            else:
-                self._stats_snapshot["zero_offset_start_s"] = None
-                self._stats_snapshot["zero_offset_stop_s"] = None
-        else:
-            self._stats_snapshot["zero_offset_start_s"] = None
-            self._stats_snapshot["zero_offset_stop_s"] = None
-        self._stats_snapshot["zero_offset_applied"] = (
-            self._offset_applied and not self._offset_stale
-        )
-        z_lo = self._stats_snapshot.get("zero_offset_start_s")
-        z_hi = self._stats_snapshot.get("zero_offset_stop_s")
-        if z_lo is not None and z_hi is not None:
-            self._stats_snapshot["zero_offset_duration_s"] = max(
-                0.0, float(z_hi) - float(z_lo)
-            )
-        else:
-            self._stats_snapshot["zero_offset_duration_s"] = None
-        self._refresh_stats_table()
-
     def _on_offset_region_changed(self) -> None:
         if self._offset_syncing or self._offset_region_force is None:
             return
@@ -1581,12 +1477,10 @@ class AnalyzeSingleFileTab(QWidget):
                 self._offset_syncing = False
         self._sync_mirror_offset_regions(t_lo, t_hi)
         self._push_test_region_after_offset()
-        was_stale = self._offset_stale
-        self._mark_offset_stale_if_needed()
-        if self._offset_applied and (self._offset_stale or was_stale):
-            self._patch_snapshot_offset_bounds()
-            return
-        self._reanalyze_current_segment()
+        if self._zero_offset_mode():
+            self._apply_zero_offset_live(warn=False)
+        else:
+            self._reanalyze_current_segment()
 
     def _on_segment_region_changed(self) -> None:
         if self._segment_syncing or self._segment_region_force is None:
@@ -1604,18 +1498,16 @@ class AnalyzeSingleFileTab(QWidget):
         self._reanalyze_current_segment()
 
     def _reset_zero_offset_state(self, *, replot: bool = True) -> None:
-        self._offset_applied = False
-        self._offset_stale = False
-        self._offset_applied_bounds = None
         self._offset_mean_f = 0.0
         self._offset_mean_r = 0.0
         self._offset_mean_p = 0.0
         self._restore_raw_to_loaded()
         if replot:
             self._replot_loaded_curves()
-        self._update_zero_offset_ui()
 
-    def _apply_zero_offset(self) -> bool:
+    def _apply_zero_offset_live(self, *, warn: bool = True) -> bool:
+        if not self._zero_offset_mode():
+            return False
         if (
             self._raw_ts is None
             or self._raw_f is None
@@ -1630,28 +1522,18 @@ class AnalyzeSingleFileTab(QWidget):
             self._raw_ts, self._raw_f, self._raw_r, self._raw_p, bounds[0], bounds[1]
         )
         if means is None:
-            QMessageBox.warning(
-                self,
-                "Zero Offset",
-                "Tidak ada sampel pada region offset untuk menghitung rata-rata.",
-            )
+            if warn:
+                QMessageBox.warning(
+                    self,
+                    "Zero Offset",
+                    "Tidak ada sampel pada region offset untuk menghitung rata-rata.",
+                )
             return False
         self._offset_mean_f, self._offset_mean_r, self._offset_mean_p = means
-        self._offset_applied = True
         self._rebuild_loaded_from_raw()
-        self._offset_stale = False
-        self._offset_applied_bounds = bounds
         self._replot_loaded_curves()
-        self._update_zero_offset_ui()
         self._reanalyze_current_segment()
         return True
-
-    def _on_zero_offset_button_clicked(self) -> None:
-        if self._offset_applied and not self._offset_stale:
-            self._reset_zero_offset_state()
-            self._reanalyze_current_segment()
-            return
-        self._apply_zero_offset()
 
     def _on_zero_offset_checkbox_changed(self, checked: bool) -> None:
         self._set_offset_regions_visible(checked)
@@ -1665,8 +1547,16 @@ class AnalyzeSingleFileTab(QWidget):
         if self._loaded_ts:
             t_min, t_max = min(self._loaded_ts), max(self._loaded_ts)
             self._layout_regions_zero_offset_mode(t_min, t_max)
-        self._update_zero_offset_ui()
-        self._reanalyze_current_segment()
+        if not self._apply_zero_offset_live(warn=True):
+            self._zero_offset_checkbox.blockSignals(True)
+            self._zero_offset_checkbox.setChecked(False)
+            self._zero_offset_checkbox.blockSignals(False)
+            self._set_offset_regions_visible(False)
+            self._reset_zero_offset_state(replot=False)
+            if self._loaded_ts:
+                t_min, t_max = min(self._loaded_ts), max(self._loaded_ts)
+                self._layout_regions_full_recording(t_min, t_max)
+            self._reanalyze_current_segment()
 
     def _reanalyze_current_segment(self) -> None:
         sliced = self._slice_loaded_segment()
@@ -1695,9 +1585,7 @@ class AnalyzeSingleFileTab(QWidget):
             else:
                 self._stats_snapshot["zero_offset_start_s"] = None
                 self._stats_snapshot["zero_offset_stop_s"] = None
-            self._stats_snapshot["zero_offset_applied"] = (
-                self._offset_applied and not self._offset_stale
-            )
+            self._stats_snapshot["zero_offset_applied"] = self._zero_offset_mode()
             mean_f, mean_r, mean_p = self._offset_means_for_snapshot()
             self._stats_snapshot["offset_mean_force_kg"] = mean_f
             self._stats_snapshot["offset_mean_roll_deg"] = mean_r
@@ -1726,7 +1614,6 @@ class AnalyzeSingleFileTab(QWidget):
                 self._stats_snapshot["zero_offset_duration_s"] = None
         if ts_list:
             self._fs_hz = _estimate_sample_rate_hz(ts_list)
-        self._update_zero_offset_ui()
         self._refresh_stats_table()
 
     def _gap_loss_method_key(self) -> str:
@@ -1819,7 +1706,6 @@ class AnalyzeSingleFileTab(QWidget):
         self._update_meta_labels()
 
         self._setup_segment_regions(ts_list)
-        self._update_zero_offset_ui()
         self._reanalyze_current_segment()
         if self.video_panel.video_path() is None:
             self._on_video_position_changed(-1.0)
