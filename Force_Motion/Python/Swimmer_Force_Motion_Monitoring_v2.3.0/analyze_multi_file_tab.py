@@ -34,6 +34,8 @@ HEADER_ROWS = 6
 EMPTY_CELL = "—"
 
 GROUP_REGION = "region"
+GROUP_OFFSET = "offset"
+GROUP_CORRECTION = "correction"
 GROUP_FORCE = "force"
 GROUP_ROLL = "roll"
 GROUP_PITCH = "pitch"
@@ -50,6 +52,8 @@ class _GroupStyle:
 
 _GROUP_STYLES: dict[str, _GroupStyle] = {
     GROUP_REGION: _GroupStyle("#cbd5e1", "#334155", "#1e293b"),
+    GROUP_OFFSET: _GroupStyle("#22c55e", "#14532d", "#0c1a12"),
+    GROUP_CORRECTION: _GroupStyle("#60a5fa", "#1e3a5f", "#0c1520"),
     GROUP_FORCE: _GroupStyle("#38bdf8", "#0c4a6e", "#0b1220"),
     GROUP_ROLL: _GroupStyle("#f59e0b", "#78350f", "#1a1208"),
     GROUP_PITCH: _GroupStyle("#a78bfa", "#4c1d95", "#120f1f"),
@@ -87,6 +91,10 @@ def _fmt_cell(v: float | int | str | None) -> str:
     return str(v)
 
 
+def _fmt_bool(v: bool) -> str:
+    return "Ya" if v else "Tidak"
+
+
 def _build_table_row_specs() -> list[_TableRowSpec]:
     specs: list[_TableRowSpec] = []
 
@@ -97,9 +105,58 @@ def _build_table_row_specs() -> list[_TableRowSpec]:
         specs.append(_TableRowSpec("metric", group, label, fn))
 
     grp("Region uji", GROUP_REGION)
+    met(GROUP_REGION, "Segmen analisa start (s)", lambda r: _fmt_cell(r.segment_start_s))
+    met(GROUP_REGION, "Segmen analisa finish (s)", lambda r: _fmt_cell(r.segment_end_s))
     met(GROUP_REGION, "Timestamp start uji (s)", lambda r: _fmt_cell(r.timestamp_start_s))
     met(GROUP_REGION, "Timestamp stop uji (s)", lambda r: _fmt_cell(r.timestamp_stop_s))
     met(GROUP_REGION, "Durasi region data uji (s)", lambda r: _fmt_cell(r.test_region_duration_s))
+
+    grp("Zero offset", GROUP_OFFSET)
+    met(GROUP_OFFSET, "Zero offset diterapkan", lambda r: _fmt_bool(r.zero_offset_applied))
+    met(GROUP_OFFSET, "Zero offset start (s)", lambda r: _fmt_cell(r.zero_offset_start_s))
+    met(GROUP_OFFSET, "Zero offset stop (s)", lambda r: _fmt_cell(r.zero_offset_stop_s))
+    met(
+        GROUP_OFFSET,
+        "Durasi region zero offset (s)",
+        lambda r: _fmt_cell(r.zero_offset_duration_s),
+    )
+    met(
+        GROUP_OFFSET,
+        "Rata-rata offset Force (Kg)",
+        lambda r: _fmt_cell(r.offset_mean_force_kg),
+    )
+    met(
+        GROUP_OFFSET,
+        "Rata-rata offset Roll (deg)",
+        lambda r: _fmt_cell(r.offset_mean_roll_deg),
+    )
+    met(
+        GROUP_OFFSET,
+        "Rata-rata offset Pitch (deg)",
+        lambda r: _fmt_cell(r.offset_mean_pitch_deg),
+    )
+
+    grp("Koreksi", GROUP_CORRECTION)
+    met(
+        GROUP_CORRECTION,
+        "Koreksi sudut tali",
+        lambda r: _fmt_bool(r.tether_angle_correction),
+    )
+    met(
+        GROUP_CORRECTION,
+        "Sudut tali terhadap air (deg)",
+        lambda r: _fmt_cell(r.tether_angle_deg),
+    )
+    met(
+        GROUP_CORRECTION,
+        "Koreksi batas bawah Force mentah",
+        lambda r: _fmt_bool(r.force_raw_floor_correction),
+    )
+    met(
+        GROUP_CORRECTION,
+        "Batas bawah Force mentah (Kg)",
+        lambda r: _fmt_cell(r.force_raw_floor_kg),
+    )
 
     grp("Force", GROUP_FORCE)
     met(GROUP_FORCE, "Metode statistik Force", _force_method_text)
@@ -138,7 +195,12 @@ def _build_table_row_specs() -> list[_TableRowSpec]:
     grp("Gap rekaman CSV", GROUP_GAP)
     met(GROUP_GAP, "Metode", lambda r: _fmt_cell(r.gap_method))
     met(GROUP_GAP, "Δt nominal (s)", lambda r: _fmt_cell(r.gap_dt_nominal_s))
-    met(GROUP_GAP, "Sampel hilang (%)", lambda r: _fmt_cell(r.gap_loss_pct))
+    met(GROUP_GAP, "Laju sampel efektif (Hz)", lambda r: _fmt_cell(r.gap_fs_hz))
+    met(GROUP_GAP, "Sampel tercatat", lambda r: _fmt_cell(r.gap_samples_actual))
+    met(GROUP_GAP, "Sampel diharapkan", lambda r: _fmt_cell(r.gap_samples_expected))
+    met(GROUP_GAP, "Jumlah gap", lambda r: _fmt_cell(r.gap_count))
+    met(GROUP_GAP, "Sampel hilang estimasi", lambda r: _fmt_cell(r.gap_samples_lost))
+    met(GROUP_GAP, "Persen hilang (%)", lambda r: _fmt_cell(r.gap_loss_pct))
 
     return specs
 
