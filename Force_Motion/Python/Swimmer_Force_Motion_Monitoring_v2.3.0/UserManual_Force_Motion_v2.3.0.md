@@ -160,19 +160,19 @@ Setelah berhasil dimuat:
 - **Tengah:** panel **Rekaman video** — playback MP4 (lihat §4.1a untuk sinkron playhead).
 - **Kanan:** panel statistik dan pengaturan.
 - Marker menandai titik ekstrem pada plot (force maksimum; roll/pitch min dan max) dengan label waktu.
-- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start/Stop Uji**, **Metode gaya Force**, **Mean (meanF)** dan ekstremum gaya (**Maksimum** = peakF, **Minimum** = minF) pada kolom Force, **frekuensi dominan** (Hz) per kanal, serta kartu **GAP REKAMAN CSV** (lihat §4.4 dan §4.6).
+- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start/Stop Uji**, **Metode gaya Force**, **Mean (meanF)**, **Impulse (ImpF)**, dan ekstremum gaya (**Maksimum** = peakF, **Minimum** = minF) pada kolom Force, **frekuensi dominan** (Hz) per kanal, serta kartu **GAP REKAMAN CSV** (lihat §4.4 dan §4.6).
 
 ### 4.3 Analisa Setting — metode spektrum dan statistik Force
 
 - Pilih **FFT** atau **Welch PSD** pada dropdown **Metode spektrum (statistik)**.
 - Perubahan metode memperbarui **angka frekuensi dominan** pada kartu statistik (v2.3.0 tidak menampilkan plot spektrum visual).
 
-Grup **Statistik Force (peakF / meanF / minF)** — radio pemilihan cara menghitung tiga parameter gaya pada kolom Force (region data uji):
+Grup **Statistik Force (peakF / meanF / minF / ImpF)** — radio pemilihan cara menghitung parameter gaya pada kolom Force (region data uji):
 
 | Pilihan | Makna singkat |
 |---------|----------------|
-| **Metode A — global (Amaro / Carrasco-Poyatos)** | Default. **peakF** = maksimum global; **meanF** = rata-rata semua sampel; **minF** = minimum global. Baris **t @ maks** / **t @ min** berisi timestamp titik tersebut; marker merah pada plot Force menandai peakF. |
-| **Metode B — per siklus (Andrade)** | Deteksi *valley* (minimum lokal = minF) → segmentasi antar kayuhan → hitung peakF, meanF, minF **per siklus** → laporkan **rata-rata antar siklus**. Baris **t @ maks** / **t @ min** Force = **—** (nilai agregat). Frekuensi dominan Force dipakai sebagai petunjuk jarak minimum antar valley. Jika siklus tidak terdeteksi (&lt; 2 valley), nilai fallback ke metode global (ditandai **fallback global** di tabel). |
+| **Metode A — global (Amaro / Carrasco-Poyatos)** | Default. **peakF**, **meanF**, **minF** global region uji; **ImpF** = ∫F·dt trapesium seluruh region. Baris **t @ maks** / **t @ min** berisi timestamp; marker merah pada plot = peakF. |
+| **Metode B — per siklus (Andrade)** | Valley (minF lokal) → segmentasi per kayuhan → peakF, meanF, minF, **ImpF** per siklus → rata-rata antar siklus. **ImpF** per siklus = ∫F·dt antar dua minF. **t @ maks/min** Force = **—**. Fallback global jika siklus tidak terdeteksi. |
 
 Baris **Metode gaya Force** pada tabel statistik menampilkan pilihan aktif; pada Metode B yang berhasil, ditambah **· n=…** (jumlah siklus).
 
@@ -198,13 +198,13 @@ Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
 - Isi ringkas:
   - Metadata (nama perenang, gaya renang, waktu ekspor, nama berkas sumber).
   - Baris **`Timestampstart (s)`** + nilai (waktu awal deret, sama dengan yang ditampilkan di panel statistik).
-  - Tabel **`Metrik, Nilai, Satuan, Waktu (s)`** untuk metode dan metrik Force (**Metode_statistik_Force**, **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_minimum_minF**; roll/pitch min/maks) — lihat §4.6.
+  - Tabel **`Metrik, Nilai, Satuan, Waktu (s)`** untuk metode dan metrik Force (**Metode_statistik_Force**, **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_impulse_ImpF**, **Force_minimum_minF**; roll/pitch min/maks) — lihat §4.6.
   - Dua baris kosong, lalu tabel **`Metrik, Frekuensi Dominan (Hz), Metode`** dengan baris **Force**, **Roll**, **Pitch** (metode sama untuk ketiga saluran pada satu ekspor).
   - Blok **`Gap rekaman CSV (estimasi)`** — metode yang dipilih, Δt nominal, laju sampel efektif, sampel tercatat, sampel hilang, persen hilang; Metode A menyertakan jumlah gap; Metode B menyertakan sampel diharapkan.
 
-### 4.6 Parameter gaya tethered — peakF, meanF, minF (kolom Force)
+### 4.6 Parameter gaya tethered — peakF, meanF, minF, ImpF (kolom Force)
 
-Tiga parameter ini hanya dihitung pada **saluran Force**, pada **region data uji** (region biru), dari deret yang sudah melalui koreksi aktif di **Analisa Setting** (batas bawah Force mentah, zero offset, koreksi sudut tali jika dicentang). Satuan tampilan dan ekspor: **Kg** (load cell aplikasi); literatur sering memakai **N** — bandingkan hanya setelah konversi jika diperlukan.
+Parameter ini hanya dihitung pada **saluran Force**, pada **region data uji** (region biru), dari deret yang sudah melalui koreksi aktif di **Analisa Setting** (batas bawah Force mentah, zero offset, koreksi sudut tali jika dicentang). Satuan gaya: **Kg**; impuls: **Kg·s** (literatur sering memakai **N·s** — konversi dengan × *g* jika diperlukan).
 
 Cara perhitungan dipilih di **Statistik Force** (§4.3): **Metode A (global)** atau **Metode B (per siklus, Andrade)**.
 
@@ -212,19 +212,18 @@ Cara perhitungan dipilih di **Statistik Force** (§4.3): **Metode A (global)** a
 |-------------|--------|-------------------|---------------------|
 | **Maksimum** | peakF | Maksimum global region uji | Rata-rata peakF per siklus |
 | **Mean (meanF)** | meanF | Rata-rata semua sampel | Rata-rata meanF per siklus |
+| **Impulse (ImpF)** | ImpF | ∫F·dt trapesium, seluruh region uji | Rata-rata ∫F·dt per siklus (minF→minF) |
 | **Minimum** | minF | Minimum global region uji | Rata-rata minF (valley) per siklus |
-| **t @ maks / t @ min** | — | Timestamp peakF / minF global | **—** (agregat, bukan satu titik) |
+| **t @ maks / t @ min** | — | Timestamp peakF / minF global | **—** (agregat) |
 | **Metode gaya Force** | — | Label metode + opsi **n** siklus | |
 
 Baris **Roll** dan **Pitch** pada **Maksimum** / **Minimum** tetap ekstremum sudut, tidak terpengaruh pilihan metode Force.
 
 #### Metode A — global (Amaro / Carrasco-Poyatos)
 
-**peakF (Maksimum):** nilai Force tertinggi pada seluruh sampel region uji; waktu = kemunculan pertama jika seri.
+**peakF, meanF, minF** — seperti §4.6 versi sebelumnya (ekstremum dan rata-rata global).
 
-**meanF (Mean):** rata-rata aritmetika semua sampel Force di region uji.
-
-**minF (Minimum):** nilai Force terendah pada seluruh region uji; waktu = kemunculan pertama.
+**ImpF (Impulse):** \(I = \int F(t)\,dt\) pada seluruh region uji, dihitung dengan **aturan trapesium** (`numpy.trapezoid`) pada pasangan `(TimeStamp(s), Force)`.
 
 **Referensi:**
 
@@ -233,20 +232,24 @@ Baris **Roll** dan **Pitch** pada **Maksimum** / **Minimum** tetap ekstremum sud
 
 #### Metode B — per siklus (Andrade)
 
-1. Deteksi **minimum lokal** (*valley*) pada kurva Force = penanda **minF** tiap kayuhan.
+1. Deteksi **minimum lokal** (*valley*) = penanda **minF** tiap kayuhan.
 2. Segmentasi antar dua minF berurutan = satu siklus.
-3. Per siklus: **peakF** = max Force dalam segmen; **meanF** = mean Force dalam segmen; **minF** = nilai di awal segmen (valley).
-4. Nilai di tabel = **rata-rata** ketiga parameter antar siklus yang terdeteksi.
+3. Per siklus: **peakF**, **meanF**, **minF**, dan **ImpF** (= ∫F·dt trapesium dalam segmen).
+4. Nilai di tabel = **rata-rata** keempat parameter antar siklus terdeteksi.
 
-Jika kurva terlalu pendek atau valley tidak cukup (kurang dari dua titik), aplikasi memakai nilai **global** (Metode A) sementara label tetap Metode B dengan catatan **fallback global**.
+Jika valley tidak cukup, nilai **fallback global** (Metode A) dengan catatan di baris metode.
 
 **Referensi:**
 
 - Andrade, R. M., Figueira, A. J., Metz, V., Amadio, A. C., & Cerca, J. (2018). *Interpretation of propulsive force in tethered swimming through principal component analysis.* **Revista Brasileira de Medicina do Esporte**, 24(3), 206–210. https://doi.org/10.1590/1517-869220182403175155
 
+#### Hubungan ImpF dengan meanF (Metode A)
+
+Kira-kira \(I \approx \overline{F} \times T\) untuk sampling reguler, dengan \(\overline{F}\) = meanF dan \(T\) = durasi region uji; trapesium pada Δt tidak seragam memberi perbedaan kecil.
+
 #### Ekspor DataStatistik
 
-Blok metrik Force mencantumkan **Metode_statistik_Force**, opsional **Jumlah_siklus_Force_Andrade**, dan baris **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_minimum_minF** sesuai metode aktif.
+Blok metrik Force mencantumkan **Metode_statistik_Force**, opsional **Jumlah_siklus_Force_Andrade**, serta **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_impulse_ImpF**, **Force_minimum_minF** sesuai metode aktif.
 
 ---
 

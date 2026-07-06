@@ -176,6 +176,7 @@ _STATS_MATRIX_ROW_LABELS = (
     "Maksimum",
     "t @ maks (s)",
     "Mean (meanF)",
+    "Impulse (ImpF)",
     "Minimum",
     "t @ min (s)",
     "Frekuensi dominan (Hz)",
@@ -352,6 +353,11 @@ def _fill_stats_matrix_table(
         ),
         (
             _stats_table_text(snap.get("force_mean_kg"), unit="Kg"),
+            "—",
+            "—",
+        ),
+        (
+            _stats_table_text(snap.get("force_impulse_kg_s"), unit="Kg·s", decimals=3),
             "—",
             "—",
         ),
@@ -975,7 +981,7 @@ class AnalyzeSingleFileTab(QWidget):
         settings_inner.addWidget(correction_box)
 
         force_stats_box, force_stats_lay = _make_analyze_settings_group(
-            "Statistik Force (peakF / meanF / minF)", self
+            "Statistik Force (peakF / meanF / minF / ImpF)", self
         )
         self._force_stats_method_group = QButtonGroup(self)
         self._force_stats_method_a_radio = QRadioButton(
@@ -988,14 +994,16 @@ class AnalyzeSingleFileTab(QWidget):
             _tooltip(
                 "peakF = maksimum global region uji;",
                 "meanF = rata-rata semua sampel;",
-                "minF = minimum global.",
+                "minF = minimum global;",
+                "ImpF = ∫F·dt (trapesium) seluruh region uji.",
                 "Baris t @ maks / t @ min berisi timestamp titik tersebut.",
             )
         )
         self._force_stats_method_b_radio.setToolTip(
             _tooltip(
                 "Deteksi valley (minF lokal) → segmentasi per kayuhan;",
-                "peakF, meanF, minF dihitung per siklus lalu dirata-rata.",
+                "peakF, meanF, minF, ImpF dihitung per siklus lalu dirata-rata.",
+                "ImpF per siklus = ∫F·dt antar dua minF (trapesium).",
                 "Baris t @ maks / t @ min Force = — (nilai agregat).",
                 "Frekuensi dominan Force membantu jarak minimum antar valley.",
             )
@@ -1954,6 +1962,7 @@ class AnalyzeSingleFileTab(QWidget):
         v_fmax = force_stats.peak_f_kg
         v_fmean = force_stats.mean_f_kg
         v_fmin = force_stats.min_f_kg
+        v_fimp = force_stats.impulse_f_kg_s
         t_fmax = force_stats.peak_t_s
         t_fmin = force_stats.min_t_s
 
@@ -2047,6 +2056,7 @@ class AnalyzeSingleFileTab(QWidget):
             "force_max_kg": float(v_fmax),
             "force_max_t_s": float(t_fmax) if t_fmax is not None else None,
             "force_mean_kg": float(v_fmean),
+            "force_impulse_kg_s": float(v_fimp),
             "force_min_kg": float(v_fmin),
             "force_min_t_s": float(t_fmin) if t_fmin is not None else None,
             "force_stats_method": force_stats.method_label,
@@ -2233,6 +2243,14 @@ class AnalyzeSingleFileTab(QWidget):
                     "Force_mean_meanF",
                     f"{float(snap['force_mean_kg']):.6g}",
                     "Kg",
+                    "",
+                ]
+            )
+            w.writerow(
+                [
+                    "Force_impulse_ImpF",
+                    f"{float(snap['force_impulse_kg_s']):.6g}",
+                    "Kg.s",
                     "",
                 ]
             )
