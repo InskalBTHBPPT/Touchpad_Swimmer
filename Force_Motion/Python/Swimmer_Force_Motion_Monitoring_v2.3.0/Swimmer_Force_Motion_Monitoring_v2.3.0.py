@@ -22,6 +22,12 @@ Changelog (2.2.0 → 2.3.0)
   ``analyze_tethered_force_metrics.py``.
 - **Tab Analisa — tooltip** — baris tabel statistik dan tombol video; modul
   ``ui_tooltip.py``.
+- **Ekspor ``DataStatistik/``** — blok zero offset dan gap selalu lengkap; snapshot
+  disegarkan sebelum simpan; cap waktu ``_DataStatistik_<ddmmyy-HHMMSS>.csv``.
+- **Tab Analisa multifile** — muat hingga lima berkas ``DataStatistik/`` (parser
+  ``parse_datastatistik_csv.py``); tabel berkelompok; **Plot data** aktif
+  (peakF/meanF/minF/ImpF, roll/pitch, frekuensi dominan; sumbu X = nomor kolom;
+  tooltip hover); tanpa ekspor ``TableMultiFile/``.
 
 Changelog (2.1.0 → 2.2.0)
 ==========================
@@ -91,9 +97,9 @@ Satu tab **Live** dan dua tab **Analisa** (satu berkas + multifile):
    ImpF, TpeakF, DUR, RFD, dF, FI), frekuensi dominan FFT/Welch **tanpa plot spektrum
    visual**, **gap rekaman CSV** Metode A/B, tooltip per baris statistik, ekspor ke
    ``DataStatistik/``.
-3. **Analisa multifile** — hingga lima CSV; ringkasan metrik dalam **tabel**;
-   **plot perbandingan** opsional di **jendela terpisah** (metrik & gaya plot dipilih
-   di jendela); **Clear tabel** per kolom atau semua; simpan tabel ke ``TableMultiFile/``.
+3. **Analisa multifile** — hingga lima berkas ekspor ``DataStatistik/``; tabel
+   perbandingan berkelompok; **plot perbandingan** di jendela terpisah (11 metrik,
+   sumbu X nomor kolom, tooltip hover); **Clear tabel** per kolom atau semua.
 
 Arsitektur ringkas
 ===================
@@ -173,12 +179,16 @@ opsional). **Analisa multifile** di ``analyze_multi_file_tab.py``.
 
 Tombol **Simpan statistik** menulis CSV ke ``DataStatistik/`` dengan nama
 ``<nama_file_log>_DataStatistik_<ddmmyy-HHMMSS>.csv`` (cap waktu ekspor lokal;
-tanpa dialog Save As), berisi meta baris
-``Timestampstart (s)``, tabel metrik (termasuk **Metode_statistik_Force**, peakF,
-meanF, ImpF, TpeakF, DUR, RFD, dF, FI sesuai metode aktif), blok frekuensi dominan
-per saluran, lalu blok **Gap rekaman CSV** (metode, Δt nominal, sampel
-tercatat/hilang, persen; Metode A menyertakan jumlah gap, Metode B menyertakan
-sampel diharapkan).
+tanpa dialog Save As), berisi metadata (termasuk zero offset, koreksi, segmen),
+tabel metrik (termasuk **Metode_statistik_Force**, peakF, meanF, ImpF, TpeakF,
+DUR, RFD, dF, FI sesuai metode aktif), blok frekuensi dominan per saluran, lalu
+blok **Gap rekaman CSV** lengkap (semua baris; nilai kosong jika tidak berlaku).
+Snapshot statistik disegarkan dari UI sebelum menulis.
+
+**Analisa multifile** (``analyze_multi_file_tab.py``) memuat berkas
+``DataStatistik/`` via ``parse_datastatistik_csv.py`` — bukan rekaman ``DataLog/``.
+Tabel membandingkan metrik yang sudah diekspor; plot memakai nilai tersebut
+langsung.
 
 Statistik gaya tethered (tab Analisa)
 ========================================
@@ -220,8 +230,9 @@ Berkas terkait di folder yang sama
 - ``live_csv_io.py`` — header + parser CSV rekaman Live + ``LogSyncMeta``.
 - ``analyze_single_file_tab.py`` — widget tab Analisa (satu berkas).
 - ``analyze_metrics_core.py`` — metrik rekaman, spektrum, **gap rekaman CSV**
-  (``compute_gap_loss``; dipakai tab Analisa + multifile).
-- ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel + jendela plot).
+  (``compute_gap_loss``; tab Analisa).
+- ``parse_datastatistik_csv.py`` — parser ekspor ``DataStatistik/`` (tab multifile).
+- ``analyze_multi_file_tab.py`` — widget tab Analisa multifile (tabel + plot).
 - ``live_camera_core.py`` — pemindaian kamera (probe MSMF/DSHOW).
 - ``live_camera_panel.py`` — panel kamera tab Live (preview + rekam video).
 - ``analyze_video_panel.py`` — playback video rekaman di tab Analisa.

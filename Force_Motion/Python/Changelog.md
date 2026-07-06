@@ -4,7 +4,7 @@ Catatan perubahan antar versi aplikasi **Swimmer Force Motion Monitoring** (fold
 
 ---
 
-## [2.3.0] — 2026-06-25
+## [2.3.0] — 2026-06-25 (pembaruan dokumentasi & multifile: 2026-07-06)
 
 Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
 
@@ -19,14 +19,16 @@ Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
 - **`LogSyncMeta`** di `live_csv_io.py` — parser metadata sinkron opsional.
 - **Dependensi** — `opencv-python`, `pygrabber` (`requirements.txt`).
 - **Manual v2.3.0** — `UserManual_Force_Motion_v2.3.0.md` / `.pdf` di folder `Swimmer_Force_Motion_Monitoring_v2.3.0/` (§4.3–4.6a: metrik Force, dF, FI, koreksi, tooltip).
+- **`parse_datastatistik_csv.py`** — parser berkas `DataStatistik/` untuk tab multifile (`StatistikExportRecord`).
+- **Tab Analisa multifile — plot perbandingan** — `MultiFilePlotDialog`: peakF, meanF, minF, ImpF; roll/pitch min & max; frekuensi dominan Force/Roll/Pitch; gaya batang/garis/titik; sumbu X nomor kolom; tooltip hover (nilai + nama file).
 
 ### Diubah
 
 - **Tab Analisa** — layout: plot waktu | panel video | panel kanan; tidak ada plot spektrum visual; pengaturan analisa di dialog **Setting…** (koreksi, metode Force, spektrum, gap).
 - **Gap rekaman CSV** — perhitungan memakai **seluruh deret timestamp CSV** (bukan hanya region uji biru).
-- **Ekspor `DataStatistik/`** — kolom metrik Force diperluas; nama file memuat cap waktu ekspor (`_DataStatistik_<ddmmyy-HHMMSS>.csv`).
-- **Tab Analisa multifile** — muat berkas **DataStatistik** (bukan DataLog); tabel 32 metrik (Metode A/B, kosong = —); dropdown FFT dihapus; simpan tabel & plot ditunda.
-- **Docstring** modul utama v2.3.0, `analyze_single_file_tab.py`, manual, dan modul kamera/video/metrik diselaraskan dengan fitur di atas.
+- **Ekspor `DataStatistik/`** — kolom metrik Force diperluas; nama file memuat cap waktu ekspor (`_DataStatistik_<ddmmyy-HHMMSS>.csv`); blok **zero offset** dan **gap** selalu diekspor lengkap (nilai kosong jika tidak berlaku); snapshot disegarkan sebelum simpan.
+- **Tab Analisa multifile** — muat berkas **`DataStatistik/`** (bukan `DataLog/`); tabel berkelompok (region, zero offset, koreksi, Force, Roll, Pitch, spektrum, gap); dropdown FFT dihapus; lebar kolom data tetap dengan wrap nama file; tombol **Simpan tabel ke CSV** dihapus; folder `TableMultiFile/` tidak lagi dipakai.
+- **Docstring** modul utama v2.3.0, `analyze_single_file_tab.py`, `analyze_multi_file_tab.py`, manual, dan modul kamera/video/metrik diselaraskan dengan fitur di atas.
 
 ### Kompatibilitas
 

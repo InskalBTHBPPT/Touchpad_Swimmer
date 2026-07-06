@@ -34,7 +34,7 @@ Aplikasi memiliki **tiga tab**:
 
 - **Live** — koneksi serial, plot waktu-nyata, indikator nilai terakhir (force, roll, pitch, **baterai %** jika perangkat mengirim kolom kelima), panel **kamera** (pindai, preview, rekam `.mp4` saat **Start Log**), rekaman CSV empat kolom, opsi timestamp CSV, tombol **About** dan **Help**.
 - **Analisa** — muat **satu** file CSV hasil rekaman Live, tiga plot waktu penuh dengan marker ekstremum dan region data uji / zero offset, **playback video** pasangan (playhead pink pada plot), kartu statistik (metrik gaya tethered Metode A/B, frekuensi dominan FFT/Welch **tanpa plot spektrum visual**, **gap rekaman CSV** Metode A/B), ekspor ringkasan ke `DataStatistik/`.
-- **Analisa multifile** — hingga **lima** berkas CSV sekaligus; ringkasan metrik dalam **tabel**; **plot perbandingan** (jendela terpisah, pyqtgraph); simpan tabel ke `TableMultiFile/`; metode spektrum (FFT / Welch) mengisi ulang semua kolom.
+- **Analisa multifile** — hingga **lima** berkas ekspor `DataStatistik/` sekaligus; tabel perbandingan berkelompok (region, zero offset, koreksi, Force, Roll, Pitch, gap); **plot perbandingan** aktif (pyqtgraph); modul `parse_datastatistik_csv.py`.
 
 Modul pendukung di folder yang sama:
 
@@ -45,7 +45,8 @@ Modul pendukung di folder yang sama:
 - `analyze_single_file_tab.py` — implementasi tab Analisa (satu berkas).
 - `analyze_tethered_force_metrics.py` — metrik gaya tethered (Metode A global / Metode B Andrade).
 - `analyze_metrics_core.py` — perhitungan metrik + spektrum + **gap rekaman CSV** (`compute_gap_loss`).
-- `analyze_multi_file_tab.py` — implementasi tab Analisa multifile.
+- `parse_datastatistik_csv.py` — parser berkas ekspor `DataStatistik/` (tab multifile).
+- `analyze_multi_file_tab.py` — implementasi tab Analisa multifile (tabel + plot).
 - `ui_tooltip.py` — tema tooltip aplikasi (latar terang, teks gelap).
 
 ---
@@ -176,7 +177,7 @@ Grup **Koreksi & region** mengatur data yang dipakai statistik dan tampilan plot
 | **Koreksi sudut tali** | Jika dicentang: gaya horizontal = Force terukur × cos(sudut). Sudut diukur di atas permukaan air (horizontal = 0°); default **7,00°**. |
 | **Koreksi batas bawah Force mentah (−1 Kg)** | Default aktif. Nilai Force mentah di bawah −1 Kg dibatasi menjadi −1 Kg sebelum koreksi lain dan statistik. |
 
-Baris tabel **Zero offset start/stop**, **Durasi region zero offset**, dan **Rata-rata offset** muncul saat Zero Offset aktif.
+Baris tabel **Zero offset start/stop**, **Durasi region zero offset**, dan **Rata-rata offset** selalu ditampilkan; nilai terisi saat Zero Offset aktif (selain itu **—**).
 
 ### 4.3 Analisa Setting — metode spektrum dan statistik Force
 
@@ -214,11 +215,14 @@ Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
 - Tombol **Simpan statistik** menulis file CSV ke folder **`DataStatistik/`** tanpa dialog penyimpanan.
 - Nama file: `<nama_file_csv_yang_dimuat>_DataStatistik_<ddmmyy-HHMMSS>.csv` — cap waktu **saat tombol ditekan** (lokal); setiap ekspor menghasilkan berkas baru (tidak menimpa ekspor Metode A/B atau pengaturan lain sebelumnya).
 - Isi ringkas:
-  - Metadata (nama perenang, gaya renang, waktu ekspor, nama berkas sumber).
-  - Baris **`Timestampstart (s)`** + nilai (waktu awal deret, sama dengan yang ditampilkan di panel statistik).
+  - Metadata (nama perenang, gaya renang, waktu ekspor, nama berkas sumber, segmen analisa).
+  - Blok **zero offset** — selalu diekspor: `Zero_offset_diterapkan` (Ya/Tidak), start/stop, rata-rata offset Force/Roll/Pitch, durasi region zero offset (kosong jika tidak berlaku).
+  - Blok **koreksi** — koreksi sudut tali, sudut (deg), koreksi batas bawah Force mentah, batas (Kg) jika aktif.
+  - Baris **`Timestampstart (s)`** / **`Timestampstop (s)`** + durasi region data uji.
   - Tabel **`Metrik, Nilai, Satuan, Waktu (s)`** untuk metode dan metrik Force (**Metode_statistik_Force**, opsional **Filter_Andrade_cutoff**, **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_impulse_ImpF**, opsional **Force_TpeakF**, **Force_DUR**, **Force_RFD**, **Force_dF** (Metode B), opsional **Force_Fatigue_Index**, **Force_minimum_minF**; roll/pitch min/maks) — lihat §4.6.
   - Dua baris kosong, lalu tabel **`Metrik, Frekuensi Dominan (Hz), Metode`** dengan baris **Force**, **Roll**, **Pitch** (metode sama untuk ketiga saluran pada satu ekspor).
-  - Blok **`Gap rekaman CSV (estimasi)`** — metode yang dipilih, Δt nominal, laju sampel efektif, sampel tercatat, sampel hilang, persen hilang; Metode A menyertakan jumlah gap; Metode B menyertakan sampel diharapkan.
+  - Blok **`Gap rekaman CSV (estimasi)`** — selalu lengkap: metode, Δt nominal, laju sampel efektif, sampel tercatat, sampel diharapkan, jumlah gap, sampel hilang estimasi, persen hilang (baris yang tidak berlaku untuk metode gap dipilih dibiarkan kosong).
+- Sebelum menulis, aplikasi menyegarkan snapshot statistik dari pengaturan UI terakhir (region, zero offset, metode).
 
 ### 4.6 Parameter gaya tethered — peakF, meanF, minF, ImpF, TpeakF, DUR, RFD, dF, FI (kolom Force)
 
@@ -363,26 +367,32 @@ Jika gap besar, pertimbangkan ulang rekaman atau periksa koneksi/logging sebelum
 
 ## 5. Tab Analisa multifile
 
-### 5.0 Batang alat
+Tab ini membandingkan hingga **lima** berkas ekspor statistik dari tab Analisa (`DataStatistik/*_DataStatistik*.csv`), bukan berkas rekaman mentah `DataLog/`. Setiap berkas yang dimuat menambah **satu kolom** di tabel; angka pada kolom mencerminkan pengaturan (metode Force, zero offset, koreksi, gap, spektrum) saat berkas tersebut diekspor di tab Analisa.
 
-- **Baris pertama** (kiri ke kanan): **Add file** (biru) → **Simpan tabel ke CSV** (abu-abu) → **Plot data** (hijau) → *ruang fleksibel* → label **Hapus kolom** + combo + **Clear tabel** (merah).
-- **Baris kedua:** **Metode spektrum** (FFT / Welch PSD); mengubahnya menghitung ulang semua kolom tabel.
+### 5.1 Batang alat
 
-### 5.1 Add file dan batas berkas
+- **Baris kontrol** (kiri ke kanan): **Add file** (biru) → **Plot data** (hijau) → *ruang fleksibel* → label **Hapus kolom** + combo + **Clear tabel** (merah).
+- **Plot data** aktif setelah ada minimal satu berkas dimuat.
 
-- Tombol **Add file** membuka dialog pilih CSV rekaman (default folder `DataLog/`).
-- Maksimum **5** berkas; setiap berkas valid menambah **satu kolom** baru di kanan tabel.
-- Parser sama dengan tab Analisa (`live_csv_io.parse_logged_csv`).
+### 5.2 Add file dan batas berkas
 
-### 5.2 Metode spektrum
-
-- Dropdown **Metode spektrum** (FFT / Welch PSD) sama maknanya dengan di tab Analisa satu berkas.
-- Mengganti metode menghitung ulang **semua kolom** yang sudah dimuat.
+- Tombol **Add file** membuka dialog pilih CSV (default folder `DataStatistik/`).
+- Filter dialog: `*_DataStatistik*.csv`.
+- Maksimum **5** berkas; parser `parse_datastatistik_csv.py` memvalidasi format ekspor tab Analisa.
 
 ### 5.3 Isi tabel
 
-- Empat baris paling atas setiap kolom data: nama perenang, gaya renang, nama file, lalu baris label **Value**.
-- Kolom pertama (**Metrik**) memuat label baris: timestamp start, ekstremum force/roll/pitch beserta timestamp, frekuensi dominan per saluran, serta baris **Metode spektrum frekuensi**.
+- **Kolom pertama (Metrik):** label parameter, dikelompokkan dengan warna:
+  - **Region uji** — segmen analisa, timestamp start/stop uji, durasi region data uji.
+  - **Zero offset** — diterapkan (Ya/Tidak), start/stop, durasi, rata-rata offset Force/Roll/Pitch.
+  - **Koreksi** — sudut tali, batas bawah Force mentah.
+  - **Force** — metode statistik, peakF, meanF, ImpF, TpeakF, DUR, RFD, dF, FI, minF, frekuensi dominan.
+  - **Roll / Pitch** — minimum, maksimum, frekuensi dominan.
+  - **Metode spektrum** — FFT atau Welch (dari ekspor).
+  - **Gap rekaman CSV** — metode, Δt nominal, laju sampel, sampel tercatat/diharapkan, jumlah gap, sampel hilang, persen hilang.
+- **Header kolom data** (enam baris atas): nama perenang, gaya renang, nama file DataStatistik (di-wrap sesuai lebar kolom; tooltip = nama lengkap), waktu ekspor, berkas sumber log, baris **Value**.
+- Nilai kosong ditampilkan sebagai **—**.
+- Lebar kolom data tetap (~252 px); kolom Metrik menyesuaikan isi.
 
 ### 5.4 Hapus kolom
 
@@ -391,15 +401,15 @@ Jika gap besar, pertimbangkan ulang rekaman atau periksa koneksi/logging sebelum
 ### 5.5 Plot perbandingan
 
 - Tombol hijau **Plot data** membuka **jendela terpisah** (non-modal).
-- Di jendela tersebut: dropdown **Metrik** (force/roll/pitch ekstremum dan frekuensi dominan per saluran), dropdown **Gaya plot** — **Garis + penanda** (default), **Diagram batang**, atau **Titik saja**.
-- Sumbu X = urutan kolom/berkas (label tick mengikuti nama perenang atau nama file); data selalu mengikuti **Metode spektrum** yang dipilih di tab (FFT / Welch).
+- Dropdown **Metrik** (11 pilihan):
+  - Force: **peakF**, **meanF**, **minF**, **ImpF**
+  - Roll / Pitch: **minimum**, **maksimum**
+  - Frekuensi dominan: **Force**, **Roll**, **Pitch**
+- Dropdown **Gaya plot:** **Garis + penanda** (default), **Diagram batang**, atau **Titik saja**.
+- **Sumbu X** = **nomor kolom** (1, 2, 3, …) sesuai urutan berkas dimuat — bukan nama file.
+- **Tooltip hover:** arahkan kursor ke penanda/batang; menampilkan **Value** (nilai metrik; **—** jika kosong di ekspor) dan **Nama file** DataStatistik lengkap.
+- Nilai diambil langsung dari ekspor `DataStatistik/` (tidak dihitung ulang dari `DataLog/`).
 - Mengganti metrik atau gaya memperbarui gambar secara langsung.
-
-### 5.6 Simpan tabel ke CSV
-
-- Tombol **Simpan tabel ke CSV** menulis berkas ke folder **`TableMultiFile/`** (tanpa dialog *Save As*).
-- Nama file: `ddmmyy_HHMM_TableMultiFile.csv` (cap waktu lokal + sufiks `_TableMultiFile`).
-- Isi CSV mengikuti **tampilan tabel** (termasuk header multi-baris sebagai beberapa baris awal berkas).
 
 ---
 
@@ -408,15 +418,15 @@ Jika gap besar, pertimbangkan ulang rekaman atau periksa koneksi/logging sebelum
 | Folder / berkas | Fungsi |
 |-----------------|--------|
 | `DataLog/` | Rekaman CSV dan video `.mp4` dari tab Live (diabaikan Git sesuai `.gitignore` proyek) |
-| `DataStatistik/` | Ekspor statistik dari tab Analisa |
-| `TableMultiFile/` | Ekspor tabel tab Analisa multifile |
+| `DataStatistik/` | Ekspor statistik dari tab Analisa (`*_DataStatistik_<ddmmyy-HHMMSS>.csv`) |
+| `parse_datastatistik_csv.py` | Parser ekspor DataStatistik (tab multifile) |
 | `live_csv_io.py` | Header + parser CSV rekaman + `LogSyncMeta` |
 | `live_camera_core.py` | Pemindaian kamera |
 | `live_camera_panel.py` | Panel kamera tab Live |
 | `analyze_video_panel.py` | Pemutar video tab Analisa |
 | `analyze_single_file_tab.py` | Tab Analisa (plot + video + statistik + ekspor) |
 | `analyze_tethered_force_metrics.py` | Metrik gaya tethered (Metode A/B) |
-| `analyze_metrics_core.py` | Metrik rekaman + spektrum (multifile) |
+| `analyze_metrics_core.py` | Metrik rekaman + spektrum + gap (tab Analisa) |
 | `analyze_multi_file_tab.py` | Tab Analisa multifile |
 | `ui_tooltip.py` | Tema dan teks tooltip |
 | `requirements.txt` | Daftar dependensi Python (termasuk OpenCV) |
@@ -450,6 +460,7 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 | Plot kosong | Periksa format baris (empat atau lima angka, koma); pastikan firmware mengirim newline. |
 | Baterai tampil `—` | Perangkat mungkin hanya mengirim empat kolom; LoRa Receiver mengirim lima kolom. |
 | Load CSV gagal di Analisa | Pastikan file dari tab Live yang sama (metadata + header persis). |
+| Load gagal di Analisa multifile | Gunakan berkas dari **Simpan statistik** tab Analisa (`*_DataStatistik*.csv`), bukan `DataLog/`. |
 | Video tidak dimuat otomatis | Pastikan `.mp4` ada di folder yang sama dengan CSV dan basename cocok; atau gunakan **Load Video…**. |
 | Rekam video gagal saat Start Log | Aktifkan **Mulai preview** kamera sebelum Start Log; periksa instalasi `opencv-python`. |
 | Kamera tidak terdeteksi | Coba **Pindai kamera** ulang; di Windows pastikan DroidCam memakai mode yang kompatibel MSMF. |
@@ -460,7 +471,7 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 
 ## 9. Versi dokumen
 
-- **Manual:** selaras dengan aplikasi **v2.3.0** (kamera Live, video Analisa, sinkron playhead, baterai Live, statistik gaya tethered Metode A/B, dF, FI, zero offset, koreksi sudut tali, tooltip, gap rekaman CSV Metode A/B; frekuensi dominan di statistik tanpa plot spektrum visual).
+- **Manual:** selaras dengan aplikasi **v2.3.0** (kamera Live, video Analisa, sinkron playhead, baterai Live, statistik gaya tethered Metode A/B, dF, FI, zero offset, koreksi sudut tali, tooltip, gap rekaman CSV Metode A/B; ekspor DataStatistik lengkap; tab multifile dari `DataStatistik/` dengan tabel berkelompok dan plot perbandingan peakF/meanF/minF/ImpF, roll/pitch, frekuensi dominan).
 - Ringkasan perubahan antar versi ada di `Force_Motion/Python/Changelog.md` dan docstring `Swimmer_Force_Motion_Monitoring_v2.3.0.py`.
 
 ---
