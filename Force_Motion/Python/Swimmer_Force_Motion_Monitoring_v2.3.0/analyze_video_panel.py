@@ -107,6 +107,10 @@ class AnalyzeVideoPanel(QGroupBox):
 
         self._play_btn = QPushButton("▶ Play", self)
         self._play_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
+        self._play_btn.setSizePolicy(
+            QSizePolicy.Policy.Fixed,
+            QSizePolicy.Policy.Fixed,
+        )
         self._play_btn.setEnabled(False)
         self._play_btn.setToolTip(
             tooltip_text(
@@ -119,7 +123,12 @@ class AnalyzeVideoPanel(QGroupBox):
 
         self._time_label = QLabel("00:00.0 / 00:00.0", self)
         self._time_label.setStyleSheet("color: #d1d5db; font-size: 9pt;")
+        self._time_label.setSizePolicy(
+            QSizePolicy.Policy.Fixed,
+            QSizePolicy.Policy.Fixed,
+        )
         transport.addWidget(self._time_label, 0)
+        transport.addStretch(1)
         layout.addLayout(transport)
 
         self._slider = QSlider(Qt.Orientation.Horizontal, self)

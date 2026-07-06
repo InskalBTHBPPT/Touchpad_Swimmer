@@ -614,7 +614,7 @@ class MainWindow(QMainWindow):
     def _setup_file_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
 
-        analyze_menu = file_menu.addMenu("Analisa")
+        analyze_menu = file_menu.addMenu("Analisa SingleFile")
 
         load_csv_action = QAction("Load csv", self)
         load_csv_action.setStatusTip("Muat berkas CSV rekaman tab Live")
@@ -653,7 +653,7 @@ class MainWindow(QMainWindow):
 
         for label, index, shortcut in (
             ("Live", TAB_LIVE, "Ctrl+1"),
-            ("Analisa", TAB_ANALYZE, "Ctrl+2"),
+            ("Analisa SingleFile", TAB_ANALYZE, "Ctrl+2"),
             ("Analisa multifile", TAB_MULTI_FILE, "Ctrl+3"),
         ):
             action = QAction(label, self)

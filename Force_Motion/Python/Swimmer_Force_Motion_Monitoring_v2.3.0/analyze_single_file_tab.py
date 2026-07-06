@@ -3,7 +3,7 @@ Tab **Analisa (satu berkas)** — ``AnalyzeSingleFileTab`` (PySide6 + pyqtgraph)
 
 Fungsi utama
 ============
-- **Load CSV** rekaman tab Live (menu **File → Analisa → Load csv**; parser
+- **Load CSV** rekaman tab Live (menu **File → Analisa SingleFile → Load csv**; parser
   ``live_csv_io.parse_logged_csv``): dialog buka berkas, default folder ``DataLog/``.
 - **Plot waktu** penuh untuk Force, Roll, Pitch; **region biru** (data uji) dan
   **region hijau** (zero offset); **marker** titik ekstrem (min hijau / maks merah).
