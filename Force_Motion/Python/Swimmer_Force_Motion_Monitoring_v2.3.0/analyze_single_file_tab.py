@@ -181,7 +181,11 @@ _STATS_MATRIX_ROW_LABELS = (
 )
 
 _STATS_MERGED_VALUE_ROWS = frozenset({
+    _STATS_MATRIX_ROW_LABELS.index("TimeStamp Start Uji (s)"),
+    _STATS_MATRIX_ROW_LABELS.index("TimeStamp Stop Uji (s)"),
     _STATS_MATRIX_ROW_LABELS.index("Durasi (s) region data uji"),
+    _STATS_MATRIX_ROW_LABELS.index("Zero offset start (s)"),
+    _STATS_MATRIX_ROW_LABELS.index("Zero offset stop (s)"),
     _STATS_MATRIX_ROW_LABELS.index("Durasi (s) region zero offset"),
     _STATS_MATRIX_ROW_LABELS.index("Metode spektrum"),
     _STATS_MATRIX_ROW_LABELS.index("Gap — metode"),
@@ -651,6 +655,21 @@ _ANALYZE_SETTINGS_DIALOG_STYLESHEET = (
     """
 QDialog { background-color: #1f2937; }
 QDialog QLabel { color: #e5e7eb; }
+QDialog QGroupBox {
+    border: 1px solid #374151;
+    border-radius: 8px;
+    margin-top: 14px;
+    padding-top: 10px;
+    font-size: 10pt;
+    font-weight: 600;
+    color: #d1d5db;
+}
+QDialog QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 6px;
+    color: #9ca3af;
+}
 QDialog QCheckBox { color: #e5e7eb; spacing: 8px; }
 QDialog QComboBox {
     background: #374151;
@@ -676,6 +695,16 @@ QDialog QRadioButton { color: #e5e7eb; spacing: 8px; }
 )
 
 
+def _make_analyze_settings_group(
+    title: str, parent: QWidget
+) -> tuple[QGroupBox, QVBoxLayout]:
+    box = QGroupBox(title, parent)
+    inner = QVBoxLayout(box)
+    inner.setContentsMargins(12, 14, 12, 12)
+    inner.setSpacing(8)
+    return box, inner
+
+
 class AnalyzeSettingsDialog(QDialog):
     """Jendela terpisah untuk pengaturan analisa (spektrum, segmen, gap CSV)."""
 
@@ -683,7 +712,7 @@ class AnalyzeSettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Analisa Setting")
         self.setModal(False)
-        self.setMinimumSize(400, 320)
+        self.setMinimumSize(440, 340)
         self.setStyleSheet(_ANALYZE_SETTINGS_DIALOG_STYLESHEET)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 12, 12, 12)
@@ -838,15 +867,20 @@ class AnalyzeSingleFileTab(QWidget):
 
         settings_group = QWidget(self)
         settings_inner = QVBoxLayout(settings_group)
-        settings_inner.setContentsMargins(10, 10, 10, 10)
-        settings_inner.setSpacing(6)
+        settings_inner.setContentsMargins(4, 4, 4, 4)
+        settings_inner.setSpacing(10)
+
+        spectrum_box, spectrum_lay = _make_analyze_settings_group(
+            "Spektrum (statistik)", self
+        )
         spectrum_method_row = QHBoxLayout()
         spectrum_method_row.setSpacing(10)
-        spectrum_lbl = QLabel("Metode spektrum (statistik):", self)
-        spectrum_lbl.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        spectrum_lbl = QLabel("Metode:", self)
+        spectrum_lbl.setStyleSheet("color: #e5e7eb; font-size: 10pt; font-weight: normal;")
         spectrum_lbl.setToolTip(
             _tooltip(
                 "Frekuensi dominan pada kartu statistik dan ekspor DataStatistik.",
+                "Dihitung terpisah per saluran Force, Roll, dan Pitch.",
                 "Plot spektrum tidak ditampilkan di v2.3.0.",
             )
         )
@@ -856,15 +890,20 @@ class AnalyzeSingleFileTab(QWidget):
         self._spectrum_method_combo.blockSignals(True)
         self._spectrum_method_combo.setCurrentIndex(0)
         self._spectrum_method_combo.blockSignals(False)
-        self._spectrum_method_combo.setMinimumWidth(140)
+        self._spectrum_method_combo.setMinimumWidth(160)
         self._spectrum_method_combo.currentIndexChanged.connect(self._on_spectrum_method_changed)
         spectrum_method_row.addWidget(spectrum_lbl, 0)
-        spectrum_method_row.addWidget(self._spectrum_method_combo, 0)
-        spectrum_method_row.addStretch(1)
-        settings_inner.addLayout(spectrum_method_row)
+        spectrum_method_row.addWidget(self._spectrum_method_combo, 1)
+        spectrum_lay.addLayout(spectrum_method_row)
+        settings_inner.addWidget(spectrum_box)
 
+        correction_box, correction_lay = _make_analyze_settings_group(
+            "Koreksi & region", self
+        )
         self._zero_offset_checkbox = QCheckBox("Zero Offset", self)
-        self._zero_offset_checkbox.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        self._zero_offset_checkbox.setStyleSheet(
+            "color: #e5e7eb; font-size: 10pt; font-weight: normal;"
+        )
         self._zero_offset_checkbox.setToolTip(
             _tooltip(
                 "Tampilkan region offset (hijau) di awal plot.",
@@ -873,14 +912,16 @@ class AnalyzeSingleFileTab(QWidget):
             )
         )
         self._zero_offset_checkbox.toggled.connect(self._on_zero_offset_checkbox_changed)
-        settings_inner.addWidget(self._zero_offset_checkbox)
+        correction_lay.addWidget(self._zero_offset_checkbox)
 
         tether_angle_row = QHBoxLayout()
         tether_angle_row.setSpacing(10)
         self._tether_angle_checkbox = QCheckBox(
-            "Koreksi sudut tali (terhadap permukaan air)", self
+            "Koreksi sudut tali (permukaan air)", self
         )
-        self._tether_angle_checkbox.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+        self._tether_angle_checkbox.setStyleSheet(
+            "color: #e5e7eb; font-size: 10pt; font-weight: normal;"
+        )
         self._tether_angle_checkbox.setToolTip(
             _tooltip(
                 "Gaya horizontal = Force terukur × cos(sudut).",
@@ -895,7 +936,7 @@ class AnalyzeSingleFileTab(QWidget):
         self._tether_angle_spin.setValue(_TETHER_ANGLE_DEFAULT_DEG)
         self._tether_angle_spin.setSuffix(" °")
         self._tether_angle_spin.setEnabled(False)
-        self._tether_angle_spin.setMinimumWidth(96)
+        self._tether_angle_spin.setFixedWidth(104)
         self._tether_angle_spin.setToolTip(
             _tooltip(
                 "Sudut tali terhadap permukaan air.",
@@ -903,15 +944,12 @@ class AnalyzeSingleFileTab(QWidget):
             )
         )
         self._tether_angle_spin.valueChanged.connect(self._on_tether_angle_setting_changed)
-        tether_angle_row.addWidget(self._tether_angle_checkbox, 0)
-        tether_angle_row.addWidget(self._tether_angle_spin, 0)
-        tether_angle_row.addStretch(1)
-        settings_inner.addLayout(tether_angle_row)
+        tether_angle_row.addWidget(self._tether_angle_checkbox, 1)
+        tether_angle_row.addWidget(self._tether_angle_spin, 0, Qt.AlignmentFlag.AlignRight)
+        correction_lay.addLayout(tether_angle_row)
+        settings_inner.addWidget(correction_box)
 
-        gap_method_caption = QLabel("Metode gap rekaman CSV:", self)
-        gap_method_caption.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
-        settings_inner.addWidget(gap_method_caption)
-
+        gap_box, gap_lay = _make_analyze_settings_group("Gap rekaman CSV", self)
         self._gap_method_group = QButtonGroup(self)
         self._gap_method_a_radio = QRadioButton("Metode A — per gap (lokal)", self)
         self._gap_method_b_radio = QRadioButton("Metode B — global (ringkas)", self)
@@ -928,13 +966,15 @@ class AnalyzeSingleFileTab(QWidget):
             )
         )
         for rb in (self._gap_method_a_radio, self._gap_method_b_radio):
-            rb.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
+            rb.setStyleSheet("color: #e5e7eb; font-size: 10pt; font-weight: normal;")
         self._gap_method_group.addButton(self._gap_method_a_radio, 0)
         self._gap_method_group.addButton(self._gap_method_b_radio, 1)
         self._gap_method_b_radio.setChecked(True)
         self._gap_method_group.idClicked.connect(self._on_gap_loss_method_changed)
-        settings_inner.addWidget(self._gap_method_a_radio)
-        settings_inner.addWidget(self._gap_method_b_radio)
+        gap_lay.addWidget(self._gap_method_a_radio)
+        gap_lay.addWidget(self._gap_method_b_radio)
+        settings_inner.addWidget(gap_box)
+        settings_inner.addStretch(1)
 
         self.stats_group = QGroupBox("", self)
         stats_inner = QVBoxLayout(self.stats_group)
