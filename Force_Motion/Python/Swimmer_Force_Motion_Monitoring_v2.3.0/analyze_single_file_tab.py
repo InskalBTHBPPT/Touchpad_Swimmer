@@ -159,10 +159,12 @@ _STATS_COL_ROLL = "#f59e0b"
 _STATS_COL_PITCH = "#a78bfa"
 
 _STATS_MATRIX_ROW_LABELS = (
-    "TimeStamp Start (s)",
-    "TimeStamp Stop (s)",
+    "TimeStamp Start Uji (s)",
+    "TimeStamp Stop Uji (s)",
+    "Durasi (s) region data uji",
     "Zero offset start (s)",
     "Zero offset stop (s)",
+    "Durasi (s) region zero offset",
     "Rata-rata offset",
     "Maksimum",
     "t @ maks (s)",
@@ -179,6 +181,8 @@ _STATS_MATRIX_ROW_LABELS = (
 )
 
 _STATS_MERGED_VALUE_ROWS = frozenset({
+    _STATS_MATRIX_ROW_LABELS.index("Durasi (s) region data uji"),
+    _STATS_MATRIX_ROW_LABELS.index("Durasi (s) region zero offset"),
     _STATS_MATRIX_ROW_LABELS.index("Metode spektrum"),
     _STATS_MATRIX_ROW_LABELS.index("Gap — metode"),
     _STATS_MATRIX_ROW_LABELS.index("Gap — Δt nominal (s)"),
@@ -242,7 +246,12 @@ def _set_stats_matrix_cell(
 
 
 def _set_stats_matrix_merged_row(table: QTableWidget, row: int, text: str) -> None:
-    _set_stats_matrix_cell(table, row, 1, text)
+    item = QTableWidgetItem(text)
+    item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+    item.setTextAlignment(
+        Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+    )
+    table.setItem(row, 1, item)
     table.setSpan(row, 1, 1, 3)
 
 
@@ -263,6 +272,14 @@ def _fill_stats_matrix_table(
     t_start = float(snap["timestamp_start_s"])
     t_stop = float(snap["timestamp_stop_s"])
     method = str(snap["spectrum_method"])
+    test_duration_s = max(0.0, t_stop - t_start)
+    test_duration_text = _stats_table_text(test_duration_s)
+    z_lo = snap.get("zero_offset_start_s")
+    z_hi = snap.get("zero_offset_stop_s")
+    if z_lo is not None and z_hi is not None:
+        zero_duration_text = _stats_table_text(max(0.0, float(z_hi) - float(z_lo)))
+    else:
+        zero_duration_text = "—"
 
     def peak_hz_text(v: float | str | None) -> str:
         if v is None:
@@ -282,6 +299,7 @@ def _fill_stats_matrix_table(
             _stats_table_text(t_stop),
             _stats_table_text(t_stop),
         ),
+        (test_duration_text, "—", "—"),
         (
             _stats_table_text(snap.get("zero_offset_start_s")),
             _stats_table_text(snap.get("zero_offset_start_s")),
@@ -292,6 +310,7 @@ def _fill_stats_matrix_table(
             _stats_table_text(snap.get("zero_offset_stop_s")),
             _stats_table_text(snap.get("zero_offset_stop_s")),
         ),
+        (zero_duration_text, "—", "—"),
         (
             _stats_table_text(snap.get("offset_mean_force_kg"), unit="Kg"),
             _stats_table_text(snap.get("offset_mean_roll_deg"), unit="°"),
@@ -889,26 +908,6 @@ class AnalyzeSingleFileTab(QWidget):
         tether_angle_row.addStretch(1)
         settings_inner.addLayout(tether_angle_row)
 
-        self._offset_info_label = QLabel("Region offset: —", self)
-        self._offset_info_label.setStyleSheet("color: #9ca3af; font-size: 10pt;")
-        self._offset_info_label.setWordWrap(True)
-        settings_inner.addWidget(self._offset_info_label)
-
-        segment_caption = QLabel("Region data uji (geser pada plot Force):", self)
-        segment_caption.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
-        settings_inner.addWidget(segment_caption)
-        self.segment_info_label = QLabel("Region data uji: —", self)
-        self.segment_info_label.setStyleSheet("color: #9ca3af; font-size: 10pt;")
-        self.segment_info_label.setWordWrap(True)
-        self.segment_info_label.setToolTip(
-            _tooltip(
-                "Geser tepi area berwarna pada plot Force untuk membatasi region data uji.",
-                "Roll dan Pitch menampilkan area yang sama.",
-                "Statistik dihitung hanya pada sampel di dalam region.",
-            )
-        )
-        settings_inner.addWidget(self.segment_info_label)
-
         gap_method_caption = QLabel("Metode gap rekaman CSV:", self)
         gap_method_caption.setStyleSheet("color: #e5e7eb; font-size: 10pt;")
         settings_inner.addWidget(gap_method_caption)
@@ -1369,8 +1368,6 @@ class AnalyzeSingleFileTab(QWidget):
             self._segment_region_force.blockSignals(False)
         self._segment_syncing = False
         self._sync_mirror_segment_regions(t_min, t_max)
-        self._update_segment_info_label(t_min, t_max)
-        self._update_offset_info_label(None, None)
 
     def _layout_regions_zero_offset_mode(self, t_min: float, t_max: float) -> None:
         off_lo, off_hi = self._default_offset_bounds(t_min, t_max)
@@ -1382,7 +1379,6 @@ class AnalyzeSingleFileTab(QWidget):
             self._offset_region_force.blockSignals(False)
         self._offset_syncing = False
         self._sync_mirror_offset_regions(off_lo, off_hi)
-        self._update_offset_info_label(off_lo, off_hi)
 
         self._segment_syncing = True
         if self._segment_region_force is not None:
@@ -1391,7 +1387,6 @@ class AnalyzeSingleFileTab(QWidget):
             self._segment_region_force.blockSignals(False)
         self._segment_syncing = False
         self._sync_mirror_segment_regions(test_lo, test_hi)
-        self._update_segment_info_label(test_lo, test_hi)
 
     def _setup_segment_regions(self, ts_list: list[float]) -> None:
         if not ts_list:
@@ -1419,28 +1414,6 @@ class AnalyzeSingleFileTab(QWidget):
                 region.blockSignals(True)
                 region.setRegion([lo, hi])
                 region.blockSignals(False)
-
-    def _update_segment_info_label(self, t_lo: float, t_hi: float) -> None:
-        lo, hi = min(t_lo, t_hi), max(t_lo, t_hi)
-        if self._loaded_ts and not self._zero_offset_mode():
-            full_lo, full_hi = min(self._loaded_ts), max(self._loaded_ts)
-            if abs(lo - full_lo) < 1e-6 and abs(hi - full_hi) < 1e-6:
-                self.segment_info_label.setText("Region data uji: seluruh rekaman")
-                return
-        self.segment_info_label.setText(
-            f"Region data uji: {lo:.2f} s — {hi:.2f} s (durasi {hi - lo:.2f} s)"
-        )
-
-    def _update_offset_info_label(
-        self, t_lo: float | None, t_hi: float | None
-    ) -> None:
-        if t_lo is None or t_hi is None or not self._zero_offset_mode():
-            self._offset_info_label.setText("Region offset: —")
-            return
-        lo, hi = min(t_lo, t_hi), max(t_lo, t_hi)
-        self._offset_info_label.setText(
-            f"Region offset: {lo:.2f} s — {hi:.2f} s (durasi {hi - lo:.2f} s)"
-        )
 
     def _clamp_region_to_recording(
         self, t_lo: float, t_hi: float
@@ -1498,7 +1471,6 @@ class AnalyzeSingleFileTab(QWidget):
             self._segment_region_force.blockSignals(False)
             self._segment_syncing = False
             self._sync_mirror_segment_regions(t_lo, t_hi)
-            self._update_segment_info_label(t_lo, t_hi)
 
     def _update_zero_offset_ui(self) -> None:
         has_data = self._raw_ts is not None
@@ -1544,6 +1516,14 @@ class AnalyzeSingleFileTab(QWidget):
         self._stats_snapshot["zero_offset_applied"] = (
             self._offset_applied and not self._offset_stale
         )
+        z_lo = self._stats_snapshot.get("zero_offset_start_s")
+        z_hi = self._stats_snapshot.get("zero_offset_stop_s")
+        if z_lo is not None and z_hi is not None:
+            self._stats_snapshot["zero_offset_duration_s"] = max(
+                0.0, float(z_hi) - float(z_lo)
+            )
+        else:
+            self._stats_snapshot["zero_offset_duration_s"] = None
         self._refresh_stats_table()
 
     def _on_offset_region_changed(self) -> None:
@@ -1560,7 +1540,6 @@ class AnalyzeSingleFileTab(QWidget):
                 self._offset_region_force.blockSignals(False)
                 self._offset_syncing = False
         self._sync_mirror_offset_regions(t_lo, t_hi)
-        self._update_offset_info_label(t_lo, t_hi)
         self._push_test_region_after_offset()
         was_stale = self._offset_stale
         self._mark_offset_stale_if_needed()
@@ -1582,7 +1561,6 @@ class AnalyzeSingleFileTab(QWidget):
             self._segment_region_force.blockSignals(False)
             self._segment_syncing = False
         self._sync_mirror_segment_regions(t_lo, t_hi)
-        self._update_segment_info_label(t_lo, t_hi)
         self._reanalyze_current_segment()
 
     def _reset_zero_offset_state(self, *, replot: bool = True) -> None:
@@ -1693,6 +1671,19 @@ class AnalyzeSingleFileTab(QWidget):
                 )
             else:
                 self._stats_snapshot["tether_angle_deg"] = None
+            self._stats_snapshot["test_region_duration_s"] = max(
+                0.0,
+                float(self._stats_snapshot["timestamp_stop_s"])
+                - float(self._stats_snapshot["timestamp_start_s"]),
+            )
+            z_lo = self._stats_snapshot.get("zero_offset_start_s")
+            z_hi = self._stats_snapshot.get("zero_offset_stop_s")
+            if z_lo is not None and z_hi is not None:
+                self._stats_snapshot["zero_offset_duration_s"] = max(
+                    0.0, float(z_hi) - float(z_lo)
+                )
+            else:
+                self._stats_snapshot["zero_offset_duration_s"] = None
         if ts_list:
             self._fs_hz = _estimate_sample_rate_hz(ts_list)
         self._update_zero_offset_ui()
@@ -2084,11 +2075,31 @@ class AnalyzeSingleFileTab(QWidget):
                 )
             w.writerow([])
             w.writerow(
-                ["Timestampstart (s)", f"{float(snap['timestamp_start_s']):.6g}"]
+                [
+                    "Timestampstart_uji (s)",
+                    f"{float(snap['timestamp_start_s']):.6g}",
+                ]
             )
             w.writerow(
-                ["Timestampstop (s)", f"{float(snap['timestamp_stop_s']):.6g}"]
+                [
+                    "Timestampstop_uji (s)",
+                    f"{float(snap['timestamp_stop_s']):.6g}",
+                ]
             )
+            if snap.get("test_region_duration_s") is not None:
+                w.writerow(
+                    [
+                        "Durasi_region_data_uji (s)",
+                        f"{float(snap['test_region_duration_s']):.6g}",
+                    ]
+                )
+            if snap.get("zero_offset_duration_s") is not None:
+                w.writerow(
+                    [
+                        "Durasi_region_zero_offset (s)",
+                        f"{float(snap['zero_offset_duration_s']):.6g}",
+                    ]
+                )
             w.writerow([])
             w.writerow(["Metrik", "Nilai", "Satuan", "Waktu (s)"])
             w.writerow(
