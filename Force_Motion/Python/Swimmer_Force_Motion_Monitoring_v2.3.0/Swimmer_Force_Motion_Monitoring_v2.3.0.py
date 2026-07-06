@@ -247,10 +247,9 @@ from PySide6.QtWidgets import (
 )
 
 from analyze_multi_file_tab import AnalyzeMultiFileTab
+from ui_tooltip import APP_QTOOLTIP_STYLESHEET, apply_app_tooltip_theme
 from analyze_single_file_tab import (
-    APP_QTOOLTIP_STYLESHEET,
     AnalyzeSingleFileTab,
-    apply_app_tooltip_theme,
     make_three_stack_plots,
     wrap_in_scroll_area,
 )

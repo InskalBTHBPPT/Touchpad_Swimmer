@@ -39,7 +39,7 @@ from pathlib import Path
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QPalette
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -73,6 +73,7 @@ from analyze_tethered_force_metrics import (
 )
 from analyze_video_panel import AnalyzeVideoPanel, _ANALYZE_TRANSPORT_BUTTON_STYLE
 from live_csv_io import LogSyncMeta, parse_logged_csv
+from ui_tooltip import APP_QTOOLTIP_STYLESHEET, apply_app_tooltip_theme, tooltip_text as _tooltip
 
 
 # Marker ekstremum: semua min hijau, semua max merah
@@ -160,7 +161,103 @@ QHeaderView::section {
     padding: 6px 8px;
     font-weight: 600;
 }
-"""
+""" + APP_QTOOLTIP_STYLESHEET
+
+_STATS_ROW_TOOLTIPS: dict[str, str] = {
+    "TimeStamp Start Uji (s)": _tooltip(
+        "Waktu mulai region biru — bagian rekaman yang dianalisis.",
+    ),
+    "TimeStamp Stop Uji (s)": _tooltip(
+        "Waktu akhir region biru.",
+    ),
+    "Durasi (s) region data uji": _tooltip(
+        "Lama region biru (detik). Geser batas region untuk mengubah angka statistik.",
+    ),
+    "Zero offset start (s)": _tooltip(
+        "Waktu mulai region hijau untuk menghitung baseline (offset nol).",
+    ),
+    "Zero offset stop (s)": _tooltip(
+        "Waktu akhir region hijau untuk baseline.",
+    ),
+    "Durasi (s) region zero offset": _tooltip(
+        "Lama periode yang dipakai menghitung rata-rata offset.",
+    ),
+    "Rata-rata offset": _tooltip(
+        "Nilai rata-rata Force / Roll / Pitch di region hijau.",
+        "Dikurangkan dari data saat Zero Offset aktif.",
+    ),
+    "Metode gaya Force": _tooltip(
+        "Metode A: hitung pada seluruh region sekaligus.",
+        "Metode B: hitung per kayuhan lalu dirata-rata.",
+    ),
+    "Maksimum": _tooltip(
+        "Nilai tertinggi pada region uji.",
+        "Force = peakF (puncak gaya); Roll/Pitch = sudut maksimum.",
+    ),
+    "t @ maks (s)": _tooltip(
+        "Pada detik berapa nilai maksimum terjadi.",
+    ),
+    "Mean (meanF)": _tooltip(
+        "Gaya rata-rata di region uji (Metode A)",
+        "atau rata-rata gaya per kayuhan (Metode B).",
+    ),
+    "Impulse (ImpF)": _tooltip(
+        "Total dorongan gaya × waktu (Kg·s).",
+        "Mencerminkan besaran dan lama gaya, bukan puncak saja.",
+    ),
+    "TpeakF (s)": _tooltip(
+        "Lama dari titik gaya terlemah ke puncak dalam satu kayuhan.",
+        "Hanya Metode B; Metode A menampilkan —.",
+    ),
+    "DUR (s)": _tooltip(
+        "Lama satu siklus kayuhan (antar dua titik gaya terlemah).",
+        "Hanya Metode B.",
+    ),
+    "RFD (Kg/s)": _tooltip(
+        "Seberapa cepat gaya naik dari lemah ke puncak (Kg/s).",
+        "Hanya Metode B.",
+    ),
+    "dF (%)": _tooltip(
+        "Seberapa bergelombang gaya dalam satu kayuhan (%).",
+        "Makin tinggi = aplikasi gaya kurang halus. Hanya Metode B.",
+    ),
+    "Fatigue Index (FI) (%)": _tooltip(
+        "Penurunan gaya dari awal ke akhir region (%).",
+        "Positif = kelelahan; perlu region ≥ 15 s. Kedua metode.",
+    ),
+    "Minimum": _tooltip(
+        "Nilai terendah pada region uji.",
+        "Force = minF; Roll/Pitch = sudut minimum.",
+    ),
+    "t @ min (s)": _tooltip(
+        "Pada detik berapa nilai minimum terjadi.",
+    ),
+    "Frekuensi dominan (Hz)": _tooltip(
+        "Frekuensi utama gerakan/ayunan pada saluran tersebut.",
+    ),
+    "Metode spektrum": _tooltip(
+        "Cara menghitung frekuensi dominan: FFT atau Welch PSD.",
+    ),
+    "Gap — metode": _tooltip(
+        "Cara estimasi sampel hilang di CSV (per lubang atau global).",
+    ),
+    "Gap — Δt nominal (s)": _tooltip(
+        "Jarak waktu tipikal antar baris CSV (median selisih timestamp).",
+    ),
+    "Gap — sampel tercatat": _tooltip(
+        "Jumlah baris data pada seluruh CSV yang dimuat.",
+    ),
+    "Gap — sampel hilang": _tooltip(
+        "Estimasi berapa sampel yang tidak tercatat karena lubang timestamp.",
+    ),
+    "Gap — hilang (%)": _tooltip(
+        "Persentase sampel hilang terhadap yang diharapkan.",
+    ),
+    "Gap — jumlah / diharapkan": _tooltip(
+        "Metode A: jumlah lubang terdeteksi.",
+        "Metode B: total sampel yang seharusnya ada.",
+    ),
+}
 
 _STATS_COL_FORCE = "#38bdf8"
 _STATS_COL_ROLL = "#f59e0b"
@@ -251,6 +348,9 @@ def _configure_stats_matrix_table(table: QTableWidget) -> None:
         param_item = QTableWidgetItem(label)
         param_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
         param_item.setForeground(QBrush(QColor("#9ca3af")))
+        tip = _STATS_ROW_TOOLTIPS.get(label)
+        if tip:
+            param_item.setToolTip(tip)
         table.setItem(row, 0, param_item)
     channel_colors = ("", _STATS_COL_FORCE, _STATS_COL_ROLL, _STATS_COL_PITCH)
     for col, color in enumerate(channel_colors):
@@ -696,34 +796,6 @@ def make_analyze_time_spectrum_row(
         _configure_plot_widget_for_responsive_layout(w, min_height=_ANALYZE_PLOT_MIN_HEIGHT)
 
     return time_w, time_c, spec_w, spec_c
-
-
-APP_QTOOLTIP_STYLESHEET = """
-QToolTip {
-    color: #000000;
-    background-color: #f8fafc;
-    border: 1px solid #64748b;
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 10pt;
-}
-QToolTip QLabel {
-    color: #000000;
-    background-color: transparent;
-}
-"""
-
-
-def apply_app_tooltip_theme(app) -> None:
-    """Palette tooltip eksplisit — di Windows teks tooltip bisa mewarisi warna widget."""
-    palette = app.palette()
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#f8fafc"))
-    palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#000000"))
-    app.setPalette(palette)
-
-
-def _tooltip(*lines: str) -> str:
-    return "\n".join(lines)
 
 
 _ANALYZE_SETTINGS_DIALOG_STYLESHEET = (

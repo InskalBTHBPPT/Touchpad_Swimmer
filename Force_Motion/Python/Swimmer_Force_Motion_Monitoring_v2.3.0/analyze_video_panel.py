@@ -26,6 +26,8 @@ from PySide6.QtWidgets import (
 
 from live_camera_core import quiet_opencv
 
+from ui_tooltip import APP_QTOOLTIP_STYLESHEET, tooltip_text
+
 _ANALYZE_TRANSPORT_BUTTON_STYLE = """
 QPushButton {
     padding: 8px 12px;
@@ -38,6 +40,8 @@ QPushButton:hover { background-color: #2563eb; }
 QPushButton:pressed { background-color: #1d4ed8; }
 QPushButton:disabled { background-color: #6b7280; color: #d1d5db; }
 """
+
+_ANALYZE_VIDEO_PANEL_STYLESHEET = _ANALYZE_TRANSPORT_BUTTON_STYLE + APP_QTOOLTIP_STYLESHEET
 
 
 def _frame_to_qimage(frame) -> QImage:
@@ -64,6 +68,7 @@ class AnalyzeVideoPanel(QGroupBox):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("", parent)
+        self.setStyleSheet(_ANALYZE_VIDEO_PANEL_STYLESHEET)
         self._video_path: Path | None = None
         self._cap: cv2.VideoCapture | None = None
         self._playing = False
@@ -104,7 +109,10 @@ class AnalyzeVideoPanel(QGroupBox):
         self._load_video_btn = QPushButton("Load Video…", self)
         self._load_video_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
         self._load_video_btn.setToolTip(
-            "Muat berkas MP4 secara manual jika pasangan otomatis tidak ditemukan."
+            tooltip_text(
+                "Muat berkas MP4 secara manual.",
+                "Biasanya video pasangan (.mp4 sama nama dengan CSV) dimuat otomatis saat Load CSV.",
+            )
         )
         self._load_video_btn.clicked.connect(self.load_video_requested.emit)
         transport.addWidget(self._load_video_btn, 0)
@@ -114,6 +122,12 @@ class AnalyzeVideoPanel(QGroupBox):
         self._play_btn = QPushButton("▶ Play", self)
         self._play_btn.setStyleSheet(_ANALYZE_TRANSPORT_BUTTON_STYLE)
         self._play_btn.setEnabled(False)
+        self._play_btn.setToolTip(
+            tooltip_text(
+                "Putar atau jeda video rekaman.",
+                "Garis pink pada plot Force/Roll/Pitch mengikuti posisi video.",
+            )
+        )
         self._play_btn.clicked.connect(self._toggle_play)
         transport.addWidget(self._play_btn, 0)
 

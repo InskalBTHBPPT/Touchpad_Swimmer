@@ -157,10 +157,10 @@ Tanpa kamera aktif, **Start Log** hanya menulis CSV (perilaku sama seperti v2.2.
 Setelah berhasil dimuat:
 
 - **Kiri:** tiga plot menampilkan rekaman penuh (Force, Roll, Pitch).
-- **Tengah:** panel **Rekaman video** — playback MP4 (lihat §4.1a untuk sinkron playhead).
+- **Tengah:** panel **Rekaman video** — playback MP4 (lihat §4.1a untuk sinkron playhead). Tombol **Load Video…** dan **Play** memiliki tooltip bantuan (latar terang, teks gelap).
 - **Kanan:** panel statistik dan pengaturan.
 - Marker menandai titik ekstrem pada plot (force maksimum; roll/pitch min dan max) dengan label waktu.
-- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start/Stop Uji**, **Metode gaya Force**, **Mean (meanF)**, **Impulse (ImpF)**, **TpeakF**, **DUR**, **RFD**, **dF**, **Fatigue Index (FI)** (kolom Force; dF dan temporal hanya Metode B; FI global), dan ekstremum gaya (**Maksimum** = peakF, **Minimum** = minF) pada kolom Force, **frekuensi dominan** (Hz) per kanal, serta kartu **GAP REKAMAN CSV** (lihat §4.4 dan §4.6).
+- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start/Stop Uji**, **Metode gaya Force**, **Mean (meanF)**, **Impulse (ImpF)**, **TpeakF**, **DUR**, **RFD**, **dF**, **Fatigue Index (FI)** (kolom Force; dF dan temporal hanya Metode B; FI global), dan ekstremum gaya (**Maksimum** = peakF, **Minimum** = minF) pada kolom Force, **frekuensi dominan** (Hz) per kanal, serta kartu **GAP REKAMAN CSV** (lihat §4.4 dan §4.6). **Tooltip:** arahkan kursor ke nama baris di kolom **Parameter** untuk penjelasan singkat; panduan awam lengkap di §4.6a.
 
 ### 4.3 Analisa Setting — metode spektrum dan statistik Force
 
@@ -293,6 +293,55 @@ Kira-kira \(I \approx \overline{F} \times T\) untuk sampling reguler, dengan \(\
 #### Ekspor DataStatistik
 
 Blok metrik Force mencantumkan **Metode_statistik_Force**, opsional **Jumlah_siklus_Force_Andrade**, opsional **Filter_Andrade_cutoff** (Hz), serta **Force_maksimum_peakF**, **Force_mean_meanF**, **Force_impulse_ImpF**, opsional **Force_TpeakF**, **Force_DUR**, **Force_RFD**, opsional **Force_dF** (Metode B), opsional **Force_Fatigue_Index**, dan **Force_minimum_minF** sesuai metode aktif.
+
+### 4.6a Panduan awam — membaca tabel statistik
+
+Arahkan kursor ke **nama baris** di kolom **Parameter** pada tabel statistik untuk melihat penjelasan singkat (tooltip). Bagian ini memberi penjelasan lebih panjang dalam bahasa sehari-hari.
+
+#### Region uji dan zero offset
+
+- **TimeStamp Start / Stop Uji** — Batas waktu region **biru** pada plot. Hanya data di dalam region inilah yang dipakai menghitung statistik gaya dan sudut (kecuali gap CSV, yang memakai seluruh file).
+- **Durasi region data uji** — Berapa lama tes yang Anda analisis (detik). Geser ujung region biru untuk memperpendek atau memperpanjang analisis.
+- **Zero offset** — Region **hijau** dipakai menghitung “nol” sensor sebelum renang intens. **Rata-rata offset** adalah nilai baseline Force/Roll/Pitch yang dikurangkan saat Zero Offset aktif.
+
+#### Gaya Force — yang perlu dipahami pelatih
+
+| Istilah | Arti awam | Kapan dipakai |
+|---------|-----------|---------------|
+| **peakF (Maksimum)** | Puncak gaya terkuat | Menilai kekuatan dorong maksimal |
+| **meanF (Mean)** | Gaya rata-rata | Gambaran umum intensitas renang |
+| **minF (Minimum)** | Titik gaya terlemah dalam siklus/region | Biasanya saat transisi antar fase kayuhan |
+| **ImpF (Impulse)** | Total “dorongan” (gaya × waktu) | Lebih mirip “berapa banyak tenaga didorong” daripada sekadar puncak |
+| **TpeakF** | Lama naik dari lemah ke puncak (per kayuhan) | Metode B — kecepatan membangun gaya |
+| **DUR** | Lama satu kayuhan penuh | Metode B — ritme / durasi siklus |
+| **RFD** | Kecepatan kenaikan gaya (Kg/s) | Metode B — “ledakan” gaya di awal dorongan |
+| **dF** | Seberapa bergelombang gaya per kayuhan (%) | Metode B — makin tinggi, gaya kurang halus/kontinyu |
+| **FI** | Penurunan gaya awal→akhir tes (%) | Kelelahan anaerobik; butuh region ≥ 15 s |
+
+**Metode A** menjawab: “Berapa nilai global di seluruh region?” — cocok untuk ringkasan cepat.
+
+**Metode B** menjawab: “Bagaimana rata-rata tiap kayuhan?” — cocok untuk teknik renang, karena menghitung per siklus lalu dirata-rata.
+
+#### Roll dan Pitch
+
+- **Maksimum / Minimum** — Sudut tubuh tertinggi dan terendah yang tercatat (derajat).
+- **Frekuensi dominan** — Frekuensi utama osilasi/ayunan tubuh pada saluran tersebut (Hz), dari analisis FFT atau Welch.
+
+#### Gap rekaman CSV
+
+Bukan metrik performa perenang, melainkan **kualitas file data**:
+
+- **Sampel hilang** — Estimasi berapa banyak titik data yang “hilang” karena jeda timestamp di CSV.
+- **Persen hilang** — Semakin besar, semakin hati-hati menafsirkan statistik (data mungkin tidak kontinu).
+
+Jika gap besar, pertimbangkan ulang rekaman atau periksa koneksi/logging sebelum membandingkan antar sesi.
+
+#### Tips membaca angka
+
+1. Bandingkan **meanF** dan **ImpF** bersama — impuls tinggi dengan mean sedang bisa berarti gaya terjaga lebih lama.
+2. **dF** rendah + **peakF** tinggi sering diinginkan pada jarak pendek (gaya kuat dan relatif stabil per kayuhan).
+3. **FI** positif besar pada tes 30 s all-out menandakan penurunan gaya yang jelas — normal pada tes maksimal, berguna memantau perkembangan anaerobik.
+4. Baris **—** bukan error: artinya parameter tidak berlaku untuk metode atau durasi region saat ini.
 
 ---
 
