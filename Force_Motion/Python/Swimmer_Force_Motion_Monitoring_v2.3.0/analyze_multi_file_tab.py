@@ -1,7 +1,7 @@
 """
 Tab **Analisa multifile** — bandingkan hingga lima berkas ``DataStatistik/`` dalam
 satu tabel (``QTableWidget``). **Add file** menambah kolom; **Clear tabel** menghapus
-kolom terpilih. Plot perbandingan — belum diaktifkan.
+kolom terpilih. **Plot data** membuka jendela perbandingan metrik (pyqtgraph).
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QFont, QShowEvent
 from PySide6.QtWidgets import (
@@ -240,6 +242,33 @@ TABLE_ROWS = _build_table_row_specs()
 DATA_ROWS = len(TABLE_ROWS)
 TOTAL_ROWS = HEADER_ROWS + DATA_ROWS
 
+PLOT_STYLE_BAR = "bar"
+PLOT_STYLE_LINE = "line"
+PLOT_STYLE_SCATTER = "scatter"
+
+PLOT_METRIC_SPECS: list[
+    tuple[str, str, Callable[[StatistikExportRecord], float | None]]
+] = [
+    ("peakF (Kg)", "Force (Kg)", lambda r: r.force_peak_kg),
+    ("meanF (Kg)", "Force (Kg)", lambda r: r.force_mean_kg),
+    ("minF (Kg)", "Force (Kg)", lambda r: r.force_min_kg),
+    ("ImpF (Kg·s)", "Impulse (Kg·s)", lambda r: r.force_impulse_kg_s),
+    ("Roll maksimum (°)", "Roll (°)", lambda r: r.roll_max_deg),
+    ("Roll minimum (°)", "Roll (°)", lambda r: r.roll_min_deg),
+    ("Pitch maksimum (°)", "Pitch (°)", lambda r: r.pitch_max_deg),
+    ("Pitch minimum (°)", "Pitch (°)", lambda r: r.pitch_min_deg),
+    ("Frekuensi dominan Force (Hz)", "f (Hz)", lambda r: r.dom_freq_force_hz),
+    ("Frekuensi dominan Roll (Hz)", "f (Hz)", lambda r: r.dom_freq_roll_hz),
+    ("Frekuensi dominan Pitch (Hz)", "f (Hz)", lambda r: r.dom_freq_pitch_hz),
+]
+
+
+def _short_label(s: str, max_len: int = 22) -> str:
+    s = s.strip()
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 1] + "…"
+
 
 def _group_style(group: str) -> _GroupStyle:
     return _GROUP_STYLES.get(group, _GROUP_STYLES[GROUP_REGION])
@@ -276,7 +305,9 @@ class AnalyzeMultiFileTab(QWidget):
         self.plot_btn = QPushButton("Plot data", self)
         self.plot_btn.setObjectName("PlotDataGreenButton")
         self.plot_btn.setEnabled(False)
-        self.plot_btn.setToolTip("Segera hadir — plot perbandingan belum diaktifkan.")
+        self.plot_btn.setToolTip(
+            "Buka jendela plot: pilih metrik dan gaya diagram (batang / garis / titik)."
+        )
         self.plot_btn.clicked.connect(self._on_plot_data)
         row1.addWidget(self.plot_btn)
         row1.addStretch(1)
@@ -403,11 +434,17 @@ class AnalyzeMultiFileTab(QWidget):
         )
 
     def _on_plot_data(self) -> None:
-        self._themed_stat_message(
-            QMessageBox.Icon.Information,
-            "Plot data",
-            "Fitur plot perbandingan belum diaktifkan.",
-        )
+        if not self._entries:
+            self._themed_stat_message(
+                QMessageBox.Icon.Information,
+                "Plot data",
+                "Tambah setidaknya satu berkas DataStatistik (Add file) sebelum memplot.",
+            )
+            return
+        dlg = MultiFilePlotDialog(self)
+        dlg.setWindowModality(Qt.WindowModality.NonModal)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        dlg.show()
 
     def _make_item(
         self,
@@ -545,6 +582,7 @@ class AnalyzeMultiFileTab(QWidget):
             rec = ent["record"]
             assert isinstance(rec, StatistikExportRecord)
             self._fill_metrics_column(j, rec)
+        self.plot_btn.setEnabled(n > 0)
         self._apply_table_column_layout()
         self._apply_header_row_heights()
 
@@ -612,12 +650,186 @@ class AnalyzeMultiFileTab(QWidget):
 
 
 class MultiFilePlotDialog(QDialog):
-    """Jendela plot perbandingan — belum dihubungkan ke DataStatistik (reserved)."""
+    """Jendela plot perbandingan metrik dari berkas DataStatistik yang dimuat."""
 
     def __init__(self, source_tab: AnalyzeMultiFileTab, parent: QWidget | None = None) -> None:
         super().__init__(parent or source_tab)
         self._tab = source_tab
         self.setWindowTitle("Plot perbandingan berkas")
         self.resize(840, 580)
+
         outer = QVBoxLayout(self)
-        outer.addWidget(QLabel("Plot perbandingan belum diaktifkan.", self))
+        outer.setContentsMargins(10, 10, 10, 10)
+        outer.setSpacing(8)
+
+        ctrl = QHBoxLayout()
+        ctrl.addWidget(QLabel("Metrik:", self))
+        self._metric_combo = QComboBox(self)
+        for title, _yl, _fn in PLOT_METRIC_SPECS:
+            self._metric_combo.addItem(title)
+        self._metric_combo.setMinimumWidth(240)
+        ctrl.addWidget(self._metric_combo)
+        ctrl.addSpacing(18)
+        ctrl.addWidget(QLabel("Gaya plot:", self))
+        self._style_combo = QComboBox(self)
+        self._style_combo.addItem("Garis + penanda", userData=PLOT_STYLE_LINE)
+        self._style_combo.addItem("Diagram batang", userData=PLOT_STYLE_BAR)
+        self._style_combo.addItem("Titik saja", userData=PLOT_STYLE_SCATTER)
+        self._style_combo.setMinimumWidth(170)
+        ctrl.addWidget(self._style_combo)
+        ctrl.addStretch(1)
+        outer.addLayout(ctrl)
+
+        self._pw = pg.PlotWidget()
+        self._pw.setBackground("#1f2937")
+        for ax_name in ("left", "bottom"):
+            ax = self._pw.getAxis(ax_name)
+            ax.setPen(pg.mkPen("#94a3b8"))
+            ax.setTextPen(pg.mkPen("#e5e7eb"))
+        self._pw.showGrid(x=False, y=True, alpha=0.25)
+        self._pw.setLabel(
+            "bottom",
+            "Urutan kolom (berkas dimuat)",
+            color="#e5e7eb",
+            **{"font-size": "10pt"},
+        )
+        outer.addWidget(self._pw, 1)
+
+        self._footnote_lbl = QLabel("", self)
+        self._footnote_lbl.setWordWrap(True)
+        self._footnote_lbl.setStyleSheet("color:#94a3b8;font-size:10pt;padding-top:4px;")
+        outer.addWidget(self._footnote_lbl)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        close_btn = QPushButton("Tutup", self)
+        close_btn.clicked.connect(self.accept)
+        btn_row.addWidget(close_btn)
+        outer.addLayout(btn_row)
+
+        self._metric_combo.currentIndexChanged.connect(self._on_plot_control_changed)
+        self._style_combo.currentIndexChanged.connect(self._on_plot_control_changed)
+
+        self.setStyleSheet(
+            """
+            QDialog { background-color: #111827; }
+            QLabel { color: #e5e7eb; }
+            QComboBox {
+                background: #374151;
+                color: #e5e7eb;
+                border: 1px solid #4b5563;
+                padding: 6px;
+                border-radius: 8px;
+                min-height: 22px;
+            }
+            QPushButton {
+                padding: 8px 16px;
+                background: #3b82f6;
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+            }
+            QPushButton:hover { background: #2563eb; }
+            """
+        )
+
+        self._redraw()
+
+    def _on_plot_control_changed(self, _index: int) -> None:
+        self._redraw()
+
+    def _gather_series(
+        self,
+    ) -> tuple[list[str], list[float | None], str, str]:
+        entries = self._tab._entries
+        ix = self._metric_combo.currentIndex()
+        if ix < 0 or ix >= len(PLOT_METRIC_SPECS):
+            ix = 0
+        title_combo, y_axis_label, extractor = PLOT_METRIC_SPECS[ix]
+        x_labels: list[str] = []
+        y_raw: list[float | None] = []
+        for ent in entries:
+            rec = ent["record"]
+            assert isinstance(rec, StatistikExportRecord)
+            v = extractor(rec)
+            sw = str(ent["swimmer"]).strip()
+            fn = str(ent["filename"])
+            lab = sw if sw and sw not in ("—", "-") else fn
+            x_labels.append(_short_label(lab, 22))
+            y_raw.append(float(v) if v is not None else None)
+        return x_labels, y_raw, y_axis_label, title_combo
+
+    def _redraw(self) -> None:
+        x_labels, y_raw, y_axis_label, title_combo = self._gather_series()
+        n = len(y_raw)
+        self._pw.clear()
+        self.setWindowTitle(f"Plot — {title_combo}")
+
+        if n == 0:
+            self._pw.setLabel("left", "—", color="#e5e7eb", **{"font-size": "11pt"})
+            self._footnote_lbl.setText(
+                "Tidak ada berkas di tabel. Tutup jendela ini lalu tambah berkas di tab."
+            )
+            return
+
+        if all(x is None for x in y_raw):
+            self._pw.setLabel("left", y_axis_label, color="#e5e7eb", **{"font-size": "11pt"})
+            self._footnote_lbl.setText("Semua nilai kosong untuk metrik ini.")
+            return
+
+        if any(x is None for x in y_raw):
+            self._footnote_lbl.setText(
+                "Catatan: nilai yang tidak tersedia (mis. metrik kosong pada ekspor) "
+                "ditampilkan sebagai 0 pada diagram."
+            )
+        else:
+            self._footnote_lbl.setText("Nilai diambil dari ekspor DataStatistik tab Analisa.")
+
+        y_plot = np.array([0.0 if x is None else float(x) for x in y_raw], dtype=np.float64)
+        x = np.arange(n, dtype=float)
+        raw_style = self._style_combo.currentData()
+        style = raw_style if isinstance(raw_style, str) else PLOT_STYLE_LINE
+
+        self._pw.setLabel("left", y_axis_label, color="#e5e7eb", **{"font-size": "11pt"})
+        tick_specs = [(float(i), x_labels[i]) for i in range(n)]
+        self._pw.getAxis("bottom").setTicks([tick_specs])
+
+        green_pen = pg.mkPen("#22c55e", width=2)
+        sym_brush = pg.mkBrush("#86efac")
+        sym_pen = pg.mkPen("#14532d", width=1)
+
+        if style == PLOT_STYLE_BAR:
+            self._pw.addItem(
+                pg.BarGraphItem(
+                    x=x,
+                    height=y_plot,
+                    width=0.62,
+                    brush=pg.mkBrush("#22c55e"),
+                    pen=pg.mkPen("#14532d", width=1),
+                    base=0.0,
+                )
+            )
+        elif style == PLOT_STYLE_LINE:
+            self._pw.plot(
+                x,
+                y_plot,
+                pen=green_pen,
+                symbol="o",
+                symbolSize=10,
+                symbolBrush=sym_brush,
+                symbolPen=sym_pen,
+            )
+        else:
+            self._pw.plot(
+                x,
+                y_plot,
+                pen=None,
+                symbol="o",
+                symbolSize=12,
+                symbolBrush=sym_brush,
+                symbolPen=sym_pen,
+            )
+
+        vb = self._pw.getViewBox()
+        vb.setLimits(xMin=-0.6, xMax=max(float(n - 1) + 0.6, 0.6))
+        self._pw.enableAutoRange()
