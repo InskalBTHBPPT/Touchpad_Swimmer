@@ -263,7 +263,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QFont
+from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -318,6 +318,10 @@ STROKE_STYLES = [
     "Ganti kategori (medley)",
     "Lainnya",
 ]
+
+TAB_LIVE = 0
+TAB_ANALYZE = 1
+TAB_MULTI_FILE = 2
 
 # Dialog Simpan statistik / About-Help: QDialog vertikal (ikon atas, teks bawah).
 THEMED_STATISTIK_DIALOG_STYLESHEET = """
@@ -615,8 +619,46 @@ class MainWindow(QMainWindow):
         self.tab_widget.addTab(self.analyze_single_file_tab, "Analisa")
         self.tab_widget.addTab(self.analyze_multi_file_tab, "Analisa multifile")
 
-        self._setup_help_menu()
+        self._setup_menu_bar()
         self._apply_styles(controls, indicators)
+
+    def _setup_menu_bar(self) -> None:
+        self._setup_view_menu()
+        self._setup_help_menu()
+
+    def _setup_view_menu(self) -> None:
+        view_menu = self.menuBar().addMenu("&View")
+        self._view_action_group = QActionGroup(self)
+        self._view_action_group.setExclusive(True)
+        self._view_actions: list[QAction] = []
+
+        for label, index, shortcut in (
+            ("Live", TAB_LIVE, "Ctrl+1"),
+            ("Analisa", TAB_ANALYZE, "Ctrl+2"),
+            ("Analisa multifile", TAB_MULTI_FILE, "Ctrl+3"),
+        ):
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setShortcut(shortcut)
+            action.setStatusTip(f"Tampilkan tampilan {label}")
+            action.triggered.connect(
+                lambda _checked=False, tab_index=index: self._show_view_tab(tab_index)
+            )
+            self._view_action_group.addAction(action)
+            view_menu.addAction(action)
+            self._view_actions.append(action)
+
+        self.tab_widget.tabBar().hide()
+        self.tab_widget.currentChanged.connect(self._on_view_tab_changed)
+        self._view_actions[TAB_LIVE].setChecked(True)
+
+    def _show_view_tab(self, index: int) -> None:
+        if self.tab_widget.currentIndex() != index:
+            self.tab_widget.setCurrentIndex(index)
+
+    def _on_view_tab_changed(self, index: int) -> None:
+        if 0 <= index < len(self._view_actions):
+            self._view_actions[index].setChecked(True)
 
     def _setup_help_menu(self) -> None:
         help_menu = self.menuBar().addMenu("&Help")
@@ -647,6 +689,7 @@ class MainWindow(QMainWindow):
             QMenu { background-color: #1f2937; color: #e5e7eb; border: 1px solid #4b5563; }
             QMenu::item { padding: 6px 28px 6px 20px; }
             QMenu::item:selected { background-color: #374151; }
+            QTabWidget::pane { border: none; top: 0; }
             QGroupBox { border: 1px solid #374151; border-radius: 10px; margin-top: 10px; background: #1f2937; }
             QGroupBox::title { color: #e5e7eb; }
             QLabel { color: #e5e7eb; }
