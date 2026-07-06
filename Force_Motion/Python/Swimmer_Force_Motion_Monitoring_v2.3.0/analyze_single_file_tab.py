@@ -169,6 +169,7 @@ _STATS_MATRIX_ROW_LABELS = (
     "Rata-rata offset",
     "Maksimum",
     "t @ maks (s)",
+    "Mean (meanF)",
     "Minimum",
     "t @ min (s)",
     "Frekuensi dominan (Hz)",
@@ -332,12 +333,17 @@ def _fill_stats_matrix_table(
             _stats_table_text(snap["pitch_max_t_s"]),
         ),
         (
+            _stats_table_text(snap.get("force_mean_kg"), unit="Kg"),
             "—",
+            "—",
+        ),
+        (
+            _stats_table_text(snap["force_min_kg"], unit="Kg"),
             _stats_table_text(snap["roll_min_deg"], unit="°"),
             _stats_table_text(snap["pitch_min_deg"], unit="°"),
         ),
         (
-            "—",
+            _stats_table_text(snap["force_min_t_s"]),
             _stats_table_text(snap["roll_min_t_s"]),
             _stats_table_text(snap["pitch_min_t_s"]),
         ),
@@ -1852,8 +1858,12 @@ class AnalyzeSingleFileTab(QWidget):
             return max(range(len(vals)), key=lambda i: vals[i])
 
         i_fmax = _argmax_first(f_list)
+        i_fmin = _argmin_first(f_list)
         t_fmax = ts_list[i_fmax]
         v_fmax = f_list[i_fmax]
+        t_fmin = ts_list[i_fmin]
+        v_fmin = f_list[i_fmin]
+        v_fmean = float(statistics.mean(f_list))
 
         i_rmin = _argmin_first(r_list)
         i_rmax = _argmax_first(r_list)
@@ -1958,6 +1968,9 @@ class AnalyzeSingleFileTab(QWidget):
             "timestamp_stop_s": float(t_stop),
             "force_max_kg": float(v_fmax),
             "force_max_t_s": float(t_fmax),
+            "force_mean_kg": v_fmean,
+            "force_min_kg": float(v_fmin),
+            "force_min_t_s": float(t_fmin),
             "roll_min_deg": float(r_list[i_rmin]),
             "roll_min_t_s": float(ts_list[i_rmin]),
             "roll_max_deg": float(r_list[i_rmax]),
@@ -2112,10 +2125,26 @@ class AnalyzeSingleFileTab(QWidget):
             w.writerow(["Metrik", "Nilai", "Satuan", "Waktu (s)"])
             w.writerow(
                 [
-                    "Force_maksimum",
+                    "Force_maksimum_peakF",
                     f"{snap['force_max_kg']:.6g}",
                     "Kg",
                     f"{snap['force_max_t_s']:.6g}",
+                ]
+            )
+            w.writerow(
+                [
+                    "Force_mean_meanF",
+                    f"{float(snap['force_mean_kg']):.6g}",
+                    "Kg",
+                    "",
+                ]
+            )
+            w.writerow(
+                [
+                    "Force_minimum_minF",
+                    f"{snap['force_min_kg']:.6g}",
+                    "Kg",
+                    f"{snap['force_min_t_s']:.6g}",
                 ]
             )
             w.writerow(

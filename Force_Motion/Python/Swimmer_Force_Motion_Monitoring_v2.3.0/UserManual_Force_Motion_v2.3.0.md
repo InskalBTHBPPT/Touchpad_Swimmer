@@ -159,8 +159,8 @@ Setelah berhasil dimuat:
 - **Kiri:** tiga plot menampilkan rekaman penuh (Force, Roll, Pitch).
 - **Tengah:** panel **Rekaman video** — playback MP4 (lihat §4.1a untuk sinkron playhead).
 - **Kanan:** panel statistik dan pengaturan.
-- Marker menandai titik ekstrem (force maksimum; roll/pitch min dan max) dengan label waktu.
-- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start** (waktu minimum deret), **frekuensi dominan** (Hz) per kanal beserta label metode spektrum (**FFT** atau **Welch PSD**), serta kartu **GAP REKAMAN CSV** (lihat §4.4).
+- Marker menandai titik ekstrem pada plot (force maksimum; roll/pitch min dan max) dengan label waktu.
+- Panel kanan menampilkan ringkasan angka yang konsisten dengan marker, baris **TimeStamp Start/Stop Uji**, **Mean (meanF)** dan ekstremum gaya (**Maksimum** = peakF, **Minimum** = minF) pada kolom Force, **frekuensi dominan** (Hz) per kanal, serta kartu **GAP REKAMAN CSV** (lihat §4.4 dan §4.6).
 
 ### 4.3 Analisa Setting — metode spektrum
 
@@ -188,9 +188,56 @@ Grup **Analisa Setting** juga berisi radio **Metode gap rekaman CSV**:
 - Isi ringkas:
   - Metadata (nama perenang, gaya renang, waktu ekspor, nama berkas sumber).
   - Baris **`Timestampstart (s)`** + nilai (waktu awal deret, sama dengan yang ditampilkan di panel statistik).
-  - Tabel **`Metrik, Nilai, Satuan, Waktu (s)`** untuk ekstremum (force maksimum; roll min/maks; pitch min/maks).
+  - Tabel **`Metrik, Nilai, Satuan, Waktu (s)`** untuk ekstremum dan mean Force (**Force_maksimum_peakF**, **Force_mean_meanF**, **Force_minimum_minF**; roll/pitch min/maks) — lihat §4.6.
   - Dua baris kosong, lalu tabel **`Metrik, Frekuensi Dominan (Hz), Metode`** dengan baris **Force**, **Roll**, **Pitch** (metode sama untuk ketiga saluran pada satu ekspor).
   - Blok **`Gap rekaman CSV (estimasi)`** — metode yang dipilih, Δt nominal, laju sampel efektif, sampel tercatat, sampel hilang, persen hilang; Metode A menyertakan jumlah gap; Metode B menyertakan sampel diharapkan.
+
+### 4.6 Parameter gaya tethered — peakF, meanF, minF (kolom Force)
+
+Tiga parameter ini hanya dihitung pada **saluran Force**, pada **region data uji** (region biru), dari deret yang sudah melalui koreksi aktif di **Analisa Setting** (batas bawah Force mentah, zero offset, koreksi sudut tali jika dicentang). Satuan tampilan dan ekspor: **Kg** (load cell aplikasi); literatur sering memakai **N** — bandingkan hanya setelah konversi jika diperlukan.
+
+Aplikasi memakai paradigma **global selama region uji** (selaras protokol reliabilitas dan tinjauan sistematis), bukan rata-rata per siklus kayuhan.
+
+| Baris tabel | Simbol literatur | Definisi di aplikasi |
+|-------------|------------------|----------------------|
+| **Maksimum** | **peakF** | Nilai Force **tertinggi** pada seluruh sampel di region data uji; jika ada nilai sama, waktu yang dipakai adalah kemunculan **pertama**. |
+| **Mean (meanF)** | **meanF** | **Rata-rata aritmetika** semua sampel Force di region data uji. |
+| **Minimum** | **minF** | Nilai Force **terendah** pada seluruh sampel di region data uji; waktu = kemunculan **pertama** jika seri. |
+| **t @ maks / t @ min** | — | Timestamp (`TimeStamp(s)`) titik peakF dan minF di atas. |
+
+Baris **Roll** dan **Pitch** pada **Maksimum** / **Minimum** tetap ekstremum sudut, bukan peakF/meanF/minF.
+
+#### peakF (baris Maksimum, Force)
+
+**Makna:** puncak gaya propulsif tertinggi yang tercatat selama region uji — indikator kapasitas menghasilkan gaya maksimum pada cuplikan waktu yang dianalisis.
+
+**Referensi (definisi global / kurva F–t):**
+
+- Carrasco-Poyatos, M., et al. (2024). *Variables and protocols of the tethered swimming method: a systematic review.* **Sport Sciences for Health**. https://doi.org/10.1007/s11332-023-01140-1 — *peak force* sebagai gaya maksimum pada kurva gaya–waktu, salah satu variabel paling sering dilaporkan (41/55 studi dalam tinjauan).
+- Amaro, N., Marinho, D. A., Batalha, N., Marques, M. C., & Morouço, P. (2014). *Reliability of tethered swimming evaluation in age group swimmers.* **Journal of Human Kinetics**, 41, 155–162. https://doi.org/10.2478/hukin-2014-0043 — peak force pada tes tethered (mis. 30 s all-out) untuk evaluasi reliabilitas.
+
+**Catatan literatur alternatif (per siklus):** Andrade, R. M., Figueira, A. J., Metz, V., Amadio, A. C., & Cerca, J. (2018). *Interpretation of propulsive force in tethered swimming through principal component analysis.* **Revista Brasileira de Medicina do Esporte**, 24(3), 206–210. https://doi.org/10.1590/1517-869220182403175155 — mendefinisikan **peakF** sebagai gaya **tertinggi dalam satu kayuhan**, lalu merata-rata antar kayuhan. Aplikasi **belum** memakai segmentasi siklus; baris **Maksimum** = satu puncak global region uji.
+
+#### meanF (baris Mean (meanF))
+
+**Makna:** gaya propulsif rata-rata selama region uji — mencerminkan kemampuan mempertahankan produksi gaya pada durasi cuplikan, bukan hanya puncak sesaat.
+
+**Referensi (definisi global):**
+
+- Carrasco-Poyatos, M., et al. (2024). *Variables and protocols of the tethered swimming method: a systematic review.* **Sport Sciences for Health**. https://doi.org/10.1007/s11332-023-01140-1 — *mean force* sebagai rata-rata gaya **selama durasi uji** (39/55 studi).
+- Amaro, N., et al. (2014). *Reliability of tethered swimming evaluation in age group swimmers.* **Journal of Human Kinetics**, 41, 155–162. https://doi.org/10.2478/hukin-2014-0043 — mean force pada protokol tethered untuk reliabilitas test–retest.
+
+**Catatan literatur alternatif (per siklus):** Andrade, R. M., et al. (2018). *Interpretation of propulsive force in tethered swimming through principal component analysis.* **Revista Brasileira de Medicina do Esporte**, 24(3), 206–210. https://doi.org/10.1590/1517-869220182403175155 — **meanF** = rata-rata gaya **antara dua minimum berurutan** (minF₁–minF₂) dalam satu kayuhan, lalu diagregasi antar kayuhan. Berbeda dari mean global aplikasi.
+
+#### minF (baris Minimum, Force)
+
+**Makna di aplikasi:** nilai Force **terendah** pada seluruh region uji (global), dengan timestamp pada kemunculan pertama.
+
+**Referensi (definisi global):** minF sebagai ekstremum global jarang menjadi metrik utama dalam protokol reliabilitas; Carrasco-Poyatos et al. (2024) menekankan peak dan mean. Baris **Minimum** Force disediakan sebagai pelengkap deskriptif pada region yang sama dengan peakF dan meanF.
+
+**Referensi (definisi per siklus — konteks biomekanik):**
+
+- Andrade, R. M., et al. (2018). *Interpretation of propulsive force in tethered swimming through principal component analysis.* **Revista Brasileira de Medicina do Esporte**, 24(3), 206–210. https://doi.org/10.1590/1517-869220182403175155 — **minF** = gaya terendah dalam aksi propulsif **per kayuhan**, dipakai menandai **awal siklus** (minF₁, minF₂, …). Ini **bukan** definisi yang dipakai aplikasi untuk baris **Minimum**; tanpa deteksi siklus, nilai global dapat berbeda dari minF intracyclik pada literatur PCA.
 
 ---
 
