@@ -263,6 +263,10 @@ Berkas terkait di folder yang sama
 - ``ui_tooltip.py`` — tema dan teks tooltip aplikasi.
 - ``UserManual_Force_Motion_v2.4.0.md`` — manual pengguna (Markdown).
 - ``UserManual_Force_Motion_v2.4.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
+- ``UserManual_Force_Motion_v2.4.0-e.pdf`` — manual untuk bundle executable PyInstaller.
+- ``Swimmer_Force_Motion_Monitoring_v2.4.0.spec`` + ``build_exe.bat`` — build onefile
+  ``dist/Swimmer_Force_Motion_Monitoring_v2.4.0.exe`` (``pip install pyinstaller``).
+- ``../Changelog.md`` — riwayat versi (dibundle ke exe; menu **Help → Changelog**).
 - ``image/logo_brin.png``, ``image/logo_unnes.png`` — logo mitra di dialog Tentang.
 - ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +
   ``xhtml2pdf``), berada di folder induk ``Force_Motion/Python`` (bukan di folder
@@ -323,18 +327,66 @@ from live_serial_settings_dialog import LiveSerialSettingsDialog
 from live_csv_io import LIVE_CSV_DATA_HEADER
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+def is_frozen() -> bool:
+    """True jika dijalankan sebagai executable PyInstaller."""
+    return getattr(sys, "frozen", False)
+
+
+def resource_dir() -> Path:
+    """Folder aset read-only (manual, logo, changelog); ``sys._MEIPASS`` saat frozen."""
+    if is_frozen():
+        return Path(getattr(sys, "_MEIPASS"))
+    return Path(__file__).resolve().parent
+
+
+def app_dir() -> Path:
+    """Folder aplikasi untuk data tulis (``DataLog``, ``DataStatistik``)."""
+    if is_frozen():
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+APP_NAME = "Swimmer Force Motion Monitoring"
+APP_VERSION = "2.4.0"
+
+
+def user_manual_basename() -> str:
+    """Nama dasar manual; suffix ``-e`` untuk executable."""
+    suffix = "-e" if is_frozen() else ""
+    return f"UserManual_Force_Motion_v{APP_VERSION}{suffix}"
+
+
+def resolve_user_manual_pdf() -> Path:
+    """Path PDF manual: bundle exe, lalu folder di samping ``.exe``."""
+    name = f"{user_manual_basename()}.pdf"
+    if is_frozen():
+        bundled = resource_dir() / name
+        if bundled.is_file():
+            return bundled
+        return app_dir() / name
+    return app_dir() / f"UserManual_Force_Motion_v{APP_VERSION}.pdf"
+
+
+def resolve_changelog_md() -> Path:
+    """Path ``Changelog.md``: bundle exe, lalu folder induk Python atau di samping exe."""
+    if is_frozen():
+        bundled = resource_dir() / "Changelog.md"
+        if bundled.is_file():
+            return bundled
+        return app_dir() / "Changelog.md"
+    return Path(__file__).resolve().parent.parent / "Changelog.md"
+
+
+SCRIPT_DIR = app_dir()
 DATALOG_DIR = SCRIPT_DIR / "DataLog"
 DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
 # Sufiks nama file ekspor statistik: <nama_file_log>_DataStatistik_<ddmmyy-HHMMSS>.csv
 STATISTIK_FILE_SUFFIX = "_DataStatistik"
 
-APP_NAME = "Swimmer Force Motion Monitoring"
-APP_VERSION = "2.4.0"
-USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v2.4.0.md"
-USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v2.4.0.pdf"
-CHANGELOG_MD = SCRIPT_DIR.parent / "Changelog.md"
-IMAGE_DIR = SCRIPT_DIR / "image"
+USER_MANUAL_MD = app_dir() / f"{user_manual_basename()}.md"
+USER_MANUAL_PDF = resolve_user_manual_pdf()
+CHANGELOG_MD = resolve_changelog_md()
+IMAGE_DIR = resource_dir() / "image"
 LOGO_BRIN_PATH = IMAGE_DIR / "logo_brin.png"
 LOGO_UNNES_PATH = IMAGE_DIR / "logo_unnes.png"
 _ABOUT_LOGO_HEIGHT_PX = 56
@@ -808,7 +860,7 @@ class MainWindow(QMainWindow):
 
         manual_action = QAction("Manual", self)
         manual_action.setShortcut("F1")
-        manual_action.setStatusTip(f"Buka manual PDF ({USER_MANUAL_PDF.name})")
+        manual_action.setStatusTip(f"Buka manual PDF ({user_manual_basename()}.pdf)")
         manual_action.triggered.connect(self.open_user_manual_pdf)
         help_menu.addAction(manual_action)
 
@@ -999,7 +1051,7 @@ class MainWindow(QMainWindow):
             "dalam format CSV empat kolom per baris.\n\n"
             "Rekaman sesi disimpan ke folder DataLog; ringkasan statistik rekaman "
             "bisa diekspor dari tab Analisa ke folder DataStatistik.\n\n"
-            f"Bantuan lengkap: menu Help → Manual membuka\n{USER_MANUAL_PDF.name}\n"
+            f"Bantuan lengkap: menu Help → Manual membuka\n{user_manual_basename()}.pdf\n"
             "(PDF di folder yang sama dengan aplikasi, jika sudah dibuat)."
         )
 
@@ -1047,7 +1099,8 @@ class MainWindow(QMainWindow):
 
     def open_user_manual_pdf(self) -> None:
         """Buka manual pengguna PDF dengan aplikasi bawaan sistem."""
-        pdf = USER_MANUAL_PDF.resolve()
+        pdf = resolve_user_manual_pdf().resolve()
+        manual_name = f"{user_manual_basename()}.pdf"
         if not pdf.is_file():
             self._show_statistik_message_box(
                 QMessageBox.Icon.Warning,
@@ -1056,8 +1109,8 @@ class MainWindow(QMainWindow):
                 f"{_path_text_for_dialog(pdf)}\n\n"
                 "Untuk membuat PDF dari Markdown, dari folder Force_Motion/Python jalankan:\n"
                 "  python md_to_pdf_Force_Motion.py "
-                f"-i Swimmer_Force_Motion_Monitoring_v2.4.0/{USER_MANUAL_MD.name} "
-                f"-o Swimmer_Force_Motion_Monitoring_v2.4.0/{USER_MANUAL_PDF.name}\n\n"
+                f"-i Swimmer_Force_Motion_Monitoring_v2.4.0/UserManual_Force_Motion_v2.4.0.md "
+                f"-o Swimmer_Force_Motion_Monitoring_v2.4.0/{manual_name}\n\n"
                 f"(Sesuaikan -i/-o jika Anda menjalankan skrip dari lokasi lain.)",
             )
             return
@@ -1071,8 +1124,8 @@ class MainWindow(QMainWindow):
             )
 
     def show_changelog_dialog(self) -> None:
-        """Tampilkan isi ``Force_Motion/Python/Changelog.md`` dalam jendela baca-saja."""
-        path = CHANGELOG_MD.resolve()
+        """Tampilkan isi ``Changelog.md`` dalam jendela baca-saja."""
+        path = resolve_changelog_md().resolve()
         if not path.is_file():
             self._show_statistik_message_box(
                 QMessageBox.Icon.Warning,
