@@ -263,7 +263,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtGui import QDesktopServices, QFont, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -306,6 +306,10 @@ APP_NAME = "Swimmer Force Motion Monitoring"
 APP_VERSION = "2.3.0"
 USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v2.3.0.md"
 USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v2.3.0.pdf"
+IMAGE_DIR = SCRIPT_DIR / "image"
+LOGO_BRIN_PATH = IMAGE_DIR / "logo_brin.png"
+LOGO_UNNES_PATH = IMAGE_DIR / "logo_unnes.png"
+_ABOUT_LOGO_HEIGHT_PX = 56
 
 STROKE_STYLES = [
     "Gaya Bebas",
@@ -353,6 +357,38 @@ def _path_text_for_dialog(path: Path | str) -> str:
     if len(s) >= 3 and s[0].isalpha() and s[1] == ":" and s[2] == "/":
         s = s[:2] + "\u2060" + s[2:]
     return s
+
+
+def _about_partner_logos_row(parent: QWidget, logo_paths: tuple[Path, ...]) -> QWidget | None:
+    """Baris logo mitra (BRIN, UNNES) di bagian bawah dialog Tentang."""
+    logo_labels: list[QLabel] = []
+    for path in logo_paths:
+        if not path.is_file():
+            continue
+        pixmap = QPixmap(str(path))
+        if pixmap.isNull():
+            continue
+        label = QLabel(parent)
+        label.setPixmap(
+            pixmap.scaledToHeight(
+                _ABOUT_LOGO_HEIGHT_PX,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_labels.append(label)
+    if not logo_labels:
+        return None
+
+    row = QWidget(parent)
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 10, 0, 4)
+    layout.setSpacing(28)
+    layout.addStretch(1)
+    for label in logo_labels:
+        layout.addWidget(label)
+    layout.addStretch(1)
+    return row
 
 
 def _safe_filename_part(s: str) -> str:
@@ -770,7 +806,7 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def show_about_dialog(self) -> None:
-        """Dialog ringkas: nama aplikasi, versi, tujuan, rujukan manual."""
+        """Dialog ringkas: nama aplikasi, versi, tujuan, logo mitra, rujukan manual."""
         text = (
             f"{APP_NAME}\n"
             f"Versi {APP_VERSION}\n\n"
@@ -778,10 +814,51 @@ class MainWindow(QMainWindow):
             "dalam format CSV empat kolom per baris.\n\n"
             "Rekaman sesi disimpan ke folder DataLog; ringkasan statistik rekaman "
             "bisa diekspor dari tab Analisa ke folder DataStatistik.\n\n"
-            f"Bantuan lengkap: tombol Help membuka\n{USER_MANUAL_PDF.name}\n"
+            f"Bantuan lengkap: menu Help → Manual membuka\n{USER_MANUAL_PDF.name}\n"
             "(PDF di folder yang sama dengan aplikasi, jika sudah dibuat)."
         )
-        self._show_statistik_message_box(QMessageBox.Icon.Information, "Tentang", text)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Tentang")
+        dlg.setModal(True)
+        root = QVBoxLayout(dlg)
+        root.setSpacing(14)
+        root.setContentsMargins(20, 20, 20, 18)
+
+        app = QApplication.instance()
+        if app is not None:
+            pixmap = app.style().standardPixmap(
+                QStyle.StandardPixmap.SP_MessageBoxInformation,
+                None,
+                dlg,
+            )
+            if pixmap is not None and not pixmap.isNull():
+                icon_lbl = QLabel(dlg)
+                icon_lbl.setPixmap(pixmap)
+                icon_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+                root.addWidget(icon_lbl)
+
+        msg = QLabel(text, dlg)
+        msg.setObjectName("StatDialogMessage")
+        msg.setWordWrap(True)
+        msg.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        root.addWidget(msg)
+
+        logos_row = _about_partner_logos_row(dlg, (LOGO_BRIN_PATH, LOGO_UNNES_PATH))
+        if logos_row is not None:
+            root.addWidget(logos_row)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        ok_btn = QPushButton("OK", dlg)
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(ok_btn)
+        root.addLayout(btn_row)
+
+        dlg.setStyleSheet(THEMED_STATISTIK_DIALOG_STYLESHEET)
+        dlg.exec()
 
     def open_user_manual_pdf(self) -> None:
         """Buka manual pengguna PDF dengan aplikasi bawaan sistem."""
