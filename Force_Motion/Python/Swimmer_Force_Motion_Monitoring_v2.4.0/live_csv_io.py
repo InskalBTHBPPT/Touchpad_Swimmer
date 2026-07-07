@@ -2,14 +2,14 @@
 
 Modul ini dipakai bersama oleh:
 
-- **``Swimmer_Force_Motion_Monitoring_v2.3.0.py``** — penulisan header baris data saat
+- **``Swimmer_Force_Motion_Monitoring_v2.4.0.py``** — penulisan header baris data saat
   *logging* (impor ``LIVE_CSV_DATA_HEADER``) konsisten dengan parser.
 - **``analyze_single_file_tab.py``** dan **``analyze_multi_file_tab.py``** —
   ``parse_logged_csv`` memvalidasi prolog metadata + baris header, lalu
   mengembalikan nama perenang, gaya renang, empat deret float (TimeStamp,
   Force, Roll, Pitch), serta metadata sinkron video (opsional).
 
-Kontrak berkas: lihat manual ``UserManual_Force_Motion_v2.3.0.md`` (struktur CSV
+Kontrak berkas: lihat manual ``UserManual_Force_Motion_v2.4.0.md`` (struktur CSV
 ``DataLog/``). Header data harus persis empat kolom seperti konstanta tuple di
 modul ini (perbandingan case-insensitive, spasi sel antar kolom dijepit).
 """

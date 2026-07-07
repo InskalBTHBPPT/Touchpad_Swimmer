@@ -4,9 +4,9 @@ Catatan perubahan antar versi aplikasi **Swimmer Force Motion Monitoring** (fold
 
 ---
 
-## [2.3.0] — 2026-06-25 (pembaruan UI menu & dokumentasi: 2026-07-06)
+## [2.4.0] — 2026-07-07
 
-Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
+Bandingan dengan **v2.3.0** (`Swimmer_Force_Motion_Monitoring_v2.3.0/`).
 
 ### Ditambahkan
 
@@ -17,6 +17,34 @@ Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
 - **Setting → Live → Camera** — dialog pindai & pilih kamera; **Serial Port** — port, refresh, baud.
 - **Help → Changelog** — dialog riwayat versi (`Changelog.md`).
 - **Modul** `live_serial_settings_dialog.py` — dialog Serial Port.
+- **Dialog Tentang** (menu **Help**) — logo mitra BRIN dan UNNES (`image/logo_brin.png`, `image/logo_unnes.png`).
+- **Manual v2.4.0** — `UserManual_Force_Motion_v2.4.0.md` / `.pdf` di folder `Swimmer_Force_Motion_Monitoring_v2.4.0/`.
+
+### Diubah
+
+- **Tab Live — tata letak** — dua kolom **50:50**: kiri tiga plot; kanan atas indikator **2×2** + **Kontrol sesi**; kanan bawah grup **Kamera** (preview, rasio mengikuti stream). Jendela default **1360×760**.
+- **Tab Live — kontrol** — port/baud/pindai kamera dipindah ke menu **Setting → Live**; tombol About/Help di tab dihapus (menu **Help**).
+- **Tab Analisa SingleFile** — Load csv/video, Simpan Statistik, dan Statistik Setting lewat menu bar (tombol di tab dihapus).
+- **Tab Analisa MultiFile** — Add File lewat menu **File** (tombol di tab dihapus).
+- **Tab Analisa** — layout: plot waktu | panel video | panel kanan; pengaturan di **Setting → Statistik Setting**.
+- **Docstring** modul utama v2.4.0 dan manual v2.4.0 diselaraskan dengan menu bar dan tata letak baru.
+
+### Catatan
+
+- Opsi **TimeStamp CSV mulai 0 saat Start Log** tetap di kode (`log_ts_zero_checkbox`) tetapi **tidak ditampilkan** di UI (preferensi dormant).
+
+### Kompatibilitas
+
+- CSV, MP4, dan ekspor `DataStatistik/` dari v2.3.0 tetap kompatibel; tanpa metadata sinkron, playhead memakai sinkron kasar.
+
+---
+
+## [2.3.0] — 2026-06-25
+
+Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
+
+### Ditambahkan
+
 - **Tab Live — kamera** — panel pindai/pilih perangkat video, preview live, rekam `.mp4` ke `DataLog/` (basename sama dengan CSV) saat **Start Log**; modul `live_camera_core.py`, `live_camera_panel.py`.
 - **Tab Analisa — video** — tiga plot spektrum diganti panel **playback video** (auto-load `.mp4` pasangan CSV); frekuensi dominan FFT/Welch tetap di **kartu statistik** (tanpa plot spektrum visual); modul `analyze_video_panel.py`.
 - **Sinkron video ↔ plot** — metadata di CSV (`VideoFile`, `LogWallStartEpoch`, footer `SyncCsvT0` / `SyncLogWallStart` / `SyncFirstSampleWall`); playhead memakai titik acuan rekaman; CSV lama fallback sinkron kasar (`TimeStamp` baris pertama + detik video).
@@ -28,22 +56,14 @@ Bandingan dengan **v2.2.0** (`Swimmer_Force_Motion_Monitoring_v2.2.0/`).
 - **Manual v2.3.0** — `UserManual_Force_Motion_v2.3.0.md` / `.pdf` di folder `Swimmer_Force_Motion_Monitoring_v2.3.0/` (§4.3–4.6a: metrik Force, dF, FI, koreksi, tooltip).
 - **`parse_datastatistik_csv.py`** — parser berkas `DataStatistik/` untuk tab multifile (`StatistikExportRecord`).
 - **Tab Analisa multifile — plot perbandingan** — `MultiFilePlotDialog`: peakF, meanF, minF, ImpF; roll/pitch min & max; frekuensi dominan Force/Roll/Pitch; gaya batang/garis/titik; sumbu X nomor kolom; tooltip hover (nilai + nama file).
+- **Dialog Tentang** — logo mitra BRIN dan UNNES (tombol **About** di tab Live).
 
 ### Diubah
 
-- **Tab Live — tata letak** — dua kolom **50:50**: kiri tiga plot; kanan atas indikator **2×2** + **Kontrol sesi**; kanan bawah grup **Kamera** (preview, rasio mengikuti stream). Jendela default **1360×760**.
-- **Tab Live — kontrol** — port/baud/pindai kamera dipindah ke menu **Setting → Live**; tombol About/Help dihapus (menu **Help**).
-- **Tab Analisa SingleFile** — Load csv/video, Simpan Statistik, dan Statistik Setting lewat menu bar (tombol di tab dihapus).
-- **Tab Analisa MultiFile** — Add File lewat menu **File** (tombol di tab dihapus).
-- **Tab Analisa** — layout: plot waktu | panel video | panel kanan; tidak ada plot spektrum visual; pengaturan di **Setting → Statistik Setting**.
 - **Gap rekaman CSV** — perhitungan memakai **seluruh deret timestamp CSV** (bukan hanya region uji biru).
 - **Ekspor `DataStatistik/`** — kolom metrik Force diperluas; nama file memuat cap waktu ekspor (`_DataStatistik_<ddmmyy-HHMMSS>.csv`); blok **zero offset** dan **gap** selalu diekspor lengkap (nilai kosong jika tidak berlaku); snapshot disegarkan sebelum simpan.
 - **Tab Analisa multifile** — muat berkas **`DataStatistik/`** (bukan `DataLog/`); tabel berkelompok (region, zero offset, koreksi, Force, Roll, Pitch, spektrum, gap); dropdown FFT dihapus; lebar kolom data tetap dengan wrap nama file; tombol **Simpan tabel ke CSV** dihapus; folder `TableMultiFile/` tidak lagi dipakai.
-- **Docstring** modul utama v2.3.0, manual v2.3.0, dan modul terkait diselaraskan dengan menu bar dan tata letak baru.
-
-### Catatan
-
-- Opsi **TimeStamp CSV mulai 0 saat Start Log** tetap di kode (`log_ts_zero_checkbox`) tetapi **tidak ditampilkan** di UI (preferensi dormant).
+- **Docstring** modul utama v2.3.0 dan manual v2.3.0 diselaraskan dengan fitur analisa dan kamera baru.
 
 ### Kompatibilitas
 

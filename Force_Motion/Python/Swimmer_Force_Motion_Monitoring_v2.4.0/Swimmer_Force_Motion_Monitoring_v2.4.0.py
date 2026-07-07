@@ -1,9 +1,9 @@
 """
 Swimmer Force Motion Monitoring — aplikasi desktop (PySide6 + pyqtgraph).
 
-Versi modul ini: **2.3.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.3.0.py``).
+Versi modul ini: **2.4.0** (nama berkas ``Swimmer_Force_Motion_Monitoring_v2.4.0.py``).
 
-Changelog (2.2.0 → 2.3.0)
+Changelog (2.3.0 → 2.4.0)
 ==========================
 - **Menu bar** — **File**, **View**, **Setting**, **Help**; bilah tab disembunyikan (navigasi
   lewat **View**: Live ``Ctrl+1``, Analisa SingleFile ``Ctrl+2``, Analisa MultiFile ``Ctrl+3``).
@@ -14,18 +14,23 @@ Changelog (2.2.0 → 2.3.0)
 - **Setting → Analisa SingleFile → Statistik Setting** — dialog pengaturan analisa
   (menggantikan tombol *Setting…*).
 - **Setting → Live → Camera** — dialog pindai & pilih kamera; **Serial Port** — port,
-  refresh, baud (menggantikan kontrol serupa di panel Live).
+  refresh, baud (menggantikan kontrol serupa di panel Live). Modul
+  ``live_serial_settings_dialog.py``.
 - **Tab Live — tata letak** — dua kolom **50:50**: kiri tiga plot waktu; kanan atas
-  indikator **2×2** + **Kontrol sesi** (perenang, gaya, Connect, Start Log); kanan
-  bawah grup **Kamera** (preview, rasio mengikuti stream). Jendela default 1360×760.
-- **Help** — **Manual** (``F1``), **Tentang**, **Changelog** (tombol About/Help di tab
-  Live dihapus).
+  indikator **2×2** + **Kontrol sesi**; kanan bawah grup **Kamera** (preview, rasio
+  mengikuti stream). Jendela default 1360×760.
+- **Help** — **Manual** (``F1``), **Tentang** (logo mitra BRIN & UNNES di
+  ``image/logo_*.png``), **Changelog** (``Force_Motion/Python/Changelog.md``); tombol
+  About/Help di tab Live dihapus.
 - **Preferensi dormant** — opsi *TimeStamp CSV mulai 0 saat Start Log* tetap di kode
   (``log_ts_zero_checkbox``) tetapi tidak ditampilkan di UI.
-- **Tab Live — kamera** — preview live di grup **Kamera**; pindai & pilih perangkat
-  lewat menu **Setting → Live → Camera**; rekam ``.mp4`` ke ``DataLog/`` dengan
-  basename sama seperti CSV saat **Start Log**; berhenti saat **Stop Log**.
-  Modul ``live_camera_core.py``, ``live_camera_panel.py``.
+
+Changelog (2.2.0 → 2.3.0)
+==========================
+- **Tab Live — kamera** — panel di samping tiga plot: **pindai & pilih** perangkat
+  video (OpenCV, backend MSMF/DSHOW) dan **tampilan live**; rekam ``.mp4`` ke
+  ``DataLog/`` dengan basename sama seperti CSV saat **Start Log**; berhenti saat
+  **Stop Log**. Modul ``live_camera_core.py``, ``live_camera_panel.py``.
 - **Tab Analisa** — tiga plot FFT diganti **playback video** pasangan CSV (auto-load
   ``.mp4``); frekuensi dominan tetap di statistik. Modul ``analyze_video_panel.py``.
 - **Sinkron video ↔ plot** — metadata di CSV (``VideoFile``, ``LogWallStartEpoch``,
@@ -45,6 +50,8 @@ Changelog (2.2.0 → 2.3.0)
   ``parse_datastatistik_csv.py``); tabel berkelompok; **Plot data** aktif
   (peakF/meanF/minF/ImpF, roll/pitch, frekuensi dominan; sumbu X = nomor kolom;
   tooltip hover); tanpa ekspor ``TableMultiFile/``.
+- **Dialog Tentang** — logo mitra BRIN dan UNNES (``image/logo_brin.png``,
+  ``image/logo_unnes.png``); tombol About di tab Live.
 
 Changelog (2.1.0 → 2.2.0)
 ==========================
@@ -173,7 +180,7 @@ Berkas video ``.mp4`` (basename sama dengan CSV) di ``DataLog/`` jika kamera akt
 saat Start Log.
 
 Opsi **TimeStamp CSV mulai 0 saat Start Log** (preferensi dormant, tidak ditampilkan
-di UI v2.3.0): jika diaktifkan di kode, kolom waktu yang ditulis ke CSV adalah
+di UI v2.4.0): jika diaktifkan di kode, kolom waktu yang ditulis ke CSV adalah
 ``waktu_serial - waktu_sampel_pertama_sesi_log`` sehingga baris pertama data ≈ ``0``
 detik. **Connect** tidak mengatur ulang referensi ini; hanya **Start Log** yang
 memulai sesi baru. Plot Live tetap memakai waktu mentah dari serial.
@@ -254,8 +261,9 @@ Berkas terkait di folder yang sama
 - ``analyze_video_panel.py`` — playback video rekaman di tab Analisa.
 - ``analyze_tethered_force_metrics.py`` — metrik gaya tethered (Metode A/B).
 - ``ui_tooltip.py`` — tema dan teks tooltip aplikasi.
-- ``UserManual_Force_Motion_v2.3.0.md`` — manual pengguna (Markdown).
-- ``UserManual_Force_Motion_v2.3.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
+- ``UserManual_Force_Motion_v2.4.0.md`` — manual pengguna (Markdown).
+- ``UserManual_Force_Motion_v2.4.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
+- ``image/logo_brin.png``, ``image/logo_unnes.png`` — logo mitra di dialog Tentang.
 - ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +
   ``xhtml2pdf``), berada di folder induk ``Force_Motion/Python`` (bukan di folder
   skrip v2 ini); pola sama seperti proyek Touchpad_Timer_Pressure.
@@ -279,7 +287,7 @@ import pyqtgraph as pg
 import serial
 from serial.tools import list_ports
 from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QFont
+from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -322,10 +330,14 @@ DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
 STATISTIK_FILE_SUFFIX = "_DataStatistik"
 
 APP_NAME = "Swimmer Force Motion Monitoring"
-APP_VERSION = "2.3.0"
-USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v2.3.0.md"
-USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v2.3.0.pdf"
+APP_VERSION = "2.4.0"
+USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v2.4.0.md"
+USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v2.4.0.pdf"
 CHANGELOG_MD = SCRIPT_DIR.parent / "Changelog.md"
+IMAGE_DIR = SCRIPT_DIR / "image"
+LOGO_BRIN_PATH = IMAGE_DIR / "logo_brin.png"
+LOGO_UNNES_PATH = IMAGE_DIR / "logo_unnes.png"
+_ABOUT_LOGO_HEIGHT_PX = 56
 
 STROKE_STYLES = [
     "Gaya Bebas",
@@ -377,6 +389,38 @@ def _path_text_for_dialog(path: Path | str) -> str:
     if len(s) >= 3 and s[0].isalpha() and s[1] == ":" and s[2] == "/":
         s = s[:2] + "\u2060" + s[2:]
     return s
+
+
+def _about_partner_logos_row(parent: QWidget, logo_paths: tuple[Path, ...]) -> QWidget | None:
+    """Baris logo mitra (BRIN, UNNES) di bagian bawah dialog Tentang."""
+    logo_labels: list[QLabel] = []
+    for path in logo_paths:
+        if not path.is_file():
+            continue
+        pixmap = QPixmap(str(path))
+        if pixmap.isNull():
+            continue
+        label = QLabel(parent)
+        label.setPixmap(
+            pixmap.scaledToHeight(
+                _ABOUT_LOGO_HEIGHT_PX,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_labels.append(label)
+    if not logo_labels:
+        return None
+
+    row = QWidget(parent)
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 10, 0, 4)
+    layout.setSpacing(28)
+    layout.addStretch(1)
+    for label in logo_labels:
+        layout.addWidget(label)
+    layout.addStretch(1)
+    return row
 
 
 def _safe_filename_part(s: str) -> str:
@@ -947,7 +991,7 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def show_about_dialog(self) -> None:
-        """Dialog ringkas: nama aplikasi, versi, tujuan, rujukan manual."""
+        """Dialog ringkas: nama aplikasi, versi, tujuan, logo mitra, rujukan manual."""
         text = (
             f"{APP_NAME}\n"
             f"Versi {APP_VERSION}\n\n"
@@ -958,7 +1002,48 @@ class MainWindow(QMainWindow):
             f"Bantuan lengkap: menu Help → Manual membuka\n{USER_MANUAL_PDF.name}\n"
             "(PDF di folder yang sama dengan aplikasi, jika sudah dibuat)."
         )
-        self._show_statistik_message_box(QMessageBox.Icon.Information, "Tentang", text)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Tentang")
+        dlg.setModal(True)
+        root = QVBoxLayout(dlg)
+        root.setSpacing(14)
+        root.setContentsMargins(20, 20, 20, 18)
+
+        app = QApplication.instance()
+        if app is not None:
+            pixmap = app.style().standardPixmap(
+                QStyle.StandardPixmap.SP_MessageBoxInformation,
+                None,
+                dlg,
+            )
+            if pixmap is not None and not pixmap.isNull():
+                icon_lbl = QLabel(dlg)
+                icon_lbl.setPixmap(pixmap)
+                icon_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+                root.addWidget(icon_lbl)
+
+        msg = QLabel(text, dlg)
+        msg.setObjectName("StatDialogMessage")
+        msg.setWordWrap(True)
+        msg.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        root.addWidget(msg)
+
+        logos_row = _about_partner_logos_row(dlg, (LOGO_BRIN_PATH, LOGO_UNNES_PATH))
+        if logos_row is not None:
+            root.addWidget(logos_row)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        ok_btn = QPushButton("OK", dlg)
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(ok_btn)
+        root.addLayout(btn_row)
+
+        dlg.setStyleSheet(THEMED_STATISTIK_DIALOG_STYLESHEET)
+        dlg.exec()
 
     def open_user_manual_pdf(self) -> None:
         """Buka manual pengguna PDF dengan aplikasi bawaan sistem."""
@@ -971,8 +1056,8 @@ class MainWindow(QMainWindow):
                 f"{_path_text_for_dialog(pdf)}\n\n"
                 "Untuk membuat PDF dari Markdown, dari folder Force_Motion/Python jalankan:\n"
                 "  python md_to_pdf_Force_Motion.py "
-                f"-i Swimmer_Force_Motion_Monitoring_v2.3.0/{USER_MANUAL_MD.name} "
-                f"-o Swimmer_Force_Motion_Monitoring_v2.3.0/{USER_MANUAL_PDF.name}\n\n"
+                f"-i Swimmer_Force_Motion_Monitoring_v2.4.0/{USER_MANUAL_MD.name} "
+                f"-o Swimmer_Force_Motion_Monitoring_v2.4.0/{USER_MANUAL_PDF.name}\n\n"
                 f"(Sesuaikan -i/-o jika Anda menjalankan skrip dari lokasi lain.)",
             )
             return

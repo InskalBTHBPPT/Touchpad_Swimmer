@@ -1,6 +1,6 @@
-# Manual Pengguna — Swimmer Force Motion Monitoring v2.3.0
+# Manual Pengguna — Swimmer Force Motion Monitoring v2.4.0
 
-Dokumen ini menjelaskan pemakaian aplikasi desktop **Swimmer Force Motion Monitoring** (berkas utama: `Swimmer_Force_Motion_Monitoring_v2.3.0.py`) untuk memantau beban dan orientasi (roll, pitch) perenang melalui koneksi serial, merekam data ke CSV dan **video kamera** (opsional), menampilkan **baterai transmitter** (opsional) di tab Live, serta menganalisis rekaman dengan **playback video** (sinkron playhead), **statistik gaya tethered** (Metode A/B, dF, FI), **koreksi & region** (zero offset, sudut tali), **frekuensi dominan** (FFT/Welch di statistik), **estimasi gap rekaman CSV**, **perbandingan multi-berkas** dalam tabel, dan ekspor statistik yang diperluas.
+Dokumen ini menjelaskan pemakaian aplikasi desktop **Swimmer Force Motion Monitoring** (berkas utama: `Swimmer_Force_Motion_Monitoring_v2.4.0.py`) untuk memantau beban dan orientasi (roll, pitch) perenang melalui koneksi serial, merekam data ke CSV dan **video kamera** (opsional), menampilkan **baterai transmitter** (opsional) di tab Live, serta menganalisis rekaman dengan **playback video** (sinkron playhead), **statistik gaya tethered** (Metode A/B, dF, FI), **koreksi & region** (zero offset, sudut tali), **frekuensi dominan** (FFT/Welch di statistik), **estimasi gap rekaman CSV**, **perbandingan multi-berkas** dalam tabel, dan ekspor statistik yang diperluas.
 
 ---
 
@@ -20,10 +20,10 @@ Instalasi contoh:
 pip install PySide6 pyqtgraph pyserial numpy scipy opencv-python pygrabber
 ```
 
-Jalankan aplikasi dari folder `Swimmer_Force_Motion_Monitoring_v2.3.0` (atau dengan path penuh):
+Jalankan aplikasi dari folder `Swimmer_Force_Motion_Monitoring_v2.4.0` (atau dengan path penuh):
 
 ```text
-python Swimmer_Force_Motion_Monitoring_v2.3.0.py
+python Swimmer_Force_Motion_Monitoring_v2.4.0.py
 ```
 
 ---
@@ -162,7 +162,10 @@ Tanpa kamera aktif, **Start Log** hanya menulis CSV. Metadata sinkron video (lih
 
 ### 3.9 Bantuan
 
-Menu **Help** — **Manual** (`F1`, membuka `UserManual_Force_Motion_v2.3.0.pdf`), **Tentang**, **Changelog**.
+Menu **Help** — **Manual** (`F1`, membuka `UserManual_Force_Motion_v2.4.0.pdf`), **Tentang**, **Changelog**.
+
+- **Tentang** — menampilkan dialog informasi aplikasi dan versi (**2.4.0**), beserta logo mitra BRIN dan UNNES (`image/logo_brin.png`, `image/logo_unnes.png`) jika berkas tersedia.
+- **Changelog** — membaca `Force_Motion/Python/Changelog.md` dalam jendela baca-saja.
 
 ---
 
@@ -208,7 +211,7 @@ Baris tabel **Zero offset start/stop**, **Durasi region zero offset**, dan **Rat
 ### 4.3 Analisa Setting — metode spektrum dan statistik Force
 
 - Pilih **FFT** atau **Welch PSD** pada dropdown **Metode spektrum (statistik)**.
-- Perubahan metode memperbarui **angka frekuensi dominan** pada kartu statistik (v2.3.0 tidak menampilkan plot spektrum visual).
+- Perubahan metode memperbarui **angka frekuensi dominan** pada kartu statistik (v2.4.0 tidak menampilkan plot spektrum visual).
 
 Grup **Statistik Force (peakF / meanF / ImpF / temporal)** — radio pemilihan cara menghitung parameter gaya pada kolom Force (region data uji):
 
@@ -458,8 +461,9 @@ Tab ini membandingkan hingga **lima** berkas ekspor statistik dari Analisa Singl
 | `analyze_multi_file_tab.py` | Tab Analisa multifile |
 | `ui_tooltip.py` | Tema dan teks tooltip |
 | `requirements.txt` | Daftar dependensi Python (termasuk OpenCV) |
-| `UserManual_Force_Motion_v2.3.0.md` | Manual ini (Markdown) |
-| `UserManual_Force_Motion_v2.3.0.pdf` | Manual ini (PDF, opsional) |
+| `image/logo_brin.png`, `image/logo_unnes.png` | Logo mitra di dialog Tentang |
+| `UserManual_Force_Motion_v2.4.0.md` | Manual ini (Markdown) |
+| `UserManual_Force_Motion_v2.4.0.pdf` | Manual ini (PDF, opsional) |
 | `../md_to_pdf_Force_Motion.py` | Skrip konversi MD → PDF (folder induk `Force_Motion/Python`) |
 
 ---
@@ -472,10 +476,10 @@ Dari folder `Force_Motion/Python`:
 
 ```text
 pip install markdown xhtml2pdf
-python md_to_pdf_Force_Motion.py -i Swimmer_Force_Motion_Monitoring_v2.3.0/UserManual_Force_Motion_v2.3.0.md -o Swimmer_Force_Motion_Monitoring_v2.3.0/UserManual_Force_Motion_v2.3.0.pdf
+python md_to_pdf_Force_Motion.py -i Swimmer_Force_Motion_Monitoring_v2.4.0/UserManual_Force_Motion_v2.4.0.md -o Swimmer_Force_Motion_Monitoring_v2.4.0/UserManual_Force_Motion_v2.4.0.pdf
 ```
 
-Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama; untuk v2.3.0 gunakan `-i` dan `-o` seperti di atas.
+Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama; untuk v2.4.0 gunakan `-i` dan `-o` seperti di atas.
 
 ---
 
@@ -492,15 +496,15 @@ Tanpa opsi, skrip bawaan masih mengarah ke manual **v1.0.0** di folder yang sama
 | Video tidak dimuat otomatis | Pastikan `.mp4` ada di folder yang sama dengan CSV; atau **File → Load Video**. |
 | Rekam video gagal saat Start Log | Pilih kamera aktif lewat **Setting → Live → Camera** sebelum Start Log; periksa `opencv-python`. |
 | Kamera tidak terdeteksi | **Setting → Live → Camera** → **Pindai Kamera** ulang; di Windows pastikan DroidCam kompatibel MSMF. |
-| Help tidak membuka PDF | Jalankan §7; pastikan `UserManual_Force_Motion_v2.3.0.pdf` ada di folder aplikasi v2.3.0. |
+| Help tidak membuka PDF | Jalankan §7; pastikan `UserManual_Force_Motion_v2.4.0.pdf` ada di folder aplikasi v2.4.0. |
 | Error import `numpy` / `scipy` / `cv2` | Instal dependensi (lihat §1 atau `requirements.txt`). |
 
 ---
 
 ## 9. Versi dokumen
 
-- **Manual:** selaras dengan aplikasi **v2.3.0** (menu bar File/View/Setting/Help; tata letak Live 50:50; dialog kamera & serial; muat/simpan lewat menu File; Statistik Setting lewat menu Setting; kamera Live, video Analisa, sinkron playhead, baterai, statistik gaya tethered, dF, FI, zero offset, koreksi, tooltip, gap CSV; ekspor DataStatistik; Analisa MultiFile dengan tabel berkelompok dan plot perbandingan).
-- Ringkasan perubahan antar versi ada di `Force_Motion/Python/Changelog.md` dan docstring `Swimmer_Force_Motion_Monitoring_v2.3.0.py`.
+- **Manual:** selaras dengan aplikasi **v2.4.0** (menu bar File/View/Setting/Help; tata letak Live 50:50; dialog kamera & serial; muat/simpan lewat menu File; Statistik Setting lewat menu Setting; dialog Tentang dengan logo mitra; kamera Live, video Analisa, sinkron playhead, baterai, statistik gaya tethered, dF, FI, zero offset, koreksi, tooltip, gap CSV; ekspor DataStatistik; Analisa MultiFile dengan tabel berkelompok dan plot perbandingan).
+- Ringkasan perubahan antar versi ada di `Force_Motion/Python/Changelog.md` dan docstring `Swimmer_Force_Motion_Monitoring_v2.4.0.py`.
 
 ---
 
