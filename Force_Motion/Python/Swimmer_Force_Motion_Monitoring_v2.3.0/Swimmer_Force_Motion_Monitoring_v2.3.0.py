@@ -240,6 +240,10 @@ Berkas terkait di folder yang sama
 - ``ui_tooltip.py`` — tema dan teks tooltip aplikasi.
 - ``UserManual_Force_Motion_v2.3.0.md`` — manual pengguna (Markdown).
 - ``UserManual_Force_Motion_v2.3.0.pdf`` — manual pengguna (PDF; dihasilkan dari MD).
+- ``UserManual_Force_Motion_v2.3.0-e.pdf`` — manual untuk bundle executable PyInstaller.
+- ``Swimmer_Force_Motion_Monitoring_v2.3.0.spec`` + ``build_exe.bat`` — build onefile
+  ``dist/Swimmer_Force_Motion_Monitoring_v2.3.0.exe`` (``pip install pyinstaller``).
+- ``image/logo_brin.png``, ``image/logo_unnes.png`` — logo mitra di dialog Tentang.
 - ``md_to_pdf_Force_Motion.py`` — skrip bantu konversi MD → PDF (``markdown`` +
   ``xhtml2pdf``), berada di folder induk ``Force_Motion/Python`` (bukan di folder
   skrip v2 ini); pola sama seperti proyek Touchpad_Timer_Pressure.
@@ -296,17 +300,55 @@ from live_camera_panel import LiveCameraPanel
 from live_csv_io import LIVE_CSV_DATA_HEADER
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+def is_frozen() -> bool:
+    """True jika dijalankan sebagai executable PyInstaller."""
+    return getattr(sys, "frozen", False)
+
+
+def resource_dir() -> Path:
+    """Folder aset read-only (manual, logo); ``sys._MEIPASS`` saat frozen."""
+    if is_frozen():
+        return Path(getattr(sys, "_MEIPASS"))
+    return Path(__file__).resolve().parent
+
+
+def app_dir() -> Path:
+    """Folder aplikasi untuk data tulis (``DataLog``, ``DataStatistik``)."""
+    if is_frozen():
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+APP_NAME = "Swimmer Force Motion Monitoring"
+APP_VERSION = "2.3.0"
+
+
+def user_manual_basename() -> str:
+    """Nama dasar manual; suffix ``-e`` untuk executable."""
+    suffix = "-e" if is_frozen() else ""
+    return f"UserManual_Force_Motion_v{APP_VERSION}{suffix}"
+
+
+def resolve_user_manual_pdf() -> Path:
+    """Path PDF manual: bundle exe, lalu folder di samping ``.exe``."""
+    name = f"{user_manual_basename()}.pdf"
+    if is_frozen():
+        bundled = resource_dir() / name
+        if bundled.is_file():
+            return bundled
+        return app_dir() / name
+    return app_dir() / f"UserManual_Force_Motion_v{APP_VERSION}.pdf"
+
+
+SCRIPT_DIR = app_dir()
 DATALOG_DIR = SCRIPT_DIR / "DataLog"
 DATASTATISTIK_DIR = SCRIPT_DIR / "DataStatistik"
 # Sufiks nama file ekspor statistik: <nama_file_log>_DataStatistik_<ddmmyy-HHMMSS>.csv
 STATISTIK_FILE_SUFFIX = "_DataStatistik"
 
-APP_NAME = "Swimmer Force Motion Monitoring"
-APP_VERSION = "2.3.0"
-USER_MANUAL_MD = SCRIPT_DIR / "UserManual_Force_Motion_v2.3.0.md"
-USER_MANUAL_PDF = SCRIPT_DIR / "UserManual_Force_Motion_v2.3.0.pdf"
-IMAGE_DIR = SCRIPT_DIR / "image"
+USER_MANUAL_MD = app_dir() / f"{user_manual_basename()}.md"
+USER_MANUAL_PDF = resolve_user_manual_pdf()
+IMAGE_DIR = resource_dir() / "image"
 LOGO_BRIN_PATH = IMAGE_DIR / "logo_brin.png"
 LOGO_UNNES_PATH = IMAGE_DIR / "logo_unnes.png"
 _ABOUT_LOGO_HEIGHT_PX = 56
@@ -599,7 +641,7 @@ class MainWindow(QMainWindow):
         self.about_btn.clicked.connect(self.show_about_dialog)
         self.help_btn = QPushButton("Help", self)
         self.help_btn.setObjectName("AboutHelpButton")
-        self.help_btn.setToolTip(f"Buka manual PDF ({USER_MANUAL_PDF.name}).")
+        self.help_btn.setToolTip(f"Buka manual PDF ({user_manual_basename()}.pdf).")
         self.help_btn.clicked.connect(self.open_user_manual_pdf)
         about_help_row.addWidget(self.about_btn)
         about_help_row.addWidget(self.help_btn)
@@ -814,7 +856,7 @@ class MainWindow(QMainWindow):
             "dalam format CSV empat kolom per baris.\n\n"
             "Rekaman sesi disimpan ke folder DataLog; ringkasan statistik rekaman "
             "bisa diekspor dari tab Analisa ke folder DataStatistik.\n\n"
-            f"Bantuan lengkap: menu Help → Manual membuka\n{USER_MANUAL_PDF.name}\n"
+            f"Bantuan lengkap: tombol **Help** membuka\n{user_manual_basename()}.pdf\n"
             "(PDF di folder yang sama dengan aplikasi, jika sudah dibuat)."
         )
 
@@ -862,7 +904,8 @@ class MainWindow(QMainWindow):
 
     def open_user_manual_pdf(self) -> None:
         """Buka manual pengguna PDF dengan aplikasi bawaan sistem."""
-        pdf = USER_MANUAL_PDF.resolve()
+        pdf = resolve_user_manual_pdf().resolve()
+        manual_name = f"{user_manual_basename()}.pdf"
         if not pdf.is_file():
             self._show_statistik_message_box(
                 QMessageBox.Icon.Warning,
@@ -871,8 +914,8 @@ class MainWindow(QMainWindow):
                 f"{_path_text_for_dialog(pdf)}\n\n"
                 "Untuk membuat PDF dari Markdown, dari folder Force_Motion/Python jalankan:\n"
                 "  python md_to_pdf_Force_Motion.py "
-                f"-i Swimmer_Force_Motion_Monitoring_v2.3.0/{USER_MANUAL_MD.name} "
-                f"-o Swimmer_Force_Motion_Monitoring_v2.3.0/{USER_MANUAL_PDF.name}\n\n"
+                f"-i Swimmer_Force_Motion_Monitoring_v2.3.0/UserManual_Force_Motion_v2.3.0.md "
+                f"-o Swimmer_Force_Motion_Monitoring_v2.3.0/{manual_name}\n\n"
                 f"(Sesuaikan -i/-o jika Anda menjalankan skrip dari lokasi lain.)",
             )
             return
