@@ -59,6 +59,7 @@ _STATUS_BAR_STYLE = (
     "color: #9ca3af; font-size: 9pt; font-family: Consolas, 'Courier New', monospace;"
     " padding: 4px 2px;"
 )
+_SCAN_STATUS_STYLE = "color: #9ca3af; font-size: 9pt; padding: 0 2px;"
 _DIALOG_STYLE = """
 QDialog {
     background-color: #111827;
@@ -312,18 +313,11 @@ class LiveCameraSettingsDialog(QDialog):
 
         root.addWidget(panel.build_scan_section(self), 1)
 
-        self._active_label = QLabel(self)
-        self._active_label.setWordWrap(True)
-        self._active_label.setStyleSheet("color: #9ca3af; font-size: 9pt;")
-        root.addWidget(self._active_label, 0)
-
-        panel.camera_selection_changed.connect(self._update_active_label)
-
     def showEvent(self, event) -> None:
         super().showEvent(event)
         self._panel.apply_camera_table_height(_CAMERA_TABLE_DIALOG_ROWS)
         self._sync_table_selection()
-        self._update_active_label()
+        self._panel.update_dialog_status_line()
 
     def set_scan_controls_enabled(self, enabled: bool) -> None:
         self._panel.set_scan_controls_enabled(enabled)
@@ -338,16 +332,6 @@ class LiveCameraSettingsDialog(QDialog):
                 self._panel.camera_table.selectRow(row)
                 self._panel.camera_table.blockSignals(False)
                 break
-
-    def _update_active_label(self) -> None:
-        cam = self._panel.selected_camera()
-        if cam is None:
-            self._active_label.setText(
-                "Kamera aktif: belum dipilih. Pindai perangkat lalu pilih baris berstatus AKTIF."
-            )
-            return
-        self._active_label.setText(f"Kamera aktif: [{cam.index}] {cam.name}")
-
 
 class LiveCameraPanel(QWidget):
     """Preview live kamera dan rekam saat Start Log; pemilihan lewat dialog Setting."""
@@ -372,6 +356,7 @@ class LiveCameraPanel(QWidget):
         self._scan_btn: QPushButton | None = None
         self._scan_status: QLabel | None = None
         self._table: QTableWidget | None = None
+        self._scan_completed = False
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -432,12 +417,15 @@ class LiveCameraPanel(QWidget):
         self._scan_btn = QPushButton("Pindai Kamera", parent)
         self._scan_btn.setStyleSheet(_LIVE_PRIMARY_BUTTON_STYLE)
         self._scan_btn.clicked.connect(self.start_scan)
-        scan_btn_row.addWidget(self._scan_btn)
-        self._scan_status = QLabel("Klik «Pindai Kamera» untuk memulai.", parent)
-        self._scan_status.setWordWrap(True)
-        self._scan_status.setStyleSheet("color: #9ca3af; font-size: 9pt;")
-        scan_btn_row.addWidget(self._scan_status, 1)
+        scan_btn_row.addWidget(self._scan_btn, 0)
+        scan_btn_row.addStretch(1)
         scan_layout.addLayout(scan_btn_row)
+
+        self._scan_status = QLabel("Klik «Pindai Kamera» untuk memindai perangkat video.", parent)
+        self._scan_status.setWordWrap(True)
+        self._scan_status.setMaximumHeight(40)
+        self._scan_status.setStyleSheet(_SCAN_STATUS_STYLE)
+        scan_layout.addWidget(self._scan_status)
 
         self._table = QTableWidget(0, 5, parent)
         self._table.setHorizontalHeaderLabels(
@@ -454,8 +442,10 @@ class LiveCameraPanel(QWidget):
         self._table.verticalHeader().setDefaultSectionSize(_CAMERA_TABLE_ROW_HEIGHT)
         self._table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scan_layout.addWidget(self._table)
+        scan_layout.addWidget(self._table, 1)
         QTimer.singleShot(0, lambda: self.apply_camera_table_height(_CAMERA_TABLE_DIALOG_ROWS))
+
+        self.camera_selection_changed.connect(self.update_dialog_status_line)
 
         return scan_box
 
@@ -524,6 +514,38 @@ class LiveCameraPanel(QWidget):
             text = "Atur kamera: menu Setting → Live → Camera."
         self._status_bar.setText(text)
 
+    def update_dialog_status_line(self) -> None:
+        """Satu baris ringkasan pindai / pilihan kamera di dialog Setting."""
+        if self._scan_status is None:
+            return
+        if self._scan_worker is not None and self._scan_worker.isRunning():
+            self._scan_status.setText("Memindai kamera…")
+            return
+
+        cam = self._active_camera
+        if cam is not None:
+            if self._live_width > 0 and self._live_height > 0:
+                res = f"{self._live_width}×{self._live_height}"
+            elif cam.width > 0 and cam.height > 0:
+                res = f"{cam.width}×{cam.height}"
+            else:
+                res = "—"
+            self._scan_status.setText(f"Kamera aktif: [{cam.index}] {cam.name} · {res}")
+            return
+
+        if not self._scan_completed:
+            self._scan_status.setText("Klik «Pindai Kamera» untuk memindai perangkat video.")
+            return
+        if not self._cameras:
+            self._scan_status.setText("Tidak ada perangkat kamera terdeteksi.")
+            return
+
+        active_count = sum(1 for c in self._cameras if c.active)
+        self._scan_status.setText(
+            f"{len(self._cameras)} perangkat · {active_count} aktif · "
+            "Pilih baris berstatus AKTIF."
+        )
+
     def _clear_preview(self, message: str) -> None:
         self._last_frame = None
         self._live_width = 0
@@ -551,10 +573,9 @@ class LiveCameraPanel(QWidget):
             return
         if self._scan_btn is not None:
             self._scan_btn.setEnabled(False)
-        if self._scan_status is not None:
-            self._scan_status.setText("Memindai kamera…")
         if self._table is not None:
             self._table.setRowCount(0)
+        self.update_dialog_status_line()
         self._scan_worker = CameraScanWorker()
         self._scan_worker.finished.connect(self._on_scan_finished)
         self._scan_worker.start()
@@ -563,6 +584,7 @@ class LiveCameraPanel(QWidget):
         if not self._logging_active and self._scan_btn is not None:
             self._scan_btn.setEnabled(True)
         self._cameras = cameras
+        self._scan_completed = True
         active = [c for c in cameras if c.active]
 
         if self._table is None:
@@ -583,14 +605,6 @@ class LiveCameraPanel(QWidget):
                     item.setForeground(Qt.GlobalColor.darkRed)
                 self._table.setItem(row, col, item)
 
-        if self._scan_status is not None:
-            if not cameras:
-                self._scan_status.setText("Tidak ada perangkat kamera terdeteksi.")
-            else:
-                self._scan_status.setText(
-                    f"{len(cameras)} perangkat, {len(active)} aktif. Pilih baris untuk preview."
-                )
-
         if active:
             for row, cam in enumerate(cameras):
                 if cam.active:
@@ -600,6 +614,7 @@ class LiveCameraPanel(QWidget):
             self._apply_camera_selection(None)
 
         QTimer.singleShot(0, lambda: self.apply_camera_table_height(_CAMERA_TABLE_DIALOG_ROWS))
+        self.update_dialog_status_line()
 
     def _on_selection_changed(self) -> None:
         if self._logging_active or self._table is None:
@@ -639,6 +654,7 @@ class LiveCameraPanel(QWidget):
         self._live_fps = fps
         self._preview_aspect.set_aspect_ratio(width, height)
         self._update_status_bar()
+        self.update_dialog_status_line()
 
     def _on_camera_opened(self, ok: bool) -> None:
         if not ok and not self._logging_active:
