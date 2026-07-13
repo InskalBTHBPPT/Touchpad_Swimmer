@@ -12,12 +12,16 @@ import contextlib
 import os
 import platform
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
 # Tekan log OpenCV / FFmpeg sebelum modul videoio dipakai.
-os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
-os.environ.setdefault("AV_LOG_LEVEL", "-8")
+os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
+os.environ["AV_LOG_LEVEL"] = "-8"
+os.environ["OPENCV_FFMPEG_LOGLEVEL"] = "-8"
+os.environ["OPENCV_FFMPEG_DEBUG"] = "0"
 
 import cv2
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
@@ -43,7 +47,9 @@ RTSP_INDEX = -1
 DEFAULT_RTSP_URL = "rtsp://10.45.0.71:8557/h264"
 DEFAULT_RTSP_URLS = (DEFAULT_RTSP_URL,)
 # TCP + buffer kecil: lebih stabil di LAN; mengurangi artefak decode saat join stream.
-RTSP_FFMPEG_OPTIONS = "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay"
+RTSP_FFMPEG_OPTIONS = (
+    "rtsp_transport;tcp|fflags;nobuffer|flags;low_delay|loglevel;quiet"
+)
 RTSP_WARMUP_READS = 20
 
 
@@ -80,33 +86,147 @@ def _quiet_opencv():
 @contextlib.contextmanager
 def _quiet_ffmpeg_stderr():
     """
-    Redam log decoder H.264 FFmpeg ke stderr.
-
-    Pesan seperti ``error while decoding MB`` / ``cabac decode`` bukan dari OpenCV
-    melainkan libavcodec; sering muncul saat join stream di tengah GOP atau ada
-    packet loss ringan — preview tetap bisa jalan.
+    Redam stderr proses sementara (refcount). Decoder FFmpeg/H.264 menulis dari
+    thread latar belakang — harus ditahan sepanjang ``VideoCapture`` RTSP terbuka.
     """
-    stderr_fd = None
-    devnull_fd = None
+    _FfmpegStderrSilencer.acquire()
     try:
-        stderr_fd = os.dup(2)
-        devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull_fd, 2)
-        yield
-    except OSError:
         yield
     finally:
-        if stderr_fd is not None:
+        _FfmpegStderrSilencer.release()
+
+
+class _FfmpegStderrSilencer:
+    """
+    Redam stderr proses (refcount, aman multi-thread).
+
+    OpenCV/FFmpeg menulis decode error H.264 langsung ke handle stderr OS,
+    bukan lewat ``cv2.setLogLevel`` — di Windows perlu ``SetStdHandle`` + dup2.
+    """
+
+    _lock = threading.Lock()
+    _refcount = 0
+    _saved_stderr_fd: int | None = None
+    _devnull_fd: int | None = None
+    _saved_stderr_obj = None
+    _devnull_file = None
+    _win_saved_stderr_handle = None
+    _win_nul_handle = None
+
+    @classmethod
+    def acquire(cls) -> None:
+        with cls._lock:
+            if cls._refcount == 0:
+                cls._redirect_stderr_on()
+            cls._refcount += 1
+
+    @classmethod
+    def release(cls) -> None:
+        with cls._lock:
+            if cls._refcount <= 0:
+                return
+            cls._refcount -= 1
+            if cls._refcount == 0:
+                cls._redirect_stderr_off()
+
+    @classmethod
+    def _redirect_stderr_on(cls) -> None:
+        try:
+            stderr_fd = sys.stderr.fileno()
+            cls._saved_stderr_fd = os.dup(stderr_fd)
+            cls._devnull_fd = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(cls._devnull_fd, stderr_fd)
+        except OSError:
+            cls._saved_stderr_fd = None
+            cls._devnull_fd = None
+
+        try:
+            cls._saved_stderr_obj = sys.stderr
+            cls._devnull_file = open(os.devnull, "w", encoding="utf-8", errors="replace")
+            sys.stderr = cls._devnull_file
+        except OSError:
+            cls._saved_stderr_obj = None
+            cls._devnull_file = None
+
+        if platform.system() == "Windows":
             try:
-                os.dup2(stderr_fd, 2)
-                os.close(stderr_fd)
+                import ctypes
+
+                kernel32 = ctypes.windll.kernel32
+                std_error_handle = -12  # STD_ERROR_HANDLE
+                cls._win_saved_stderr_handle = kernel32.GetStdHandle(std_error_handle)
+                cls._win_nul_handle = kernel32.CreateFileW(
+                    "NUL",
+                    0x40000000,  # GENERIC_WRITE
+                    2,  # FILE_SHARE_WRITE
+                    None,
+                    3,  # OPEN_EXISTING
+                    0,
+                    None,
+                )
+                if cls._win_nul_handle not in (-1, 0xFFFFFFFF):
+                    kernel32.SetStdHandle(std_error_handle, cls._win_nul_handle)
+                else:
+                    cls._win_nul_handle = None
+            except Exception:
+                cls._win_saved_stderr_handle = None
+                cls._win_nul_handle = None
+
+    @classmethod
+    def _redirect_stderr_off(cls) -> None:
+        if platform.system() == "Windows" and cls._win_saved_stderr_handle is not None:
+            try:
+                import ctypes
+
+                kernel32 = ctypes.windll.kernel32
+                std_error_handle = -12  # STD_ERROR_HANDLE
+                kernel32.SetStdHandle(std_error_handle, cls._win_saved_stderr_handle)
+            except Exception:
+                pass
+            if cls._win_nul_handle is not None:
+                try:
+                    import ctypes
+
+                    ctypes.windll.kernel32.CloseHandle(cls._win_nul_handle)
+                except Exception:
+                    pass
+            cls._win_saved_stderr_handle = None
+            cls._win_nul_handle = None
+
+        if cls._saved_stderr_fd is not None:
+            try:
+                os.dup2(cls._saved_stderr_fd, sys.stderr.fileno())
+                os.close(cls._saved_stderr_fd)
             except OSError:
                 pass
-        if devnull_fd is not None:
+            cls._saved_stderr_fd = None
+
+        if cls._devnull_fd is not None:
             try:
-                os.close(devnull_fd)
+                os.close(cls._devnull_fd)
             except OSError:
                 pass
+            cls._devnull_fd = None
+
+        if cls._devnull_file is not None:
+            try:
+                cls._devnull_file.close()
+            except OSError:
+                pass
+            cls._devnull_file = None
+
+        if cls._saved_stderr_obj is not None:
+            sys.stderr = cls._saved_stderr_obj
+            cls._saved_stderr_obj = None
+
+
+@contextlib.contextmanager
+def _ffmpeg_stderr_session():
+    _FfmpegStderrSilencer.acquire()
+    try:
+        yield
+    finally:
+        _FfmpegStderrSilencer.release()
 
 
 def _apply_rtsp_ffmpeg_env() -> None:
@@ -115,7 +235,7 @@ def _apply_rtsp_ffmpeg_env() -> None:
 
 def _open_rtsp_capture(url: str) -> cv2.VideoCapture:
     _apply_rtsp_ffmpeg_env()
-    with _quiet_ffmpeg_stderr(), _quiet_opencv():
+    with _quiet_opencv():
         cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
     if cap.isOpened():
         try:
@@ -268,7 +388,7 @@ def probe_rtsp(url: str, *, display_name: str | None = None) -> CameraInfo:
             url=url,
         )
 
-    with _quiet_ffmpeg_stderr(), _quiet_opencv():
+    with _ffmpeg_stderr_session(), _quiet_opencv():
         cap = _open_rtsp_capture(url)
         if not cap.isOpened():
             cap.release()
@@ -286,6 +406,7 @@ def probe_rtsp(url: str, *, display_name: str | None = None) -> CameraInfo:
 
         ok, width, height, fps = _read_rtsp_frame_props(cap)
         cap.release()
+        time.sleep(0.05)
 
     if not ok:
         return CameraInfo(
@@ -350,7 +471,8 @@ class ScanWorker(QThread):
         self.rtsp_urls = rtsp_urls
 
     def run(self) -> None:
-        self.finished.emit(scan_cameras(self.max_index, rtsp_urls=self.rtsp_urls))
+        with _ffmpeg_stderr_session():
+            self.finished.emit(scan_cameras(self.max_index, rtsp_urls=self.rtsp_urls))
 
 
 class CameraPreviewWindow(QMainWindow):
@@ -358,6 +480,7 @@ class CameraPreviewWindow(QMainWindow):
         super().__init__(parent)
         self._cam = cam
         self._is_rtsp = cam.is_rtsp
+        self._stderr_session_active = False
         if cam.is_rtsp:
             self.setWindowTitle(f"Preview — {cam.name}")
         else:
@@ -372,11 +495,16 @@ class CameraPreviewWindow(QMainWindow):
 
         with _quiet_opencv():
             if cam.is_rtsp and cam.url:
+                _FfmpegStderrSilencer.acquire()
+                self._stderr_session_active = True
                 self._cap = _open_rtsp_capture(cam.url)
             else:
                 self._cap = cv2.VideoCapture(cam.index, cam.backend)
 
         if not self._cap.isOpened():
+            if self._stderr_session_active:
+                _FfmpegStderrSilencer.release()
+                self._stderr_session_active = False
             QMessageBox.warning(
                 self,
                 "Kamera",
@@ -390,11 +518,7 @@ class CameraPreviewWindow(QMainWindow):
         self._timer.start(33)
 
     def _update_frame(self) -> None:
-        if self._is_rtsp:
-            with _quiet_ffmpeg_stderr():
-                ok, frame = self._cap.read()
-        else:
-            ok, frame = self._cap.read()
+        ok, frame = self._cap.read()
         if not ok:
             return
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -411,6 +535,9 @@ class CameraPreviewWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         self._timer.stop()
         self._cap.release()
+        if self._stderr_session_active:
+            _FfmpegStderrSilencer.release()
+            self._stderr_session_active = False
         super().closeEvent(event)
 
 
