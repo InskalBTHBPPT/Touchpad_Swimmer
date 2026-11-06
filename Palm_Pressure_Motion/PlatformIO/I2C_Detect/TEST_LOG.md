@@ -39,3 +39,19 @@ Ketik SCAN lalu Enter untuk ulang.
 ```
 
 Hasil: **lulus**. Ketiga IC ada di alamat skema, WHO_AM_I cocok, dan scan hanya menemukan `0x1C`, `0x51`, dan `0x6A`.
+
+## 2026-11-06 — COM12, ulang
+
+Upload ulang berhasil. Boot dan perintah `SCAN` sama.
+
+```text
+I2C SDA P1.04  SCL P1.06
+U4 LSM6DSOX 0x6A  WHO=0x6C  OK
+U3 LIS3MDL  0x1C  WHO=0x3D  OK
+U2 RV-3032   0x51  TIDAK ADA
+Scan 0x08..0x77:
+  0x1C
+  0x6A
+```
+
+Hasil: **U2 tidak menjawab**. Bus I2C hidup. LSM6DSOX dan LIS3MDL tetap lulus. Alamat `0x51` tidak muncul. Ini sebab `Timer_RV3032` tadi melaporkan RV-3032 tidak terdeteksi.
