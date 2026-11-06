@@ -2,6 +2,13 @@
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/). Versi firmware mengikuti [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-11-06
+
+Cetak serial hanya nilai yang sudah diskalakan. Hitungan mentah register tidak lagi dikirim.
+
+- Satu sampel satu baris: accel dalam g, gyro dalam dps, magnetometer dalam G.
+- Jarak sampel tetap 10 ms. LSM6DSOX tetap 104 Hz, LIS3MDL tetap 155 Hz.
+
 ## [1.1.0] - 2026-11-06
 
 Cetak ketiga sensor mendekati 100 Hz.

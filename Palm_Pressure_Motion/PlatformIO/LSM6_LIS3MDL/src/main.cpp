@@ -185,32 +185,7 @@ static bool readSample(Sample *s) {
   return true;
 }
 
-static void printSigned(int16_t value) {
-  Serial.print(value);
-}
-
 static void printSample(const Sample &s) {
-  Serial.print(F("A "));
-  printSigned(s.ax);
-  Serial.print(' ');
-  printSigned(s.ay);
-  Serial.print(' ');
-  printSigned(s.az);
-  Serial.print(F("  G "));
-  printSigned(s.gx);
-  Serial.print(' ');
-  printSigned(s.gy);
-  Serial.print(' ');
-  printSigned(s.gz);
-  Serial.print(F("  M "));
-  printSigned(s.mx);
-  Serial.print(' ');
-  printSigned(s.my);
-  Serial.print(' ');
-  printSigned(s.mz);
-  Serial.println();
-
-  Serial.print(F("  "));
   Serial.print(s.ax * LSM6_ACCEL_G_PER_LSB, 3);
   Serial.print(' ');
   Serial.print(s.ay * LSM6_ACCEL_G_PER_LSB, 3);
@@ -378,7 +353,7 @@ void setup() {
     delay(10);
   }
 
-  Serial.println(F("LSM6 + LIS3MDL boot 1.1.0"));
+  Serial.println(F("LSM6 + LIS3MDL boot 2.0.0"));
   Serial.println(F("LSM6 104 Hz, LIS3MDL 155 Hz, cetak 100 Hz"));
   Wire.begin();
   Wire.setClock(100000);

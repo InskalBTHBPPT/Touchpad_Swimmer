@@ -51,3 +51,17 @@ TEST OK
 ```
 
 Cetak setelah vonis: 205 baris `A` dalam 2,046 s = 100,2 Hz. Image yang tertinggal di board adalah 1.1.0.
+
+## 2026-11-06 — COM12, versi 2.0.0
+
+Upload berhasil. Flash 59136 / 815104 (7,3%). Baris mentah tidak ada. Satu sampel satu baris terskala, 202 baris dalam 2,015 s = 100,2 Hz.
+
+```text
+ACCEL |a|=1.021 g OK
+GYRO |w|max=0.21 dps OK
+MAG |m|=0.442 G OK
+TEST OK
+-0.016 0.005 1.021 g | 0.13 0.01 -0.22 dps | -0.159 -0.005 0.413 G
+```
+
+Image yang tertinggal di board adalah 2.0.0.
