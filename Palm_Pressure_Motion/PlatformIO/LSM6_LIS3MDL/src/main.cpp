@@ -34,7 +34,8 @@ static const uint8_t LIS3_CTRL4 = 0x23;
 static const uint8_t LIS3_CTRL5 = 0x24;
 static const uint8_t LIS3_STATUS = 0x27;
 static const uint8_t LIS3_OUT_X_L = 0x28;
-static const uint8_t LIS3_CTRL1_10HZ_UHP = 0x70;
+// FAST_ODR + ultra-high performance = 155 Hz. Tidak ada ODR tepat 100 Hz.
+static const uint8_t LIS3_CTRL1_155HZ_UHP = 0x72;
 static const uint8_t LIS3_CTRL2_SOFT_RST = 0x04;
 static const uint8_t LIS3_CTRL3_CONTINUOUS = 0x00;
 static const uint8_t LIS3_CTRL4_Z_UHP = 0x0C;
@@ -42,7 +43,7 @@ static const uint8_t LIS3_CTRL5_BDU = 0x40;
 static const float LIS3_GAUSS_PER_LSB = 1.0f / 6842.0f;
 
 static const int kSamples = 8;
-static const unsigned long kLiveMs = 500;
+static const unsigned long kLiveMs = 10;
 static const float kAccelMinG = 0.70f;
 static const float kAccelMaxG = 1.30f;
 static const float kGyroMaxDps = 20.0f;
@@ -147,7 +148,7 @@ static bool configureLis3() {
   if (!writeReg(ADDR_LIS3, LIS3_CTRL2, 0x00)) {
     return false;
   }
-  if (!writeReg(ADDR_LIS3, LIS3_CTRL1, LIS3_CTRL1_10HZ_UHP)) {
+  if (!writeReg(ADDR_LIS3, LIS3_CTRL1, LIS3_CTRL1_155HZ_UHP)) {
     return false;
   }
   if (!writeReg(ADDR_LIS3, LIS3_CTRL4, LIS3_CTRL4_Z_UHP)) {
@@ -276,6 +277,8 @@ static bool runTest() {
     return false;
   }
 
+  delay(80);  // gyro baru hidup masih puluhan dps selama ~40 ms
+
   Sample samples[kSamples];
   float accelSum = 0.0f;
   float gyroMax = 0.0f;
@@ -283,7 +286,7 @@ static bool runTest() {
   int good = 0;
 
   for (int i = 0; i < kSamples; i++) {
-    delay(100);
+    delay(10);
     if (!readSample(&samples[i])) {
       Serial.println(F("baca sampel gagal"));
       sensorsReady = false;
@@ -375,7 +378,8 @@ void setup() {
     delay(10);
   }
 
-  Serial.println(F("LSM6 + LIS3MDL boot"));
+  Serial.println(F("LSM6 + LIS3MDL boot 1.1.0"));
+  Serial.println(F("LSM6 104 Hz, LIS3MDL 155 Hz, cetak 100 Hz"));
   Wire.begin();
   Wire.setClock(100000);
   runTest();

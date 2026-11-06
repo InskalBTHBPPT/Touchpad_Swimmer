@@ -35,4 +35,19 @@ TEST OK
 
 Hasil: lulus. Accel sumbu Z sekitar 1,02 g, X dan Y dekat nol, jadi chip hampir datar dengan +Z ke atas. Gyro diam di bawah 0,3 dps. Medan magnet 0,46 G, masuk rentang medan Bumi, tidak jenuh. Baris live setelah vonis tetap di angka yang sama.
 
-Folder proyek kemudian diganti dari `IMU_LSM6` menjadi `LSM6_LIS3MDL`, dan firmware diunggah ulang. Banner serial menjadi `LSM6 + LIS3MDL boot`. Vonis tetap lulus: `|a|=1.021 g`, `|w|max=0.21 dps`, `|m|=0.450 G`. Image yang tertinggal di board adalah unggahan ini.
+Folder proyek kemudian diganti dari `IMU_LSM6` menjadi `LSM6_LIS3MDL`, dan firmware diunggah ulang. Banner serial menjadi `LSM6 + LIS3MDL boot`. Vonis tetap lulus: `|a|=1.021 g`, `|w|max=0.21 dps`, `|m|=0.450 G`.
+
+## 2026-11-06 — COM12, versi 1.1.0
+
+Upload `pio run -t upload` berhasil. Flash 59592 / 815104 (7,3%), RAM 8960 / 248832 (3,6%).
+
+```text
+LSM6 + LIS3MDL boot 1.1.0
+LSM6 104 Hz, LIS3MDL 155 Hz, cetak 100 Hz
+ACCEL |a|=1.021 g OK
+GYRO |w|max=0.20 dps OK
+MAG |m|=0.445 G OK
+TEST OK
+```
+
+Cetak setelah vonis: 205 baris `A` dalam 2,046 s = 100,2 Hz. Image yang tertinggal di board adalah 1.1.0.

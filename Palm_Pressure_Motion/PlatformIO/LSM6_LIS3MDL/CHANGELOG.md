@@ -2,6 +2,15 @@
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/). Versi firmware mengikuti [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-06
+
+Cetak ketiga sensor mendekati 100 Hz.
+
+- LSM6DSOX tetap 104 Hz. Chip ini tidak punya ODR tepat 100 Hz.
+- LIS3MDL naik dari 10 Hz ke 155 Hz lewat `FAST_ODR` dan mode ultra-high performance. Itu laju terdekat di atas 100 Hz.
+- Baris serial dan delapan sampel `TEST` diambil tiap 10 ms. Format baris tidak berubah.
+- Vonis gyro menunggu 80 ms setelah sensor dinyalakan. Tanpa jeda itu, keluaran gyro masih puluhan dps dan tes diam gagal.
+
 ## [1.0.0] - 2026-11-06
 
 Rilis pertama untuk membaca gerak U4 LSM6DSOX dan medan magnet U3 LIS3MDL.
