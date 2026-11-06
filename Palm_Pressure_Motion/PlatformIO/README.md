@@ -8,6 +8,7 @@ Project yang sudah ada dianggap rilis **1.0.0**:
 - `I2C_Detect` — deteksi U2, U3, dan U4 di bus I2C
 - `Timer_RV3032` — jam RV-3032 lewat `bb_rtc` yang sudah disesuaikan manual
 - `Timer_RV3032_Kinetic` — jam RV-3032 lewat library KineticLabs yang sudah disesuaikan manual
+- `LSM6_LIS3MDL` — accel dan gyro LSM6DSOX plus magnetometer LIS3MDL
 
 ## Project baru
 
