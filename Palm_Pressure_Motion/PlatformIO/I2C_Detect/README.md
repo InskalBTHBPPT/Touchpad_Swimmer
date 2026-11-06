@@ -1,6 +1,6 @@
 # I2C Detect — tiga IC carrier skema 1.1
 
-Versi **1.0.0**. Riwayat ada di `CHANGELOG.md`.
+Versi **1.0.0**. Riwayat ada di `CHANGELOG.md`. Hasil uji hardware ada di `TEST_LOG.md`.
 
 Board: SuperMini nRF52840 di header H1/H2.  
 Bus: **SDA P1.04**, **SCL P1.06** (pull-up sudah di carrier).

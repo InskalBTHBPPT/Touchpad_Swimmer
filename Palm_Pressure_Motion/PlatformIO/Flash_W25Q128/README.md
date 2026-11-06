@@ -1,6 +1,6 @@
 # Flash W25Q128 — nRF52840 (Arduino / PlatformIO)
 
-Versi **1.0.0**. Riwayat ada di `CHANGELOG.md`.
+Versi **1.0.0**. Riwayat ada di `CHANGELOG.md`. Hasil uji hardware ada di `TEST_LOG.md`.
 
 Project: `Palm_Pressure_Motion/PlatformIO/Flash_W25Q128`  
 Clone dari `Flash_W25Q32`. Board dan pin SPI **sama**.
