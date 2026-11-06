@@ -5,8 +5,7 @@
 #include <bb_rtc.h>
 
 // Carrier skema 1.1: SDA P1.04, SCL P1.06. U2 RV-3032 di 0x51.
-// Trickle charger tidak dinyalakan. init() library hanya mengaktifkan
-// switchover VBACKUP dan mematikan trickle (PMU = 0x10).
+// Salinan lib/bb_rtc hanya ACK 0x51. Tidak menulis 0x17, 0x03, atau EEPROM PMU C0h.
 static BBRTC rtc;
 
 static const unsigned long kPrintMs = 1000;
