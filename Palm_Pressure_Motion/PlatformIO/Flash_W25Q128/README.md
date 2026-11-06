@@ -1,6 +1,8 @@
 # Flash W25Q128 — nRF52840 (Arduino / PlatformIO)
 
-Project: `ProMicro/PlatformIO/ArduinoFramework/Flash_W25Q128`  
+Versi **1.0.0**. Riwayat ada di `CHANGELOG.md`.
+
+Project: `Palm_Pressure_Motion/PlatformIO/Flash_W25Q128`  
 Clone dari `Flash_W25Q32`. Board dan pin SPI **sama**.
 
 Chip: **W25Q128JVSIQ** SOIC-8 **208 mil**. SPI NOR **16 MB**.  
@@ -21,7 +23,7 @@ Pin (sama W25Q32): SCK **P1.11**, MOSI **P1.13**, MISO **P1.15**, CS **P0.10**.
 `TEST` dibatalkan jika chip bukan W25Q128, supaya firmware 16 MB tidak menulis ke chip 4 MB di alamat di luar kapasitasnya.
 
 ```text
-cd ProMicro/PlatformIO/ArduinoFramework/Flash_W25Q128
+cd Palm_Pressure_Motion/PlatformIO/Flash_W25Q128
 pio run -t upload
 pio device monitor
 ```
