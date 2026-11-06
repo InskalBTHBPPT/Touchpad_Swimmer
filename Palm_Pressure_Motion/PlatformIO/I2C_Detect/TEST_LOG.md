@@ -55,3 +55,19 @@ Scan 0x08..0x77:
 ```
 
 Hasil: **U2 tidak menjawab**. Bus I2C hidup. LSM6DSOX dan LIS3MDL tetap lulus. Alamat `0x51` tidak muncul. Ini sebab `Timer_RV3032` tadi melaporkan RV-3032 tidak terdeteksi.
+
+## 2026-11-06 — COM12, setelah USB dilepas lalu dipasang lagi
+
+Monitor serial pengguna, boot dan `SCAN`:
+
+```text
+U4 LSM6DSOX 0x6A  WHO=0x6C  OK
+U3 LIS3MDL  0x1C  WHO=0x3D  OK
+U2 RV-3032   0x51  OK
+Scan 0x08..0x77:
+  0x1C
+  0x51
+  0x6A
+```
+
+Hasil: **ketiga IC kembali**. Cabut-pasang USB memulihkan jawaban `0x51`. Chip dan kabel I2C tidak hilang. Sesi sebelumnya yang gagal adalah RTC yang tidak menjawab sampai VDD-nya ikut mati saat USB dicabut.
