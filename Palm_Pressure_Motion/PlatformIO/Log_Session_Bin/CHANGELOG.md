@@ -2,6 +2,14 @@
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/). Versi firmware mengikuti [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-11-09
+
+Sampel measure/stream memakai IMU dan magnetometer nyata. Format PLG1 v4 tidak berubah.
+
+- Port dari `LSM6_LIS3MDL` 2.0.0: LSM6DSOX `0x6A` (±2 g / ±250 dps, 104 Hz) dan LIS3MDL `0x1C` (±4 G, 155 Hz).
+- Timer 10 ms mengisi `d3..d5` (mg), `d6..d8` (0,1 °/s), `d9..d11` (µT). `d1..d2` tetap 0.
+- `STATUS` menampilkan `imu=OK|NO`. Paket BLE status tetap 16 byte.
+
 ## [2.1.0] - 2026-11-09
 
 Status baterai memakai ADC Bat(+), bukan angka acak. Paket `0x90` tetap 16 byte.

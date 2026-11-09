@@ -1,10 +1,10 @@
 /**
  * @file main.cpp
- * @brief PalmLog1 firmware — Log_Session_Bin **2.1.0**
+ * @brief PalmLog1 firmware — Log_Session_Bin **2.2.0**
  *
  * Logger carrier skema 1.1: rekam 100 Hz ke flash W25Q128 (PLG1 v4, 26 B/rekaman),
  * BLE NUS untuk status / sync waktu / LIST-GET / DELETE-FORMAT / stream uji.
- * Sensor masih dummy. Port dari Log_Session_Bin_v3.1.1.
+ * Accel/gyro LSM6DSOX + mag LIS3MDL (sama LSM6_LIS3MDL 2.0.0). d1..d2 masih 0.
  *
  * ### Solusi A — timer + ring
  * SoftwareTimer 10 ms hanya capture -> ring (64); loop()/sampleTick() tulis flash.
@@ -25,6 +25,7 @@
  * - Flash W25Q128: SCK P1.11, MOSI P1.13, MISO P1.15, CS P0.10
  * - RTC RV-3032: SDA P1.04, SCL P1.06, addr 0x51 (bb_rtc lokal)
  * - Bat(+): R5 1 MΩ — P0.31 — R6 1 MΩ — AGND. Vbat = Vpin × 2 × 0,9726
+ * - IMU U4 LSM6DSOX 0x6A + mag U3 LIS3MDL 0x1C (SDA P1.04, SCL P1.06)
  */
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h>
@@ -32,6 +33,7 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <time.h>
+#include <math.h>
 #include <bb_rtc.h>
 #include "utility/SoftwareTimer.h"
 #include <string.h>
@@ -146,8 +148,8 @@ struct __attribute__((packed)) FileHeader {
 };
 
 /**
- * Satu sampel PLG1 v4 (26 B). Dummy random sampai sensor nyata.
- * d1..d2 general; d3..d5 accel mg; d6..d8 gyro 0.1°/s; d9..d11 mag µT.
+ * Satu sampel PLG1 v4 (26 B).
+ * d1..d2 general (0); d3..d5 accel mg; d6..d8 gyro 0.1°/s; d9..d11 mag µT.
  */
 struct __attribute__((packed)) SampleRec {
   uint32_t t_rel_ms;  ///< millis() - sampleEpochMs
@@ -210,7 +212,7 @@ static SampleRec sampleQ[SAMPLE_Q_LEN];
 static volatile uint16_t sampleQHead = 0;
 static volatile uint16_t sampleQTail = 0;
 static SoftwareTimer sampleTimer;
-static uint32_t rngState = 0xA5A5A5A5u;
+static bool sensorsReady = false;
 
 static int8_t openSlot = -1;
 static uint32_t writeAddr = 0;
@@ -696,10 +698,6 @@ static bool sessionStart() {
   memcpy(openName, name, 13);
   measure = true;
   sampleEpochMs = millis();
-  rngState ^= micros();
-  if (rngState == 0) {
-    rngState = 0xA5A5A5A5u;
-  }
   sampleTimer.start();
 
   Serial.print(F("START "));
@@ -778,30 +776,229 @@ static bool sessionStop() {
   return true;
 }
 
-// RNG cepat untuk konteks timer (hindari Arduino random() di task timer).
-static uint32_t rngNext() {
-  rngState = rngState * 1664525u + 1013904223u;
-  return rngState;
+// ---------------------------------------------------------------------------
+// LSM6DSOX + LIS3MDL (port dari PlatformIO/LSM6_LIS3MDL 2.0.0)
+// ---------------------------------------------------------------------------
+static const uint8_t ADDR_LSM6 = 0x6A;
+static const uint8_t ADDR_LIS3 = 0x1C;
+static const uint8_t REG_WHO_AM_I = 0x0F;
+static const uint8_t WHO_LSM6DSOX = 0x6C;
+static const uint8_t WHO_LIS3MDL = 0x3D;
+
+static const uint8_t LSM6_CTRL1_XL = 0x10;
+static const uint8_t LSM6_CTRL2_G = 0x11;
+static const uint8_t LSM6_CTRL3_C = 0x12;
+static const uint8_t LSM6_STATUS = 0x1E;
+static const uint8_t LSM6_OUTX_L_G = 0x22;
+static const uint8_t LSM6_CTRL3_BDU_IFINC = 0x44;
+static const uint8_t LSM6_ODR_104_FS_2G = 0x40;
+static const uint8_t LSM6_ODR_104_FS_250 = 0x40;
+static const float LSM6_ACCEL_G_PER_LSB = 0.000061f;
+static const float LSM6_GYRO_DPS_PER_LSB = 0.00875f;
+
+static const uint8_t LIS3_CTRL1 = 0x20;
+static const uint8_t LIS3_CTRL2 = 0x21;
+static const uint8_t LIS3_CTRL3 = 0x22;
+static const uint8_t LIS3_CTRL4 = 0x23;
+static const uint8_t LIS3_CTRL5 = 0x24;
+static const uint8_t LIS3_STATUS = 0x27;
+static const uint8_t LIS3_OUT_X_L = 0x28;
+static const uint8_t LIS3_CTRL1_155HZ_UHP = 0x72;
+static const uint8_t LIS3_CTRL2_SOFT_RST = 0x04;
+static const uint8_t LIS3_CTRL3_CONTINUOUS = 0x00;
+static const uint8_t LIS3_CTRL4_Z_UHP = 0x0C;
+static const uint8_t LIS3_CTRL5_BDU = 0x40;
+static const float LIS3_GAUSS_PER_LSB = 1.0f / 6842.0f;
+
+static bool imuWriteReg(uint8_t addr, uint8_t reg, uint8_t value) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  Wire.write(value);
+  return Wire.endTransmission() == 0;
 }
 
-static int16_t randI16Fast(int16_t lo, int16_t hiInclusive) {
-  const uint32_t span = (uint32_t)((int32_t)hiInclusive - (int32_t)lo + 1);
-  return (int16_t)((int32_t)lo + (int32_t)(rngNext() % span));
+static bool imuReadReg(uint8_t addr, uint8_t reg, uint8_t *value) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) {
+    return false;
+  }
+  if (Wire.requestFrom(addr, (uint8_t)1) != 1) {
+    return false;
+  }
+  *value = Wire.read();
+  return true;
 }
 
-static void fillRandomSample(SampleRec *r) {
+static bool imuReadBurst(uint8_t addr, uint8_t reg, uint8_t *buf, uint8_t len) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) {
+    return false;
+  }
+  if (Wire.requestFrom(addr, len) != len) {
+    return false;
+  }
+  for (uint8_t i = 0; i < len; i++) {
+    buf[i] = Wire.read();
+  }
+  return true;
+}
+
+static int16_t imuLe16(const uint8_t *p) {
+  return (int16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+static bool imuWaitBit(uint8_t addr, uint8_t reg, uint8_t mask, unsigned long timeoutMs) {
+  const unsigned long start = millis();
+  while ((millis() - start) < timeoutMs) {
+    uint8_t value = 0;
+    if (imuReadReg(addr, reg, &value) && (value & mask) == mask) {
+      return true;
+    }
+    delay(5);
+  }
+  return false;
+}
+
+static bool configureLsm6() {
+  if (!imuWriteReg(ADDR_LSM6, LSM6_CTRL3_C, 0x01)) {
+    return false;
+  }
+  const unsigned long start = millis();
+  bool resetDone = false;
+  while ((millis() - start) < 50) {
+    uint8_t value = 0x01;
+    if (!imuReadReg(ADDR_LSM6, LSM6_CTRL3_C, &value)) {
+      return false;
+    }
+    if ((value & 0x01) == 0) {
+      resetDone = true;
+      break;
+    }
+    delay(2);
+  }
+  if (!resetDone) {
+    return false;
+  }
+  if (!imuWriteReg(ADDR_LSM6, LSM6_CTRL3_C, LSM6_CTRL3_BDU_IFINC)) {
+    return false;
+  }
+  if (!imuWriteReg(ADDR_LSM6, LSM6_CTRL1_XL, LSM6_ODR_104_FS_2G)) {
+    return false;
+  }
+  if (!imuWriteReg(ADDR_LSM6, LSM6_CTRL2_G, LSM6_ODR_104_FS_250)) {
+    return false;
+  }
+  return imuWaitBit(ADDR_LSM6, LSM6_STATUS, 0x03, 100);
+}
+
+static bool configureLis3() {
+  if (!imuWriteReg(ADDR_LIS3, LIS3_CTRL2, LIS3_CTRL2_SOFT_RST)) {
+    return false;
+  }
+  delay(10);
+  if (!imuWriteReg(ADDR_LIS3, LIS3_CTRL2, 0x00)) {
+    return false;
+  }
+  if (!imuWriteReg(ADDR_LIS3, LIS3_CTRL1, LIS3_CTRL1_155HZ_UHP)) {
+    return false;
+  }
+  if (!imuWriteReg(ADDR_LIS3, LIS3_CTRL4, LIS3_CTRL4_Z_UHP)) {
+    return false;
+  }
+  if (!imuWriteReg(ADDR_LIS3, LIS3_CTRL5, LIS3_CTRL5_BDU)) {
+    return false;
+  }
+  if (!imuWriteReg(ADDR_LIS3, LIS3_CTRL3, LIS3_CTRL3_CONTINUOUS)) {
+    return false;
+  }
+  return imuWaitBit(ADDR_LIS3, LIS3_STATUS, 0x08, 200);
+}
+
+static int16_t clampI16(long v) {
+  if (v > 32767L) {
+    return 32767;
+  }
+  if (v < -32768L) {
+    return -32768;
+  }
+  return (int16_t)v;
+}
+
+/** Isi d3..d11 dari chip. d1..d2 = 0. Gagal baca → kanal IMU/mag = 0. */
+static void fillSensorSample(SampleRec *r) {
   r->t_rel_ms = millis() - sampleEpochMs;
-  r->d1 = randI16Fast(-1000, 1000);
-  r->d2 = randI16Fast(-1000, 1000);
-  r->d3 = randI16Fast(-8000, 8000);
-  r->d4 = randI16Fast(-8000, 8000);
-  r->d5 = randI16Fast(-8000, 8000);
-  r->d6 = randI16Fast(-20000, 20000);
-  r->d7 = randI16Fast(-20000, 20000);
-  r->d8 = randI16Fast(-20000, 20000);
-  r->d9 = randI16Fast(-4900, 4900);
-  r->d10 = randI16Fast(-4900, 4900);
-  r->d11 = randI16Fast(-4900, 4900);
+  r->d1 = 0;
+  r->d2 = 0;
+  r->d3 = 0;
+  r->d4 = 0;
+  r->d5 = 0;
+  r->d6 = 0;
+  r->d7 = 0;
+  r->d8 = 0;
+  r->d9 = 0;
+  r->d10 = 0;
+  r->d11 = 0;
+
+  if (!sensorsReady) {
+    return;
+  }
+
+  uint8_t imu[12];
+  uint8_t mag[6];
+  if (!imuReadBurst(ADDR_LSM6, LSM6_OUTX_L_G, imu, sizeof(imu))) {
+    return;
+  }
+  if (!imuReadBurst(ADDR_LIS3, (uint8_t)(0x80 | LIS3_OUT_X_L), mag, sizeof(mag))) {
+    return;
+  }
+
+  const int16_t gx = imuLe16(imu + 0);
+  const int16_t gy = imuLe16(imu + 2);
+  const int16_t gz = imuLe16(imu + 4);
+  const int16_t ax = imuLe16(imu + 6);
+  const int16_t ay = imuLe16(imu + 8);
+  const int16_t az = imuLe16(imu + 10);
+  const int16_t mx = imuLe16(mag + 0);
+  const int16_t my = imuLe16(mag + 2);
+  const int16_t mz = imuLe16(mag + 4);
+
+  // PLG1 v4: accel mg, gyro 0.1°/s, mag µT (sama skala yang dipakai Android App).
+  r->d3 = clampI16(lroundf(ax * LSM6_ACCEL_G_PER_LSB * 1000.0f));
+  r->d4 = clampI16(lroundf(ay * LSM6_ACCEL_G_PER_LSB * 1000.0f));
+  r->d5 = clampI16(lroundf(az * LSM6_ACCEL_G_PER_LSB * 1000.0f));
+  r->d6 = clampI16(lroundf(gx * LSM6_GYRO_DPS_PER_LSB * 10.0f));
+  r->d7 = clampI16(lroundf(gy * LSM6_GYRO_DPS_PER_LSB * 10.0f));
+  r->d8 = clampI16(lroundf(gz * LSM6_GYRO_DPS_PER_LSB * 10.0f));
+  r->d9 = clampI16(lroundf(mx * LIS3_GAUSS_PER_LSB * 100.0f));
+  r->d10 = clampI16(lroundf(my * LIS3_GAUSS_PER_LSB * 100.0f));
+  r->d11 = clampI16(lroundf(mz * LIS3_GAUSS_PER_LSB * 100.0f));
+}
+
+static bool initImuSensors() {
+  uint8_t whoLsm = 0;
+  uint8_t whoLis = 0;
+  if (!imuReadReg(ADDR_LSM6, REG_WHO_AM_I, &whoLsm) || whoLsm != WHO_LSM6DSOX) {
+    Serial.print(F("ERR LSM6DSOX WHO 0x"));
+    Serial.println(whoLsm, HEX);
+    return false;
+  }
+  if (!imuReadReg(ADDR_LIS3, REG_WHO_AM_I, &whoLis) || whoLis != WHO_LIS3MDL) {
+    Serial.print(F("ERR LIS3MDL WHO 0x"));
+    Serial.println(whoLis, HEX);
+    return false;
+  }
+  if (!configureLsm6()) {
+    Serial.println(F("ERR LSM6 konfigurasi"));
+    return false;
+  }
+  if (!configureLis3()) {
+    Serial.println(F("ERR LIS3 konfigurasi"));
+    return false;
+  }
+  delay(80);
+  return true;
 }
 
 static bool sampleQPush(const SampleRec &rec) {
@@ -840,7 +1037,7 @@ static void sampleQClear() {
 }
 
 /**
- * Callback SoftwareTimer 10 ms (Solusi A). Hanya isi SampleRec + push ring; tanpa SPI.
+ * Callback SoftwareTimer 10 ms (Solusi A). Baca I2C sensor + push ring; tanpa SPI flash.
  * Ring penuh → sampleOverruns++ (terlihat sebagai drop di STOP).
  */
 static void sampleCaptureCb(TimerHandle_t) {
@@ -848,7 +1045,7 @@ static void sampleCaptureCb(TimerHandle_t) {
     return;
   }
   SampleRec rec;
-  fillRandomSample(&rec);
+  fillSensorSample(&rec);
   sampleSeqProd++;
   sampleQPush(rec);
 }
@@ -1575,15 +1772,16 @@ static void onDisconnect(uint16_t conn_handle, uint8_t reason) {
 // ===========================================================================
 static void printHelp() {
   Serial.println();
-  Serial.println(F("Log_Session_Bin 2.1.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
+  Serial.println(F("Log_Session_Bin 2.2.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
   Serial.println(F("VBAT P0.31: R5/R6 1M/1M x2 cal=0.9726"));
+  Serial.println(F("IMU: LSM6DSOX 0x6A + LIS3MDL 0x1C @ P1.04/P1.06"));
   Serial.println(F("PB P0.24:"));
   Serial.println(F("  lepas 3..10s  Start/Stop measure (hanya board ON)"));
   Serial.println(F("  hold >=10s    System OFF (USB cabut); ON dari tidur sama"));
   Serial.println(F("LED P0.15: idle triple/10s | measure double/5s"));
   Serial.println(F("BLE: 0x10 status | 0x11 time_ms | 0x20 LIST | 0x21 GET | 0x23 DEL | 0x24 FMT | 0x30 STREAM"));
-  Serial.println(F("Sample: SoftwareTimer 10ms -> ring -> flash (FORMAT=bypass sector erase)"));
-  Serial.println(F("Rekaman: t_rel_ms | d1..d2 | accel mg d3..d5 | gyro 0.1dps d6..d8 | mag uT d9..d11"));
+  Serial.println(F("Sample: SoftwareTimer 10ms -> I2C sensor -> ring -> flash"));
+  Serial.println(F("Rekaman: t_rel_ms | d1..d2=0 | accel mg d3..d5 | gyro 0.1dps d6..d8 | mag uT d9..d11"));
   Serial.println(F("Perintah Serial:"));
   Serial.println(F("  HELP | STATUS | NOW"));
   Serial.println(F("  LOG GET [ON|OFF]          log Serial tiap potongan unduh .bin (default OFF)"));
@@ -1611,6 +1809,8 @@ static void cmdStatus() {
   Serial.print(measure ? 'T' : 'F');
   Serial.print(F("  rtc="));
   Serial.print(rtcOk ? F("OK") : F("NO"));
+  Serial.print(F("  imu="));
+  Serial.print(sensorsReady ? F("OK") : F("NO"));
   Serial.print(F("  files="));
   Serial.print(countFiles());
   if (measure) {
@@ -1945,7 +2145,6 @@ void setup() {
   gatePowerOnFromButton();
 
   Serial.begin(115200);
-  randomSeed(micros());
   const uint32_t t0 = millis();
   while (!Serial && (millis() - t0 < 4000)) {
     delay(10);
@@ -1973,6 +2172,11 @@ void setup() {
     Serial.println(F("ERR flash bukan W25Q128 (EF 40 18)"));
   }
 
+  sensorsReady = initImuSensors();
+  if (sensorsReady) {
+    Serial.println(F("IMU OK LSM6DSOX+LIS3MDL"));
+  }
+
   dirLoad();
   if (dirDirty) {
     ensureErased(DATA_START, FLASH_SECTOR);
@@ -1988,11 +2192,6 @@ void setup() {
   }
   dirFlush();
 
-  randomSeed(micros() ^ (rtcOk ? rtcUnixSeconds() : 0xA5A5u));
-  rngState = micros() ^ (rtcOk ? rtcUnixSeconds() : 0xA5A5u);
-  if (rngState == 0) {
-    rngState = 0xA5A5A5A5u;
-  }
   sampleTimer.begin(SAMPLE_PERIOD_MS, sampleCaptureCb);
   hbMeasureLatched = measure;
   hbPhase = HB_WAIT;
