@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief PalmLog1 firmware — Log_Session_Bin **2.2.0**
+ * @brief PalmLog1 firmware — Log_Session_Bin **2.3.0**
  *
  * Logger carrier skema 1.1: rekam 100 Hz ke flash W25Q128 (PLG1 v4, 26 B/rekaman),
  * BLE NUS untuk status / sync waktu / LIST-GET / DELETE-FORMAT / stream uji.
@@ -55,8 +55,8 @@ static const float VBAT_CAL = 0.9726f;
 static const int VBAT_AVG_COUNT = 16;
 static const uint32_t VBAT_REFRESH_MS = 1000;
 
-static const uint32_t HOLD_MEASURE_MS = 3000;   // lepas dengan 3..10 s → measure
-static const uint32_t HOLD_POWER_MS = 10000;    // hold ≥ 10 s → System OFF / ON
+static const uint32_t HOLD_MEASURE_MS = 2000;   // lepas dengan 2..5 s → measure
+static const uint32_t HOLD_POWER_MS = 5000;     // hold ≥ 5 s → System OFF / ON
 static const uint32_t ADV_IDLE_TIMEOUT_MS = 180000;  // 3 menit tanpa peer → System OFF
 static const uint32_t DEBOUNCE_MS = 20;
 
@@ -80,9 +80,13 @@ static const uint8_t BLE_CMD_STREAM = 0x30;       // + u8 1=start 0=stop
 static const uint8_t BLE_ACK_STREAM = 0xB0;       // result: 0=mulai, 1=measure mati, 2=stop
 static const uint8_t BLE_STREAM_SAMPLE = 0xB2;    // seq u16 LE + SampleRec 26 B
 static const uint16_t BLE_MAX_CHUNK = 180;  // data per 0xB1 (header 12 B + data)
-static const uint32_t HB_BLINK_MS = 100;
-static const uint32_t HB_IDLE_PERIOD_MS = 10000;    // ON + measure=F
-static const uint32_t HB_MEASURE_PERIOD_MS = 5000;  // ON + measure=T
+static const uint32_t HB_ON_MS = 100;
+static const uint32_t HB_OFF_IDLE_MS = 250;         // jeda antar kedip saat idle
+static const uint32_t HB_OFF_MEASURE_MS = 100;      // jeda antar kedip saat measure
+static const uint32_t HB_IDLE_PERIOD_MS = 5000;     // measure=F: 4 kedip, lalu tunggu 5 s
+static const uint32_t HB_MEASURE_PERIOD_MS = 5000;  // measure=T: 2 kedip, lalu tunggu 5 s
+static const uint8_t HB_IDLE_BLINKS = 4;
+static const uint8_t HB_MEASURE_BLINKS = 2;
 static const uint16_t SAMPLE_PERIOD_MS = 10;
 static const uint16_t FORMAT_VERSION = 4;  // v4: + t_rel_ms u32, record 26 B
 static const uint8_t CHANNELS = 11;
@@ -186,17 +190,17 @@ static bool pwr_btn_released_since_on = true;
 
 static bool btnDown = false;
 static bool btnStableLow = false;
-static bool powerHoldFired = false;  // hold ≥10 s sudah ditangani di tekanan ini
+static bool powerHoldFired = false;  // hold ≥5 s sudah ditangani di tekanan ini
 static uint32_t btnLastChange = 0;
 static uint32_t btnPressAt = 0;
 
 // Heartbeat LED non-blocking
-// measure=F (idle): triple blink tiap 10 s
-// measure=T:        double blink tiap 5 s
+// measure=F (idle): 4 kedip (ON 100 / OFF 250), lalu tunggu 5 s
+// measure=T:        2 kedip (ON/OFF 100), lalu tunggu 5 s
 enum : uint8_t { HB_WAIT = 0, HB_ON, HB_OFF };
 static uint8_t hbPhase = HB_WAIT;
 static uint8_t hbBlinkCount = 0;     // berapa kali sudah ON dalam burst ini
-static uint8_t hbBlinksTarget = 3;   // 3 idle / 2 measure
+static uint8_t hbBlinksTarget = HB_IDLE_BLINKS;
 static uint32_t hbPhaseSince = 0;
 static uint32_t hbNextDue = 0;
 static bool hbMeasureLatched = false;
@@ -1233,15 +1237,19 @@ static void gatePowerOnFromButton() {
 
 // ===========================================================================
 // LED heartbeat (non-blocking, paralel dengan sample)
-// idle (measure=F): triple ON/OFF 100 ms, jeda 10 s
-// measure=T:        double ON/OFF 100 ms, jeda 5 s
+// idle (measure=F): 4× ON 100 ms / OFF 250 ms, lalu tunggu 5 s
+// measure=T:        2× ON/OFF 100 ms, lalu tunggu 5 s
 // ===========================================================================
 static uint32_t hbPeriodMs() {
   return measure ? HB_MEASURE_PERIOD_MS : HB_IDLE_PERIOD_MS;
 }
 
 static uint8_t hbBlinksForMode() {
-  return measure ? 2 : 3;
+  return measure ? HB_MEASURE_BLINKS : HB_IDLE_BLINKS;
+}
+
+static uint32_t hbOffMsForMode() {
+  return measure ? HB_OFF_MEASURE_MS : HB_OFF_IDLE_MS;
 }
 
 static void heartbeatStartBurst() {
@@ -1282,7 +1290,8 @@ static void heartbeatTick() {
     return;
   }
 
-  if ((now - hbPhaseSince) < HB_BLINK_MS) {
+  const uint32_t phaseMs = (hbPhase == HB_ON) ? HB_ON_MS : hbOffMsForMode();
+  if ((now - hbPhaseSince) < phaseMs) {
     return;
   }
 
@@ -1307,8 +1316,8 @@ static void heartbeatTick() {
 
 // ===========================================================================
 // Button (board ON):
-//   hold ≥ 10 s → System OFF (suppress measure; flush jika measure=T)
-//   lepas dengan 3 s ≤ hold < 10 s → Start/Stop measure
+//   hold ≥ 5 s → System OFF (suppress measure; flush jika measure=T)
+//   lepas dengan 2 s ≤ hold < 5 s → Start/Stop measure
 //   USB: PowerSave off → tidak System OFF via tombol; measure tetap jalan
 // ===========================================================================
 static void buttonTick() {
@@ -1342,14 +1351,13 @@ static void buttonTick() {
       return;
     }
 
-    // Measure: fire-on-release di jendela 3..10 s
+    // Measure: fire-on-release di jendela 2..5 s
     if (held >= HOLD_MEASURE_MS && held < HOLD_POWER_MS) {
       if (!measure) {
         sessionStart();
       } else {
         sessionStop();
       }
-      // Langsung double-blink + jadwal ulang (5 s measure / 10 s idle)
       heartbeatOnMeasureChanged(true);
     }
     return;
@@ -1772,13 +1780,13 @@ static void onDisconnect(uint16_t conn_handle, uint8_t reason) {
 // ===========================================================================
 static void printHelp() {
   Serial.println();
-  Serial.println(F("Log_Session_Bin 2.2.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
+  Serial.println(F("Log_Session_Bin 2.3.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
   Serial.println(F("VBAT P0.31: R5/R6 1M/1M x2 cal=0.9726"));
   Serial.println(F("IMU: LSM6DSOX 0x6A + LIS3MDL 0x1C @ P1.04/P1.06"));
   Serial.println(F("PB P0.24:"));
-  Serial.println(F("  lepas 3..10s  Start/Stop measure (hanya board ON)"));
-  Serial.println(F("  hold >=10s    System OFF (USB cabut); ON dari tidur sama"));
-  Serial.println(F("LED P0.15: idle triple/10s | measure double/5s"));
+  Serial.println(F("  lepas 2..5s   Start/Stop measure (hanya board ON)"));
+  Serial.println(F("  hold >=5s     System OFF (USB cabut); ON dari tidur sama"));
+  Serial.println(F("LED P0.15: idle 4x ON100/OFF250 /5s | measure 2x/5s"));
   Serial.println(F("BLE: 0x10 status | 0x11 time_ms | 0x20 LIST | 0x21 GET | 0x23 DEL | 0x24 FMT | 0x30 STREAM"));
   Serial.println(F("Sample: SoftwareTimer 10ms -> I2C sensor -> ring -> flash"));
   Serial.println(F("Rekaman: t_rel_ms | d1..d2=0 | accel mg d3..d5 | gyro 0.1dps d6..d8 | mag uT d9..d11"));
@@ -2140,7 +2148,7 @@ void setup() {
   digitalWrite(LED_BUILTIN, LED_STATE_OFF);
   digitalWrite(PIN_EXT_VCC, LOW);
 
-  // Gate power SEBELUM Serial/SPI: baterai tanpa hold 10s → System OFF.
+  // Gate power SEBELUM Serial/SPI: baterai tanpa hold 5s → System OFF.
   // USB (setelah flash): langsung ON (pwr_save=N).
   gatePowerOnFromButton();
 

@@ -2,6 +2,15 @@
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/). Versi firmware mengikuti [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-11-09
+
+Timing tombol dan heartbeat LED disesuaikan untuk pemakaian lapangan.
+
+- Tombol: **&lt; 2 s** diabaikan; **2…5 s** lepas = Start/Stop measure; **≥ 5 s** tahan = System OFF / ON dari tidur.
+- LED idle: **4 kedip** (ON 100 ms, OFF antar kedip 250 ms), lalu tunggu **5 s**.
+- LED measure: tetap **2 kedip** ON/OFF 100 ms, lalu tunggu **5 s**.
+- Auto System OFF tanpa USB/peer tetap **3 menit**.
+
 ## [2.2.0] - 2026-11-09
 
 Sampel measure/stream memakai IMU dan magnetometer nyata. Format PLG1 v4 tidak berubah.
