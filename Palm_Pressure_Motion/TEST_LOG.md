@@ -21,16 +21,18 @@ Belum masuk sesi ini: IMU / magnetometer (masih dummy di firmware), stream lapan
 
 ## 2026-11-09 — Komparasi Euler RPY, EKF dan Madgwick Palm vs EST Unix 3DM-GX5-25
 
-Notebook di `PythonFile/`:
+Berkas di `PythonFile/Komparasi_Euler_Angle_PalmSensor_3DM-GX5-25/`:
 
-- `Komparasi_EulerRPY_1949_EKF-IMU-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
-- `Komparasi_EulerRPY_1949_Madgwick-IMU-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
-- `Komparasi_EulerRPY_1949_EKF-IMU-MAG-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
-- `Komparasi_EulerRPY_1954_EKF-IMU-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
-- `Komparasi_EulerRPY_1954_Madgwick-IMU-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
-- `Komparasi_EulerRPY_1954_EKF-IMU-MAG-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
+- `EKF/Komparasi_EulerRPY_1949_EKF-IMU-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
+- `EKF/Komparasi_EulerRPY_1949_EKF-IMU-MAG-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
+- `EKF/Komparasi_EulerRPY_1954_EKF-IMU-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
+- `EKF/Komparasi_EulerRPY_1954_EKF-IMU-MAG-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
+- `Madgwick/Komparasi_EulerRPY_1949_Madgwick-IMU-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
+- `Madgwick/Komparasi_EulerRPY_1954_Madgwick-IMU-Palm_vs_EST-UNIX-3DM-GX5-25.ipynb`
 
-Resume: `PythonFile/Komparasi_EulerRPY_Resume_EKF-Palm_vs_EST-UNIX-3DM-GX5-25.md` dan `.pdf`.
+Resume EKF: `.../EKF/Komparasi_EulerRPY_Resume_EKF-Palm_vs_EST-UNIX-3DM-GX5-25.md` dan `.pdf`.
+
+Resume Madgwick IMU, tanpa magnetometer: `.../Madgwick/Komparasi_EulerRPY_Resume_Madgwick-Palm_vs_EST-UNIX-3DM-GX5-25.md` dan `.pdf`.
 
 Cara hitung sama untuk semua. Sumbu: X tetap, Y dan Z dibalik (accel, gyro, dan mag). Z Palm setelah remap ≈ −1 g. Filter `ahrs` memakai acuan NED `[0, 0, +1]`, jadi tanda akselerasi dibalik hanya sebelum filter. Gyro dan mag tidak ikut dibalik. Madgwick IMU memakai gain bawaan 0,033, tanpa magnetometer. Mag EKF mentah dalam µT, tanpa kalibrasi hard-iron/soft-iron. Jam header Palm adalah WIB yang tersimpan sebagai angka Unix; EST adalah UTC. Waktu Palm digeser −7 jam, lalu sisa offset dicari di ±5 s.
 
