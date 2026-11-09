@@ -1,6 +1,6 @@
-# Test log — Log_Session_Bin_v-N-1.0.0
+# Test log — Log_Session_Bin
 
-Versi firmware yang diuji: **v-N-1.0.0** (`PalmLog1`)
+Versi firmware yang diuji: **1.0.0** (`PalmLog1`)
 
 ## 2026-11-09 — COM12, flash + RTC (tanpa HP)
 
@@ -19,7 +19,7 @@ Tidak ada `ERR flash bukan W25Q128 (EF 40 18)`. JEDEC lulus.
 Ada `WARN RTC tahun < 2020` — wajar sebelum `SET`.
 
 ```text
-Log_Session_Bin v-N-1.0.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream
+Log_Session_Bin 1.0.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream
 board=ON  ble=PalmLog1/adv  usb=Y  ...  rtc=OK  files=0  next_free=0x1000
 ```
 

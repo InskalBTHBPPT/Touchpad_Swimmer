@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief PalmLog1 firmware — Log_Session_Bin **v-N-1.0.0**
+ * @brief PalmLog1 firmware — Log_Session_Bin **1.0.0**
  *
  * Logger carrier skema 1.1: rekam 100 Hz ke flash W25Q128 (PLG1 v4, 26 B/rekaman),
  * BLE NUS untuk status / sync waktu / LIST-GET / DELETE-FORMAT / stream uji.
@@ -1537,7 +1537,7 @@ static void onDisconnect(uint16_t conn_handle, uint8_t reason) {
 // ===========================================================================
 static void printHelp() {
   Serial.println();
-  Serial.println(F("Log_Session_Bin v-N-1.0.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
+  Serial.println(F("Log_Session_Bin 1.0.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
   Serial.println(F("PB P0.17:"));
   Serial.println(F("  lepas 3..10s  Start/Stop measure (hanya board ON)"));
   Serial.println(F("  hold >=10s    System OFF (USB cabut); ON dari tidur sama"));

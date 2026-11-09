@@ -10,7 +10,7 @@ Project yang sudah ada dianggap rilis **1.0.0**:
 - `Timer_RV3032_Kinetic` — jam RV-3032 lewat library KineticLabs yang sudah disesuaikan manual
 - `LSM6_LIS3MDL` — accel dan gyro LSM6DSOX plus magnetometer LIS3MDL
 - `VBAT_ADC` — baca tegangan Bat(+) lewat pembagi di P0.31
-- `Log_Session_Bin_v-N-1.0.0` — logger PLG1 v4 untuk carrier skema 1.1 (W25Q128 + RV-3032, sensor dummy)
+- `Log_Session_Bin` — logger PLG1 v4 untuk carrier skema 1.1 (W25Q128 + RV-3032, sensor dummy)
 
 ## Project baru
 

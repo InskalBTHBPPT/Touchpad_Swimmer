@@ -1,11 +1,13 @@
-# Log Session Binary v-N-1.0.0 — PalmLog1
+# Log Session Binary — PalmLog1
+
+Versi **1.0.0**. Riwayat ada di `CHANGELOG.md`. Hasil uji hardware ada di `TEST_LOG.md`.
 
 Firmware logger untuk **SuperMini nRF52840 di carrier skema 1.1**.  
 Port dari `Log_Session_Bin_v3.1.1` (PalmLog20 / W25Q32 / DS3231).
 
 | Item | Nilai |
 |---|---|
-| Versi FW | **v-N-1.0.0** |
+| Versi FW | **1.0.0** |
 | Advertising BLE | `PalmLog1` |
 | Format berkas | **PLG1 version 4** |
 | Rekaman | **26 B** = `t_rel_ms` u32 LE + 11×int16 |
@@ -30,7 +32,7 @@ Port dari `Log_Session_Bin_v3.1.1` (PalmLog20 / W25Q32 / DS3231).
 ## Build
 
 ```text
-cd Palm_Pressure_Motion/PlatformIO/Log_Session_Bin_v-N-1.0.0
+cd Palm_Pressure_Motion/PlatformIO/Log_Session_Bin
 pio run -t upload
 pio device monitor
 ```
