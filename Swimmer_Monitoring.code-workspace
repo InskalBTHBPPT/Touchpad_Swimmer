@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../NonPengujian/BlenderDesign"
+		},
+		{
+			"path": "../../NonPengujian/NRF52840"
+		}
+	],
+	"settings": {}
+}
