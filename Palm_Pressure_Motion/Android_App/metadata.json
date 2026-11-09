@@ -1,0 +1,6 @@
+{
+  "name": "PalmLog",
+  "description": "Companion app for PalmLog boards (PalmLog1 and later) over BLE Nordic UART Service (NUS) with real-time status telemetry, Indonesian guides, and flash file management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

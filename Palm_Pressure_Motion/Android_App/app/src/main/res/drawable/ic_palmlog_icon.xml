@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="66dp"
+    android:height="66dp"
+    android:viewportWidth="66"
+    android:viewportHeight="66">
+    <!-- Outer rounded badge -->
+    <path
+        android:fillColor="#162032"
+        android:pathData="M12,4h42c4.4,0 8,3.6 8,8v42c0,4.4 -3.6,8 -8,8h-42c-4.4,0 -8,-3.6 -8,-8v-42c0,-4.4 3.6,-8 8,-8z" />
+    <!-- Waveform / Sensor curve (Emerald) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#10B981"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,38 L20,38 L26,22 L32,46 L38,28 L44,38 L56,38" />
+    <!-- Secondary data line (Sky blue) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,44 L22,44 L28,34 L34,48 L40,36 L48,44 L56,44" />
+    <!-- Palm leaf motif (Top right) -->
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M42,12 C48,14 52,18 53,24 C47,23 43,19 42,12 Z" />
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M38,15 C44,17 47,21 48,26 C42,25 39,21 38,15 Z" />
+</vector>
