@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief PalmLog1 firmware — Log_Session_Bin **2.0.0**
+ * @brief PalmLog1 firmware — Log_Session_Bin **2.1.0**
  *
  * Logger carrier skema 1.1: rekam 100 Hz ke flash W25Q128 (PLG1 v4, 26 B/rekaman),
  * BLE NUS untuk status / sync waktu / LIST-GET / DELETE-FORMAT / stream uji.
@@ -24,6 +24,7 @@
  * - EXT_VCC: P0.13
  * - Flash W25Q128: SCK P1.11, MOSI P1.13, MISO P1.15, CS P0.10
  * - RTC RV-3032: SDA P1.04, SCL P1.06, addr 0x51 (bb_rtc lokal)
+ * - Bat(+): R5 1 MΩ — P0.31 — R6 1 MΩ — AGND. Vbat = Vpin × 2 × 0,9726
  */
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h>
@@ -41,6 +42,16 @@ static const char DEVICE_NAME[] = "PalmLog1";
 static const uint8_t PIN_BTN = PIN_024;
 static const uint8_t PIN_FLASH_CS = PIN_010;
 static const uint8_t PIN_EXT_VCC = PIN_013;
+static const uint8_t PIN_VBAT = PIN_031;
+
+// Sama dengan VBAT_ADC 1.1.1: SAADC 12 bit, penuh skala pin 3,6 V, pembagi 1:2.
+static const int VBAT_ADC_BITS = 12;
+static const int VBAT_ADC_MAX = (1 << VBAT_ADC_BITS) - 1;
+static const float VBAT_PIN_FULL_SCALE_V = 3.6f;
+static const float VBAT_DIVIDER = 2.0f;
+static const float VBAT_CAL = 0.9726f;
+static const int VBAT_AVG_COUNT = 16;
+static const uint32_t VBAT_REFRESH_MS = 1000;
 
 static const uint32_t HOLD_MEASURE_MS = 3000;   // lepas dengan 3..10 s → measure
 static const uint32_t HOLD_POWER_MS = 10000;    // hold ≥ 10 s → System OFF / ON
@@ -1228,9 +1239,36 @@ static bool bleNotify(const uint8_t *data, uint16_t len) {
   return false;
 }
 
-// Dummy sampai ADC nyata: 3.50 V … 4.25 V (inklusif), satuan mV.
-static uint16_t dummyBatteryMv() {
-  return (uint16_t)random(3500, 4251);
+static uint16_t vbatCachedMv = 0;
+static uint32_t vbatCachedAtMs = 0;
+static bool vbatCacheValid = false;
+
+// 16 sampel × 2 ms, sama seperti VBAT_ADC. Cache 1 s agar STATUS/BLE tidak
+// menahan drain flash tiap permintaan.
+static uint16_t readBatteryMv() {
+  const uint32_t now = millis();
+  if (vbatCacheValid && (uint32_t)(now - vbatCachedAtMs) < VBAT_REFRESH_MS) {
+    return vbatCachedMv;
+  }
+
+  uint32_t sum = 0;
+  for (int i = 0; i < VBAT_AVG_COUNT; i++) {
+    sum += (uint32_t)analogRead(PIN_VBAT);
+    delay(2);
+  }
+  const uint32_t raw = (sum + (uint32_t)(VBAT_AVG_COUNT / 2)) / (uint32_t)VBAT_AVG_COUNT;
+  const float vPin = (raw * VBAT_PIN_FULL_SCALE_V) / (float)VBAT_ADC_MAX;
+  const float vBat = vPin * VBAT_DIVIDER * VBAT_CAL;
+  int mv = (int)(vBat * 1000.0f + 0.5f);
+  if (mv < 0) {
+    mv = 0;
+  } else if (mv > 65535) {
+    mv = 65535;
+  }
+  vbatCachedMv = (uint16_t)mv;
+  vbatCachedAtMs = now;
+  vbatCacheValid = true;
+  return vbatCachedMv;
 }
 
 static void bleSendStatus() {
@@ -1247,7 +1285,7 @@ static void bleSendStatus() {
   pkt[11] = countFiles();
   pkt[12] = usbPresent() ? 1 : 0;
   pkt[13] = power_save_enabled ? 1 : 0;
-  const uint16_t vbatMv = dummyBatteryMv();
+  const uint16_t vbatMv = readBatteryMv();
   pkt[14] = (uint8_t)(vbatMv & 0xFF);
   pkt[15] = (uint8_t)((vbatMv >> 8) & 0xFF);
   bleNotify(pkt, sizeof(pkt));
@@ -1537,7 +1575,8 @@ static void onDisconnect(uint16_t conn_handle, uint8_t reason) {
 // ===========================================================================
 static void printHelp() {
   Serial.println();
-  Serial.println(F("Log_Session_Bin 2.0.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
+  Serial.println(F("Log_Session_Bin 2.1.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
+  Serial.println(F("VBAT P0.31: R5/R6 1M/1M x2 cal=0.9726"));
   Serial.println(F("PB P0.24:"));
   Serial.println(F("  lepas 3..10s  Start/Stop measure (hanya board ON)"));
   Serial.println(F("  hold >=10s    System OFF (USB cabut); ON dari tidur sama"));
@@ -1565,7 +1604,7 @@ static void cmdStatus() {
   Serial.print(F("  usb="));
   Serial.print(usbPresent() ? 'Y' : 'N');
   Serial.print(F("  vbat_mV="));
-  Serial.print(dummyBatteryMv());
+  Serial.print(readBatteryMv());
   Serial.print(F("  pwr_save="));
   Serial.print(power_save_enabled ? 'Y' : 'N');
   Serial.print(F("  measure="));
@@ -1911,6 +1950,8 @@ void setup() {
   while (!Serial && (millis() - t0 < 4000)) {
     delay(10);
   }
+
+  analogReadResolution(VBAT_ADC_BITS);
 
   SPI.begin();
   SPI.beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));

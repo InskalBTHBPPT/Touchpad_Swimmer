@@ -2,6 +2,13 @@
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/). Versi firmware mengikuti [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-11-09
+
+Status baterai memakai ADC Bat(+), bukan angka acak. Paket `0x90` tetap 16 byte.
+
+- P0.31, pembagi 1 MΩ/1 MΩ, `Vbat = Vpin × 2 × 0,9726`, rata-rata 16 sampel. Sama dengan `VBAT_ADC` 1.1.1.
+- Hasil di-cache 1 detik. `vbat_mV` di serial dan byte 14..15 status BLE memakai cache itu.
+
 ## [2.0.0] - 2026-11-09
 
 Tombol pindah pin. Board yang masih memasang tombol di P0.17 tidak lagi cocok dengan firmware ini.
