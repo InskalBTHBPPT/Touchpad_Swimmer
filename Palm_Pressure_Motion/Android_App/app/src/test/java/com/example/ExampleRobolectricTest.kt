@@ -25,7 +25,7 @@ class ExampleRobolectricTest {
     fun `read string from context verifies PalmLog app name`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val appName = context.getString(R.string.app_name)
-        assertEquals("PalmLog 1.0.0", appName)
+        assertEquals("PalmLog 1.1.0", appName)
     }
 
     @Test

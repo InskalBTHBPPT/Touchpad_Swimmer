@@ -1,13 +1,13 @@
-# PalmLog Android Companion — **1.0.0**
+# PalmLog Android Companion — **1.1.0**
 
 Aplikasi pendamping (**Kotlin + Jetpack Compose**) untuk board logger yang meng-advertise nama berawalan **`PalmLog`** (`PalmLog1`, `PalmLog20`, dan seterusnya). Format berkas **PLG1 v4**.
 
-Komunikasi: **BLE Nordic UART Service (NUS)**. Scan tidak memakai filter nama hardware; aplikasi menerima perangkat yang namanya diawali `PalmLog`.
+Komunikasi: **BLE Nordic UART Service (NUS)**. Scan tidak memakai filter nama hardware; aplikasi menerima perangkat yang namanya diawali `PalmLog`. Ukuran flash dipilih dari nama lengkap: `PalmLog20` = 4 MB, `PalmLog1` = 16 MB.
 
 | Item | Nilai |
 |---|---|
-| `versionName` | **1.0.0** |
-| `versionCode` | **1** |
+| `versionName` | **1.1.0** |
+| `versionCode` | **2** |
 | `applicationId` | `com.aistudio.palmlog` |
 | Asal kode | `NRF52840/AndroidApp/V2.1.0` |
 | Target FW | `PlatformIO/Log_Session_Bin` **1.0.0** (`PalmLog1`, PLG1 v4, rekaman 26 B, stream 29 B) |

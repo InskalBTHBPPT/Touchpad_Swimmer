@@ -16,6 +16,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
 import com.example.model.BleConnectionState
+import com.example.model.BoardProfiles
 import com.example.model.DiscoveredDevice
 import com.example.model.FileChunkResponse
 import com.example.model.LogFileInfo
@@ -50,6 +51,8 @@ class PalmLogBleManager(
         get() = bluetoothAdapter?.bluetoothLeScanner
 
     private var activeGatt: BluetoothGatt? = null
+    /** Nama dari hasil scan, dipertahankan karena GATT sering tidak mengisi device.name. */
+    private var scanNameForConnect: String? = null
     private var isScanningInternal = false
     private var currentMtu = 23
     private var isNotifyConfigured = false
@@ -139,7 +142,7 @@ class PalmLogBleManager(
 
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            val deviceName = gatt.device?.name ?: BleConstants.TARGET_DEVICE_NAME
+            val deviceName = resolvedDeviceName(gatt.device?.name, gatt.device?.address)
             val address = gatt.device?.address ?: ""
 
             if (status != BluetoothGatt.GATT_SUCCESS) {
@@ -176,7 +179,7 @@ class PalmLogBleManager(
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
-            val deviceName = gatt.device?.name ?: BleConstants.TARGET_DEVICE_NAME
+            val deviceName = resolvedDeviceName(gatt.device?.name, gatt.device?.address)
             val address = gatt.device?.address ?: ""
 
             if (status != BluetoothGatt.GATT_SUCCESS) {
@@ -207,7 +210,7 @@ class PalmLogBleManager(
         }
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
-            val deviceName = gatt.device?.name ?: BleConstants.TARGET_DEVICE_NAME
+            val deviceName = resolvedDeviceName(gatt.device?.name, gatt.device?.address)
             val address = gatt.device?.address ?: ""
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
@@ -235,7 +238,7 @@ class PalmLogBleManager(
         ) {
             if (descriptor.uuid == BleConstants.CCCD_DESCRIPTOR_UUID && status == BluetoothGatt.GATT_SUCCESS) {
                 isNotifyConfigured = true
-                val deviceName = gatt.device?.name ?: BleConstants.TARGET_DEVICE_NAME
+                val deviceName = resolvedDeviceName(gatt.device?.name, gatt.device?.address)
                 val address = gatt.device?.address ?: ""
                 _connectionState.value = BleConnectionState.Connected(
                     deviceName = deviceName,
@@ -746,11 +749,27 @@ class PalmLogBleManager(
     }
 
     /**
-     * Connects to a device by MAC address.
+     * Nama scan didahulukan. `BluetoothDevice.name` sering kosong sebelum GATT selesai,
+     * dan fallback "PalmLog" tidak memetakan ke profil flash.
      */
+    private fun resolvedDeviceName(gattName: String?, address: String?): String {
+        val scanned = address?.let { addr ->
+            _discoveredDevices.value.firstOrNull { it.address.equals(addr, ignoreCase = true) }?.name
+        }
+        val candidates = listOfNotNull(scanned, scanNameForConnect, gattName)
+        return candidates.firstOrNull { BoardProfiles.fromAdvertisedName(it) != null }
+            ?: candidates.firstOrNull { BleConstants.isTargetName(it) }
+            ?: BleConstants.TARGET_DEVICE_NAME
+    }
+
+    /** Connects to a device by MAC address. */
     fun connectAddress(address: String) {
+        val scannedName = _discoveredDevices.value
+            .firstOrNull { it.address.equals(address, ignoreCase = true) }
+            ?.name
         stopScan()
         disconnect()
+        scanNameForConnect = scannedName
 
         val adapter = bluetoothAdapter ?: return
         val device = try {
@@ -760,7 +779,7 @@ class PalmLogBleManager(
             return
         }
 
-        val name = device.name ?: BleConstants.TARGET_DEVICE_NAME
+        val name = resolvedDeviceName(device.name, address)
         _connectionState.value = BleConnectionState.Connecting(name, address)
         activeGatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
     }
@@ -776,6 +795,7 @@ class PalmLogBleManager(
             e.printStackTrace()
         } finally {
             activeGatt = null
+            scanNameForConnect = null
             isNotifyConfigured = false
             isAwaitingFileList = false
             expectedChunkTotalLength = 0

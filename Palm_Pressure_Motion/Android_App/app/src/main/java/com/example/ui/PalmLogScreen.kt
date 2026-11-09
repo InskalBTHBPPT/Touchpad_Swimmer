@@ -263,7 +263,7 @@ private fun HeaderBar(
                 color = Slate100
             )
             Text(
-                text = "Palm Logger Companion • 1.0.0",
+                text = "Palm Logger Companion • 1.1.0",
                 style = MaterialTheme.typography.bodySmall,
                 fontSize = 12.sp,
                 color = Slate400

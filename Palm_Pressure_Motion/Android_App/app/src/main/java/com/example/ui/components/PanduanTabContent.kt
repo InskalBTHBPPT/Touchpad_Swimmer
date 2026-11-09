@@ -96,8 +96,8 @@ fun PanduanTabContent(
                 InstructionItem(
                     badge = "0x24 Chip",
                     badgeColor = Red500,
-                    title = "3) Format Flash Board 4 MB (BLE 0x24 + 0xA5)",
-                    desc = "Menjalankan chip erase SPI flash 4 MB di board. Menghapus seluruh berkas di board sekaligus. Membutuhkan waktu 10–40 detik (timeout app 65 s). Sensor tidak boleh sedang merekam (measure harus FALSE/berhenti)."
+                    title = "3) Format Flash Board (BLE 0x24 + 0xA5)",
+                    desc = "Menjalankan chip erase SPI flash di board. PalmLog20 = 4 MB (timeout 65 s). PalmLog1 = 16 MB (timeout 120 s). Menghapus seluruh berkas di board sekaligus. Sensor tidak boleh sedang merekam (measure harus FALSE/berhenti)."
                 )
             }
         }

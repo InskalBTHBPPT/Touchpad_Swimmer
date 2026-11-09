@@ -7,6 +7,7 @@ import com.example.ble.BleConstants
 import com.example.ble.PalmLogBleManager
 import com.example.ble.StatusParser
 import com.example.model.BleConnectionState
+import com.example.model.BoardProfiles
 import com.example.model.DiscoveredDevice
 import com.example.model.FileDownloadState
 import com.example.model.LogFileInfo
@@ -1116,8 +1117,7 @@ class PalmLogViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Phase D: (3) Format flash 4 MB (BLE 0x24 + 0xA5).
-     * Chip erase ~4 MB. Timeout >= 60 s.
+     * FORMAT (0x24 + 0xA5). Ukuran chip dan timeout mengikuti profil nama board.
      */
     fun formatFlashBoard() {
         val state = _uiState.value.connectionState
@@ -1125,6 +1125,10 @@ class PalmLogViewModel(application: Application) : AndroidViewModel(application)
             _uiState.update { it.copy(snackbarMessage = "Perangkat belum terhubung. Hubungkan PalmLog terlebih dahulu.") }
             return
         }
+        val profile = BoardProfiles.fromAdvertisedName(state.deviceName)
+        val sizeLabel = profile?.sizeLabel ?: "flash"
+        val durationHint = profile?.formatDurationHint ?: "waktu bervariasi"
+        val timeoutMs = profile?.formatTimeoutMs ?: BoardProfiles.UNKNOWN_FORMAT_TIMEOUT_MS
 
         if (_uiState.value.boardStatus?.measure == true) {
             _uiState.update { it.copy(snackbarMessage = "Stop measure dulu") }
@@ -1140,7 +1144,7 @@ class PalmLogViewModel(application: Application) : AndroidViewModel(application)
             _uiState.update {
                 it.copy(
                     isFormattingFlash = true,
-                    formatProgressText = "Menghapus seluruh flash 4 MB (chip erase ~10-40 detik)..."
+                    formatProgressText = "Menghapus seluruh $sizeLabel (chip erase $durationHint)..."
                 )
             }
 
@@ -1156,7 +1160,7 @@ class PalmLogViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
 
-            val result = withTimeoutOrNull(65000) {
+            val result = withTimeoutOrNull(timeoutMs) {
                 bleManager.formatAckFlow.first()
             }
 
@@ -1177,7 +1181,7 @@ class PalmLogViewModel(application: Application) : AndroidViewModel(application)
                             // Flash kosong; arsip HP tetap tampil sebagai local-only
                             fileList = if (mac != null) loadLocalFilesForMac(mac) else emptyList(),
                             knownBoards = refreshKnownBoardsList(),
-                            snackbarMessage = "Format berhasil: Flash board 4 MB telah dikosongkan"
+                            snackbarMessage = "Format berhasil: $sizeLabel telah dikosongkan"
                         )
                     }
                     delay(300)
@@ -1197,7 +1201,7 @@ class PalmLogViewModel(application: Application) : AndroidViewModel(application)
                 }
                 null -> {
                     _uiState.update {
-                        it.copy(snackbarMessage = "Waktu habis (timeout >60 detik) menunggu proses format flash")
+                        it.copy(snackbarMessage = "Waktu habis (timeout ${timeoutMs / 1000} detik) menunggu proses format flash")
                     }
                 }
                 else -> {

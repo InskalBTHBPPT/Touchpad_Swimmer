@@ -67,6 +67,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.BleConnectionState
+import com.example.model.BoardProfile
+import com.example.model.BoardProfiles
 import com.example.model.FileDownloadState
 import com.example.model.LogFileInfo
 import com.example.model.PalmLogStatus
@@ -108,6 +110,8 @@ fun FileTabContent(
 ) {
     val context = LocalContext.current
     val isConnected = connectionState is BleConnectionState.Connected
+    val boardProfile = (connectionState as? BleConnectionState.Connected)
+        ?.let { BoardProfiles.fromAdvertisedName(it.deviceName) }
     val isDownloading = downloadState?.isDownloading == true
     val canUseBoardBle = isViewingConnectedBoard
     val localFiles = fileList.mapNotNull { info ->
@@ -139,6 +143,7 @@ fun FileTabContent(
         if (canUseBoardBle) {
             BoardCapacityCard(
                 boardStatus = boardStatus,
+                boardProfile = boardProfile,
                 canFormat = !isMeasureActive && !isRefreshingList && !isDownloading && !isFormattingFlash,
                 isMeasureActive = isMeasureActive,
                 onOpenFormatDialog = { showFormatDialog = true }
@@ -326,8 +331,9 @@ fun FileTabContent(
         )
     }
 
-    // Dialog 3: Strong Confirm Format Flash 4 MB (BLE 0x24 + 0xA5)
     if (showFormatDialog) {
+        val sizeLabel = boardProfile?.sizeLabel ?: "flash"
+        val durationHint = boardProfile?.formatDurationHint ?: "waktu bervariasi"
         AlertDialog(
             onDismissRequest = { showFormatDialog = false },
             icon = {
@@ -339,7 +345,7 @@ fun FileTabContent(
             },
             title = {
                 Text(
-                    text = "Format Flash Board (4 MB)",
+                    text = "Format Flash Board ($sizeLabel)",
                     fontWeight = FontWeight.Bold,
                     color = Red400
                 )
@@ -347,13 +353,13 @@ fun FileTabContent(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Menghapus SEMUA file di board (chip erase ~4 MB). Lanjut?",
+                        text = "Menghapus SEMUA file di board (chip erase $sizeLabel). Lanjut?",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Slate100
                     )
                     Text(
-                        text = "• Seluruh data di memori flash board akan dihapus permanen.\n• Proses chip erase membutuhkan waktu sekitar 10–40 detik.\n• Salinan berkas yang sudah diunduh di HP TIDAK ikut terhapus.",
+                        text = "• Seluruh data di memori flash board akan dihapus permanen.\n• Proses chip erase $durationHint.\n• Salinan berkas yang sudah diunduh di HP TIDAK ikut terhapus.",
                         fontSize = 12.sp,
                         color = Slate300,
                         lineHeight = 18.sp
@@ -371,7 +377,7 @@ fun FileTabContent(
                         contentColor = Slate100
                     )
                 ) {
-                    Text("Format Flash (4 MB)", fontWeight = FontWeight.Bold)
+                    Text("Format Flash ($sizeLabel)", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -526,14 +532,15 @@ private fun BoardSelectorRow(
 @Composable
 private fun BoardCapacityCard(
     boardStatus: PalmLogStatus?,
+    boardProfile: BoardProfile?,
     canFormat: Boolean,
     isMeasureActive: Boolean,
     onOpenFormatDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val flashSize = 4L * 1024L * 1024L
+    val flashSize = boardProfile?.flashSizeBytes
     val nextFree = boardStatus?.nextFreeAddress
-    val freeBytes = if (nextFree != null && nextFree in 0x1000L..flashSize) {
+    val freeBytes = if (flashSize != null && nextFree != null && nextFree in 0x1000L..flashSize) {
         flashSize - nextFree
     } else {
         null
@@ -556,7 +563,11 @@ private fun BoardCapacityCard(
             CapacityRow(label = "Sisa kapasitas", value = freeText)
             CapacityRow(label = "Sisa waktu ukur", value = remainText)
             Text(
-                text = "Perkiraan dari next_free, 26 B/sample (PLG1 v4), periode 10 ms. Hapus di tengah tidak menambah sisa ini.",
+                text = if (boardProfile != null) {
+                    "Perkiraan dari next_free terhadap ${boardProfile.sizeLabel} (${boardProfile.advertisedName}), 26 B/sample, periode 10 ms. Hapus di tengah tidak menambah sisa ini."
+                } else {
+                    "Ukuran flash tidak dikenali dari nama board. Sisa kapasitas tidak ditampilkan."
+                },
                 fontSize = 10.sp,
                 color = Slate500
             )
@@ -670,7 +681,7 @@ private fun FormatProgressCard(
                     color = Red400
                 )
                 Text(
-                    text = progressText ?: "Chip erase 4 MB sedang berjalan via BLE (0x24)... (~10–40 s)",
+                    text = progressText ?: "Chip erase sedang berjalan via BLE (0x24)...",
                     fontSize = 11.sp,
                     color = Slate300
                 )
