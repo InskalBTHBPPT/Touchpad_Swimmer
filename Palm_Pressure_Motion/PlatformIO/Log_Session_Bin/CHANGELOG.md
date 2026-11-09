@@ -2,6 +2,12 @@
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/). Versi firmware mengikuti [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-11-09
+
+Tombol pindah pin. Board yang masih memasang tombol di P0.17 tidak lagi cocok dengan firmware ini.
+
+- Deteksi tombol, termasuk bangun dari System OFF, memakai **P0.24** ke GND (`INPUT_PULLUP`). Sebelumnya P0.17.
+
 ## [1.0.0] - 2026-11-09
 
 Rilis pertama untuk carrier Palm skema 1.1 (bukan board logger W25Q32 + DS3231).

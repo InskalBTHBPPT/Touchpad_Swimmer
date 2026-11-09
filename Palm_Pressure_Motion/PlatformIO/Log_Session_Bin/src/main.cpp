@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief PalmLog1 firmware — Log_Session_Bin **1.0.0**
+ * @brief PalmLog1 firmware — Log_Session_Bin **2.0.0**
  *
  * Logger carrier skema 1.1: rekam 100 Hz ke flash W25Q128 (PLG1 v4, 26 B/rekaman),
  * BLE NUS untuk status / sync waktu / LIST-GET / DELETE-FORMAT / stream uji.
@@ -19,7 +19,7 @@
  * Spek: GoogleAIStudio/PROTOCOL.md, TIMING.md, README.md.
  *
  * ### Pin (SuperMini / carrier 1.1)
- * - Button: P0.17 -> GND (INPUT_PULLUP)
+ * - Button: P0.24 -> GND (INPUT_PULLUP)
  * - LED: P0.15
  * - EXT_VCC: P0.13
  * - Flash W25Q128: SCK P1.11, MOSI P1.13, MISO P1.15, CS P0.10
@@ -38,7 +38,7 @@
 
 // ---------------------------------------------------------------------------
 static const char DEVICE_NAME[] = "PalmLog1";
-static const uint8_t PIN_BTN = PIN_017;
+static const uint8_t PIN_BTN = PIN_024;
 static const uint8_t PIN_FLASH_CS = PIN_010;
 static const uint8_t PIN_EXT_VCC = PIN_013;
 
@@ -1537,8 +1537,8 @@ static void onDisconnect(uint16_t conn_handle, uint8_t reason) {
 // ===========================================================================
 static void printHelp() {
   Serial.println();
-  Serial.println(F("Log_Session_Bin 1.0.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
-  Serial.println(F("PB P0.17:"));
+  Serial.println(F("Log_Session_Bin 2.0.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
+  Serial.println(F("PB P0.24:"));
   Serial.println(F("  lepas 3..10s  Start/Stop measure (hanya board ON)"));
   Serial.println(F("  hold >=10s    System OFF (USB cabut); ON dari tidur sama"));
   Serial.println(F("LED P0.15: idle triple/10s | measure double/5s"));
