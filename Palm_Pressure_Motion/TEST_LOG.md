@@ -69,3 +69,29 @@ Palm `261109195407.bin`, 7527 sampel, 100 Hz. EST `SensorConnectData_EST_Unix_19
 | EKF IMU+Mag | Yaw | −0,147 | 141° | 50,4° |
 
 Hasil: EKF IMU dan Madgwick IMU mengikuti roll dan pitch EST di kedua sesi. Yaw keduanya mengikuti bentuk gerak, dengan offset heading sekitar +88° sampai +89° (1949) dan +76° sampai +79° (1954). Magnetometer mentah menggeser roll sekitar 15° dan tidak memperbaiki yaw.
+
+## 2026-11-10 — Power measurement PalmLog1 (`test_power_1`)
+
+Alat: SDM3065X-SC, DC Current, interval 200 ms. Berkas: `Test_Power/test_power_1.csv`, plot `Test_Power/test_power_1_plot.png`, analisa lengkap `Test_Power/test_power_1_analisis.md`.
+
+Urutan zona (setelah koreksi): OFF → Advertising → Connected → Measure ON → Connected → Sync → Connected → Measure ON → Stream+Measure → Measure ON → Connected → OFF.
+
+| Mode (agregat) | \(I\) rata-rata | Catatan |
+|---|---:|---|
+| OFF | 0,62 mA | Awal median ~0,33 mA; akhir ~0,73 mA |
+| Advertising | 7,46 mA | |
+| Connected | 7,40 mA | Hampir sama dengan measure |
+| Measure ON (stream OFF) | 7,57 mA | Spike besar (p95 ~8,6–9,0 mA) |
+| Sync | 7,70 mA | |
+| Stream + Measure | 5,41 mA | Mean turun; fluktuasi besar — uji-only |
+
+Estimasi masa pakai (usable \(0{,}8\cdot C/I\)); LIR2032 ≈ 40 mAh (interpretasi LIR3202):
+
+| Skenario | LIR2032 40 mAh | LiPo 140 mAh | LiPo 300 mAh | LiPo 400 mAh |
+|---|---:|---:|---:|---:|
+| Measure ON ~7,57 mA | ~4,2 jam | ~15 jam | ~32 jam | ~42 jam |
+| Connected ~7,40 mA | ~4,3 jam | ~15 jam | ~32 jam | ~43 jam |
+| Mix 20% measure / 80% connected | ~4,3 jam | ~15 jam | ~32 jam | ~43 jam |
+| OFF ~0,62 mA | ~51 jam | ~7,5 hari | ~16 hari | ~21 hari |
+
+Spike kecil non-measure: paling mungkin LED heartbeat. Spike besar saat measure: tulis flash SPI (+ LED). Stream tidak dipakai untuk estimasi lapangan.
