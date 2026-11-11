@@ -127,10 +127,10 @@ MAP = {
         lib="Extended", note="", conf="high", ok="yes",
     ),
     ("10k", "R0201"): dict(
-        jlc="C270353", mpn="0201WMF1002TEE", pkg="0201", v="25V 50mW",
+        jlc="C473048", mpn="0201WMF1002TEE", pkg="0201", v="25V 50mW",
         lib="Extended",
-        note="Confirm C-code stock; equiv RC0201FR-0710KL",
-        conf="med", ok="yes",
+        note="10k R4/R13/R14/R15/R20. JANGAN C270353 (=24k 0201WMF2402TEE)",
+        conf="high", ok="yes",
     ),
     ("DNP", "R0201"): dict(
         jlc="", mpn="", pkg="0201", v="", lib="",
@@ -145,10 +145,10 @@ MAP = {
         lib="Extended", note="USB series R", conf="high", ok="yes",
     ),
     ("2.7k", "R0201"): dict(
-        jlc="C270347", mpn="0201WMF2701TEE", pkg="0201", v="25V 50mW",
+        jlc="C423624", mpn="0201WMF2701TEE", pkg="0201", v="25V 50mW",
         lib="Extended",
-        note="BQ25100 ISET; verify exact C# on JLC search",
-        conf="med", ok="yes",
+        note="2.7k ISET/HICHG. JANGAN C270347 (=4.02k 0201WMF4021TEE)",
+        conf="high", ok="yes",
     ),
     ("1M_1%", "R0201"): dict(
         jlc="C295786", mpn="RC0201FR-071ML", pkg="0201", v="25V 50mW",
