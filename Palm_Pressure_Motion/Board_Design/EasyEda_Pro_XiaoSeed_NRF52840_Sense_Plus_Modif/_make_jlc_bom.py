@@ -113,9 +113,9 @@ MAP = {
         conf="low", ok="manual",
     ),
     ("PMOS_1.00.60.35MM", "PMOS"): dict(
-        jlc="C669004", mpn="SI3139KL3-TP", pkg="DFN1006-3 1.0x0.6x0.35",
-        v="20V P-ch", lib="Extended",
-        note="PCB FP: PMOS_1.0*0.6*0.35MM. Confirm pin map vs Seeed",
+        jlc="C48392752", mpn="SL3139KL", pkg="DFN1006-3 1.0x0.6x0.35",
+        v="20V P-ch ~980mA", lib="Extended",
+        note="Ganti C669004 (SI3139KL3-TP OOS). Alt: C22365398 MS3139KDFN / C54740791 LW3139BDA. Cek pin S-G-D",
         conf="med", ok="verify",
     ),
     ("5.1k", "R0201"): dict(
