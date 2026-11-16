@@ -45,7 +45,7 @@ Load cell (bridge)
 
 | Sensor / sinyal | Pilihan |
 |---|---|
-| Load cell / strain (jembatan, mV) | **HX711** (atau ADC eksternal + INA) |
+| Load cell / strain (jembatan, mV) | **NAU7802** (I2C, sampai 320 SPS). HX711 kalau 80 SPS cukup |
 | Sudah 0–~3 V analog | Op-amp buffer/gain + **ADC nRF** (atau ADC eksternal) |
 | Perlu gain akurat + differential | INA (mis. INA333) @ 3,3 V, lalu ADC |
 
@@ -57,5 +57,6 @@ Load cell (bridge)
 
 ## Referensi terkait
 
+- NAU7802 (pilihan load cell): `Datasheet/NAU7802/NAU7802.md` dan datasheet Rev 2.6 di folder yang sama
 - Power rail: `EasyEda_Pro_XiaoSeed_NRF52840_Sense_Plus_Modif/Pin_nRF52840_Power_Charge.md`
 - Charge alternatif: `Desain_Alternative_Charging_Battery.md`
