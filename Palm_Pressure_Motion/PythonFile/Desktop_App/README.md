@@ -1,4 +1,4 @@
-# PalmLog Laptop **1.1.0**
+# PalmLog Laptop **1.2.0**
 
 Companion desktop (**PySide6** + **Bleak** + **pyqtgraph**) di
 `Palm_Pressure_Motion/PythonFile/Desktop_App` (clone dari `NRF52840/PythonFile/V1.0.0`).
@@ -8,7 +8,7 @@ Board Palm baru (`PalmLog1`, flash 16 MB) belum diprofil di app ini.
 
 | Item | Nilai |
 |---|---|
-| Versi app | **1.1.0** |
+| Versi app | **1.2.0** |
 | Target FW | **3.1.1** |
 | Format berkas | **PLG1 v4** — 11 kanal, **26 B**/rekaman (`t_rel_ms` + d1…d11) |
 | Stream | `0xB2` **29 B** (seq + SampleRec) |
@@ -23,7 +23,7 @@ Arsip app lama (8 kanal / 16 B): `../v0.1.0/`.
 - **Board:** scan, connect, status 16 B, sync waktu ms, sisa kapasitas (÷26 B)
 - **Berkas:** LIST, unduh chunk (max 100 B), hapus, format flash, simpan per MAC di `data/<MAC>/`
 - **Stream:** live 11 kanal fisik + **peringatan uji-only** (jangan saat rekam lapangan)
-- **Analisa:** buka `.bin` v4, plot X=`t_rel`, Y fisik, statistik, ekspor CSV
+- **Analisa:** Raw data (11 kanal, klik legend) atau Calculated data (Force_1, Force_2, roll, pitch, yaw; sumbu kiri gram, kanan derajat). Statistik dan CSV mengikuti pilihan. Sudut dari Madgwick accel+gyro; yaw relatif.
 - **tools/check_trel.py:** unduh + histogram Δt `t_rel_ms`
 
 ---
@@ -79,10 +79,13 @@ Gunakan hanya untuk **uji sensor**. Perekaman lapangan: measure tombol board, **
 ```text
 Desktop_App/
   main.py
+  VERSION
+  CHANGELOG.md
   requirements.txt
   palmlog/
     protocol.py   # opcode, framer, stream 29 B, RECORD_SIZE=26
     plg.py        # parser PLG1 v4
+    attitude.py   # Madgwick roll/pitch/yaw
     client.py     # BLE Qt service
     storage.py
     ui/main_window.py

@@ -11,7 +11,7 @@ import pyqtgraph as pg
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
-    QCheckBox,
+    QButtonGroup,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QRadioButton,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -32,8 +33,9 @@ from PySide6.QtWidgets import (
 )
 
 from palmlog import __version__
+from palmlog.attitude import madgwick_rpy_deg
 from palmlog.client import BleService
-from palmlog.plg import export_csv, parse_plg
+from palmlog.plg import export_calculated_csv, export_csv, parse_plg
 from palmlog.protocol import (
     FLASH_SIZE,
     format_bytes,
@@ -70,6 +72,8 @@ CHANNEL_NAMES = (
     "d10 (mag_Y)",
     "d11 (mag_Z)",
 )
+CALC_NAMES = ("Force_1", "Force_2", "roll", "pitch", "yaw")
+CALC_UNITS = ("gram", "gram", "derajat", "derajat", "derajat")
 
 STYLE = """
 QWidget { background: #0f172a; color: #e2e8f0; font-size: 13px; }
@@ -118,6 +122,8 @@ class MainWindow(QMainWindow):
         self.status = None
         self.files: list = []
         self.plg = None
+        self.rpy_deg = None
+        self.rpy_error = ""
         self._stream_q: deque[tuple[float, ...]] = deque(maxlen=800)
         self._stream_pending: list[tuple[float, ...]] = []
 
@@ -297,25 +303,10 @@ class MainWindow(QMainWindow):
         )
         lay.addWidget(warn)
 
-        chips = QHBoxLayout()
-        self.stream_checks: list[QCheckBox] = []
-        for i in range(N_CHANNELS):
-            box = QCheckBox(CHANNEL_NAMES[i])
-            box.setChecked(i == 0)
-            box.toggled.connect(self._apply_stream_visibility)
-            self.stream_checks.append(box)
-            chips.addWidget(box)
-        all_btn = QPushButton("Semua")
-        all_btn.clicked.connect(lambda: self._set_checks(self.stream_checks, True))
-        one_btn = QPushButton("Force_1 saja")
-        one_btn.clicked.connect(lambda: self._set_checks(self.stream_checks, False))
-        chips.addWidget(all_btn)
-        chips.addWidget(one_btn)
-        lay.addLayout(chips)
-
         hint = QLabel(
             "FW 3.1.1 · paket 0xB2 = 29 B (seq + t_rel + d1…d11). "
-            "Y = nilai fisik (g / °/s / µT). Hanya jika measure ON. Stop stream ≠ stop measure."
+            "Semua kanal digambar. Klik legend untuk menampilkan atau menyembunyikan. "
+            "Hanya jika measure ON. Stop stream ≠ stop measure."
         )
         hint.setWordWrap(True)
         hint.setStyleSheet("color: #94a3b8;")
@@ -324,12 +315,12 @@ class MainWindow(QMainWindow):
         self.stream_plot = pg.PlotWidget()
         self.stream_plot.showGrid(x=True, y=True, alpha=0.25)
         self.stream_plot.setLabel("bottom", "Sampel buffer", units="idx")
-        self.stream_plot.setLabel("left", CHANNEL_UNITS[0])
+        self.stream_plot.setLabel("left", self._joined_units(CHANNEL_UNITS))
         self.stream_plot.addLegend(offset=(8, 8))
+        self.stream_plot.plotItem.legend.sigSampleClicked.connect(self._on_stream_legend)
         self.stream_curves = []
         for i, color in enumerate(CHANNEL_COLORS):
             curve = self.stream_plot.plot(pen=pg.mkPen(color, width=1.6), name=CHANNEL_NAMES[i])
-            curve.setVisible(i == 0)
             self.stream_curves.append(curve)
         lay.addWidget(self.stream_plot, 1)
         return page
@@ -347,10 +338,18 @@ class MainWindow(QMainWindow):
         self.btn_reload_bins.clicked.connect(self._refresh_local_bins)
         self.btn_csv = QPushButton("Ekspor CSV")
         self.btn_csv.clicked.connect(self._export_csv)
+        self.mode_raw = QRadioButton("Raw data")
+        self.mode_calc = QRadioButton("Calculated data")
+        self.mode_raw.setChecked(True)
+        mode_group = QButtonGroup(self)
+        mode_group.addButton(self.mode_raw)
+        mode_group.addButton(self.mode_calc)
         row.addWidget(self.btn_open_bin)
         row.addWidget(self.btn_folder)
         row.addWidget(self.btn_reload_bins)
         row.addWidget(self.btn_csv)
+        row.addWidget(self.mode_raw)
+        row.addWidget(self.mode_calc)
         row.addStretch(1)
         lay.addLayout(row)
 
@@ -378,10 +377,6 @@ class MainWindow(QMainWindow):
         self.stats_table.verticalHeader().setVisible(False)
         self.stats_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.stats_table.setMinimumHeight(80)
-        for i in range(N_CHANNELS):
-            self.stats_table.setItem(i, 0, QTableWidgetItem(CHANNEL_NAMES[i]))
-            self.stats_table.setItem(i, 1, QTableWidgetItem(CHANNEL_UNITS[i]))
-        self.stats_table.resizeColumnToContents(0)
         side_split.addWidget(self.stats_table)
         side_split.setStretchFactor(0, 1)
         side_split.setSizes([420, 110, 260])
@@ -390,48 +385,66 @@ class MainWindow(QMainWindow):
         plot_side = QWidget()
         plot_lay = QVBoxLayout(plot_side)
         plot_lay.setContentsMargins(0, 0, 0, 0)
-        chips = QHBoxLayout()
-        self.analysis_checks: list[QCheckBox] = []
-        for i in range(N_CHANNELS):
-            box = QCheckBox(CHANNEL_NAMES[i])
-            box.setChecked(i == 0)
-            box.toggled.connect(self._redraw_analysis)
-            self.analysis_checks.append(box)
-            chips.addWidget(box)
-        chips.addWidget(self._mini_button("Semua", lambda: self._set_checks(self.analysis_checks, True)))
-        chips.addWidget(self._mini_button("Force_1 saja", lambda: self._set_checks(self.analysis_checks, False)))
-        plot_lay.addLayout(chips)
         self.analysis_plot = pg.PlotWidget()
         self.analysis_plot.showGrid(x=True, y=True, alpha=0.25)
         self.analysis_plot.setLabel("bottom", "t_rel", units="s")
-        self.analysis_plot.setLabel("left", CHANNEL_UNITS[0])
+        self.analysis_plot.setLabel("left", self._joined_units(CHANNEL_UNITS))
         self.analysis_plot.addLegend(offset=(8, 8))
+        plot_item = self.analysis_plot.plotItem
+        self.analysis_right = pg.ViewBox()
+        plot_item.showAxis("right")
+        plot_item.scene().addItem(self.analysis_right)
+        right_axis = plot_item.getAxis("right")
+        right_axis.linkToView(self.analysis_right)
+        right_axis.setLabel("derajat", color="#e2e8f0")
+        right_axis.setPen(pg.mkPen("#e2e8f0"))
+        right_axis.setTextPen(pg.mkPen("#e2e8f0"))
+        self.analysis_right.setXLink(plot_item)
+        plot_item.hideAxis("right")
+        plot_item.vb.sigResized.connect(self._sync_right_axis)
         self.analysis_curves = []
         for i, color in enumerate(CHANNEL_COLORS):
             curve = self.analysis_plot.plot(
                 pen=pg.mkPen(color, width=1.4),
-                name=CHANNEL_NAMES[i],
                 autoDownsample=True,
                 downsampleMethod="peak",
                 clipToView=True,
                 skipFiniteCheck=True,
             )
-            curve.setVisible(i == 0)
             self.analysis_curves.append(curve)
+        self.calc_force_curves = []
+        for i in range(2):
+            curve = self.analysis_plot.plot(
+                pen=pg.mkPen(CHANNEL_COLORS[i], width=1.6),
+                autoDownsample=True,
+                downsampleMethod="peak",
+                clipToView=True,
+                skipFiniteCheck=True,
+            )
+            curve.setVisible(False)
+            self.calc_force_curves.append(curve)
+        self.calc_angle_curves = []
+        for i in range(3):
+            curve = pg.PlotDataItem(
+                pen=pg.mkPen(CHANNEL_COLORS[i + 2], width=1.4),
+                autoDownsample=True,
+                downsampleMethod="peak",
+                clipToView=True,
+                skipFiniteCheck=True,
+            )
+            curve.setVisible(False)
+            self.analysis_right.addItem(curve)
+            self.calc_angle_curves.append(curve)
+        plot_item.legend.sigSampleClicked.connect(self._on_analysis_legend)
+        self.mode_raw.toggled.connect(self._on_data_mode)
+        self.mode_calc.toggled.connect(self._on_data_mode)
+        self._apply_analysis_mode()
+        self._fill_stats()
         plot_lay.addWidget(self.analysis_plot, 1)
         split.addWidget(plot_side)
         split.setStretchFactor(1, 1)
         lay.addWidget(split, 1)
         return page
-
-    def _mini_button(self, text: str, handler) -> QPushButton:
-        btn = QPushButton(text)
-        btn.clicked.connect(handler)
-        return btn
-
-    def _set_checks(self, boxes: list[QCheckBox], all_on: bool) -> None:
-        for i, box in enumerate(boxes):
-            box.setChecked(True if all_on else i == 0)
 
     def _log(self, text: str) -> None:
         stamp = datetime.now().strftime("%H:%M:%S")
@@ -639,18 +652,23 @@ class MainWindow(QMainWindow):
         for i, curve in enumerate(self.stream_curves):
             curve.setData(x, arr[:, i])
 
-    def _y_unit_label(self, checks: list[QCheckBox]) -> str:
-        units: list[str] = []
-        for i, box in enumerate(checks):
-            unit = CHANNEL_UNITS[i]
-            if box.isChecked() and unit not in units:
-                units.append(unit)
-        return ", ".join(units)
+    def _joined_units(self, units: tuple[str, ...]) -> str:
+        seen: list[str] = []
+        for unit in units:
+            if unit not in seen:
+                seen.append(unit)
+        return ", ".join(seen)
 
-    def _apply_stream_visibility(self) -> None:
-        self.stream_plot.setLabel("left", self._y_unit_label(self.stream_checks))
-        for box, curve in zip(self.stream_checks, self.stream_curves):
-            curve.setVisible(box.isChecked())
+    def _visible_units(self, curves, units: tuple[str, ...]) -> str:
+        seen: list[str] = []
+        for curve, unit in zip(curves, units):
+            if curve.isVisible() and unit not in seen:
+                seen.append(unit)
+        return ", ".join(seen)
+
+    def _on_stream_legend(self, _item) -> None:
+        self.stream_plot.setLabel("left", self._visible_units(self.stream_curves, CHANNEL_UNITS))
+        self.stream_plot.enableAutoRange(axis="y")
 
     def _pick_folder(self) -> None:
         chosen = QFileDialog.getExistingDirectory(self, "Folder berkas .bin", str(self.analysis_root))
@@ -699,47 +717,171 @@ class MainWindow(QMainWindow):
             self.plg = parse_plg(path)
         except Exception as exc:
             self.plg = None
+            self.rpy_deg = None
+            self.rpy_error = ""
             self.bin_info.setText(str(exc))
+            self._push_plot_data()
+            self._fill_stats()
             self._sync_buttons()
             return
         plg = self.plg
+        self._compute_rpy()
+        note = (
+            f"Sudut tidak dihitung: {self.rpy_error}"
+            if self.rpy_error
+            else "Calculated data: Madgwick dari accel dan gyro. Yaw relatif, bukan kompas."
+        )
         self.bin_info.setText(
             f"{plg.path.name}\n"
             f"PLG1 v{plg.version} · {plg.channels} kanal · {plg.record_size} B/rekaman · periode {plg.period_ms} ms\n"
             f"Mulai: {plg.start_text}\n"
-            f"{plg.count} rekaman · {plg.duration_s:.2f} dtk"
+            f"{plg.count} rekaman · {plg.duration_s:.2f} dtk\n"
+            f"{note}"
         )
-        for i in range(N_CHANNELS):
-            lo, hi, avg = plg.stats(i)
-            self.stats_table.setItem(i, 0, QTableWidgetItem(CHANNEL_NAMES[i]))
-            self.stats_table.setItem(i, 1, QTableWidgetItem(CHANNEL_UNITS[i]))
-            self.stats_table.setItem(i, 2, QTableWidgetItem(f"{lo:.4g}"))
-            self.stats_table.setItem(i, 3, QTableWidgetItem(f"{hi:.4g}"))
-            self.stats_table.setItem(i, 4, QTableWidgetItem(f"{avg:.4g}"))
-        self._redraw_analysis()
+        self._push_plot_data()
+        self._fill_stats()
         self._sync_buttons()
         self._log(f"Analisa {plg.path.name}: {plg.count} rekaman")
 
-    def _redraw_analysis(self) -> None:
-        self.analysis_plot.setLabel("left", self._y_unit_label(self.analysis_checks))
+    def _compute_rpy(self) -> None:
         plg = self.plg
         if plg is None or plg.count == 0:
+            self.rpy_deg = None
+            self.rpy_error = ""
+            return
+        try:
+            self.rpy_deg = madgwick_rpy_deg(
+                plg.time_s, plg.physical[:, 2:5], plg.physical[:, 5:8]
+            )
+            self.rpy_error = ""
+        except Exception as exc:
+            self.rpy_deg = np.full((plg.count, 3), np.nan)
+            self.rpy_error = str(exc)
+
+    def _on_data_mode(self, checked: bool) -> None:
+        if not checked:
+            return
+        self._apply_analysis_mode()
+        self._fill_stats()
+
+    def _sync_right_axis(self) -> None:
+        view = self.analysis_plot.plotItem.vb
+        self.analysis_right.setGeometry(view.sceneBoundingRect())
+        self.analysis_right.linkedViewChanged(view, self.analysis_right.XAxis)
+
+    def _set_legend(self, curves, names: tuple[str, ...]) -> None:
+        legend = self.analysis_plot.plotItem.legend
+        legend.clear()
+        for curve, name in zip(curves, names):
+            legend.addItem(curve, name)
+
+    def _apply_analysis_mode(self) -> None:
+        raw = self.mode_raw.isChecked()
+        plot_item = self.analysis_plot.plotItem
+        if raw:
             for curve in self.analysis_curves:
+                curve.setVisible(True)
+            for curve in self.calc_force_curves + self.calc_angle_curves:
+                curve.setVisible(False)
+            plot_item.hideAxis("right")
+            self._set_legend(self.analysis_curves, CHANNEL_NAMES)
+            self.analysis_plot.setLabel("left", self._visible_units(self.analysis_curves, CHANNEL_UNITS))
+        else:
+            for curve in self.analysis_curves:
+                curve.setVisible(False)
+            for curve in self.calc_force_curves + self.calc_angle_curves:
+                curve.setVisible(True)
+            plot_item.showAxis("right")
+            self._sync_right_axis()
+            self._set_legend(self.calc_force_curves + self.calc_angle_curves, CALC_NAMES)
+            self.analysis_plot.setLabel("left", "gram")
+            plot_item.getAxis("right").setLabel("derajat", color="#e2e8f0")
+        self.analysis_plot.enableAutoRange()
+        self.analysis_right.enableAutoRange(axis="y")
+
+    def _on_analysis_legend(self, _item) -> None:
+        if self.mode_raw.isChecked():
+            self.analysis_plot.setLabel(
+                "left", self._visible_units(self.analysis_curves, CHANNEL_UNITS)
+            )
+        self.analysis_plot.enableAutoRange(axis="y")
+        self.analysis_right.enableAutoRange(axis="y")
+
+    def _push_plot_data(self) -> None:
+        plg = self.plg
+        curves = self.analysis_curves + self.calc_force_curves + self.calc_angle_curves
+        if plg is None or plg.count == 0:
+            for curve in curves:
                 curve.setData([], [])
             return
-        for i, (box, curve) in enumerate(zip(self.analysis_checks, self.analysis_curves)):
-            curve.setVisible(box.isChecked())
-            if box.isChecked():
-                curve.setData(plg.time_s, plg.physical[:, i])
-            else:
+        time_s = plg.time_s
+        for i, curve in enumerate(self.analysis_curves):
+            curve.setData(time_s, plg.physical[:, i])
+        for i, curve in enumerate(self.calc_force_curves):
+            curve.setData(time_s, plg.physical[:, i])
+        if self.rpy_deg is None:
+            for curve in self.calc_angle_curves:
                 curve.setData([], [])
+        else:
+            for i, curve in enumerate(self.calc_angle_curves):
+                curve.setData(time_s, self.rpy_deg[:, i])
+        self.analysis_plot.enableAutoRange()
+        self.analysis_right.enableAutoRange(axis="y")
+
+    def _fill_stats(self) -> None:
+        calculated = self.mode_calc.isChecked()
+        if calculated:
+            names, units = CALC_NAMES, CALC_UNITS
+            columns = None
+            if self.plg is not None and self.rpy_deg is not None:
+                columns = [
+                    self.plg.physical[:, 0],
+                    self.plg.physical[:, 1],
+                    self.rpy_deg[:, 0],
+                    self.rpy_deg[:, 1],
+                    self.rpy_deg[:, 2],
+                ]
+        else:
+            names, units = CHANNEL_NAMES, CHANNEL_UNITS
+            columns = None
+            if self.plg is not None and self.plg.count:
+                columns = [self.plg.physical[:, i] for i in range(N_CHANNELS)]
+        self.stats_table.setRowCount(len(names))
+        for i, name in enumerate(names):
+            self.stats_table.setItem(i, 0, QTableWidgetItem(name))
+            self.stats_table.setItem(i, 1, QTableWidgetItem(units[i]))
+            lo, hi, avg = self._format_column(None if columns is None else columns[i])
+            self.stats_table.setItem(i, 2, QTableWidgetItem(lo))
+            self.stats_table.setItem(i, 3, QTableWidgetItem(hi))
+            self.stats_table.setItem(i, 4, QTableWidgetItem(avg))
+        self.stats_table.resizeColumnToContents(0)
+
+    @staticmethod
+    def _format_column(values) -> tuple[str, str, str]:
+        if values is None or len(values) == 0:
+            return "—", "—", "—"
+        finite = np.asarray(values, dtype=np.float64)
+        finite = finite[np.isfinite(finite)]
+        if finite.size == 0:
+            return "—", "—", "—"
+        return f"{finite.min():.4g}", f"{finite.max():.4g}", f"{finite.mean():.4g}"
 
     def _export_csv(self) -> None:
         if self.plg is None:
             return
-        suggested = str(self.plg.path.with_suffix(".csv"))
+        calculated = self.mode_calc.isChecked()
+        if calculated:
+            suggested = str(self.plg.path.with_name(self.plg.path.stem + "_calculated.csv"))
+        else:
+            suggested = str(self.plg.path.with_suffix(".csv"))
         dest, _ = QFileDialog.getSaveFileName(self, "Ekspor CSV", suggested, "CSV (*.csv)")
         if not dest:
             return
-        export_csv(self.plg, Path(dest))
+        if calculated:
+            if self.rpy_deg is None:
+                QMessageBox.warning(self, "Ekspor CSV", "Sudut belum tersedia untuk berkas ini.")
+                return
+            export_calculated_csv(self.plg, self.rpy_deg, Path(dest))
+        else:
+            export_csv(self.plg, Path(dest))
         self._log(f"CSV tersimpan {dest}")

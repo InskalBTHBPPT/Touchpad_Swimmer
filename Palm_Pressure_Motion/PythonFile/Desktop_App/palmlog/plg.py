@@ -138,3 +138,26 @@ def export_csv(plg: PlgFile, dest: Path) -> None:
     data = np.column_stack(cols)
     fmt = ["%.0f", "%.4f"] + ["%.6f"] * CHANNELS
     np.savetxt(dest, data, delimiter=",", header=header, comments="", fmt=fmt)
+
+
+def export_calculated_csv(plg: PlgFile, rpy_deg: np.ndarray, dest: Path) -> None:
+    """Force dalam gram, sudut Madgwick dalam derajat."""
+    header = "t_rel_ms,time_s,force_1_gram,force_2_gram,roll_deg,pitch_deg,yaw_deg"
+    cols = [
+        plg.t_rel_ms.astype(np.float64),
+        plg.time_s,
+        plg.physical[:, 0],
+        plg.physical[:, 1],
+        rpy_deg[:, 0],
+        rpy_deg[:, 1],
+        rpy_deg[:, 2],
+    ]
+    data = np.column_stack(cols)
+    np.savetxt(
+        dest,
+        data,
+        delimiter=",",
+        header=header,
+        comments="",
+        fmt=["%.0f", "%.4f", "%.6f", "%.6f", "%.6f", "%.6f", "%.6f"],
+    )
