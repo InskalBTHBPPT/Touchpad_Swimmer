@@ -1,7 +1,7 @@
 # HX711 — catatan pin (belum dipasang)
 
 Tanggal: 2026-11-17  
-Untuk proyek HX711 berikutnya. Belum masuk skema dan belum masuk firmware `Log_Session_Bin`.
+Firmware cek: `PlatformIO/HX711_One` (pilih kanal lewat USB) dan `PlatformIO/HX711_Dual` (keduanya nyala). Belum masuk skema dan belum masuk `Log_Session_Bin`.
 
 Dua chip, masing-masing DOUT (DT) dan SCK sendiri.
 
