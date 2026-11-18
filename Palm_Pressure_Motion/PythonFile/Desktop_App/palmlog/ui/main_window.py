@@ -11,7 +11,9 @@ import pyqtgraph as pg
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
+    QApplication,
     QButtonGroup,
+    QComboBox,
     QFileDialog,
     QGridLayout,
     QHBoxLayout,
@@ -33,7 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from palmlog import __version__
-from palmlog.attitude import madgwick_rpy_deg
+from palmlog.attitude import attitude_rpy_deg
 from palmlog.client import BleService
 from palmlog.plg import export_calculated_csv, export_csv, parse_plg
 from palmlog.protocol import (
@@ -103,6 +105,14 @@ QProgressBar {
 QProgressBar::chunk { background: #0284c7; }
 QLabel#card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px; }
 QSplitter::handle { background: #334155; }
+QComboBox {
+    background: #1e293b; border: 1px solid #475569; border-radius: 6px; padding: 4px 8px;
+    min-width: 88px;
+}
+QComboBox:disabled { color: #64748b; background: #0f172a; }
+QComboBox QAbstractItemView {
+    background: #1e293b; color: #e2e8f0; selection-background-color: #0369a1;
+}
 """
 
 
@@ -124,6 +134,7 @@ class MainWindow(QMainWindow):
         self.plg = None
         self.rpy_deg = None
         self.rpy_error = ""
+        self._rpy_cache: dict[tuple[str, int], np.ndarray] = {}
         self._stream_q: deque[tuple[float, ...]] = deque(maxlen=800)
         self._stream_pending: list[tuple[float, ...]] = []
 
@@ -344,12 +355,26 @@ class MainWindow(QMainWindow):
         mode_group = QButtonGroup(self)
         mode_group.addButton(self.mode_raw)
         mode_group.addButton(self.mode_calc)
+        self.filter_label = QLabel("Filter")
+        self.filter_box = QComboBox()
+        self.filter_box.addItem("Madgwick", "madgwick")
+        self.filter_box.addItem("EKF", "ekf")
+        self.axis_label = QLabel("Axis")
+        self.axis_box = QComboBox()
+        self.axis_box.addItem("6", 6)
+        self.axis_box.addItem("9", 9)
+        self.filter_box.currentIndexChanged.connect(self._on_attitude_option)
+        self.axis_box.currentIndexChanged.connect(self._on_attitude_option)
         row.addWidget(self.btn_open_bin)
         row.addWidget(self.btn_folder)
         row.addWidget(self.btn_reload_bins)
         row.addWidget(self.btn_csv)
         row.addWidget(self.mode_raw)
         row.addWidget(self.mode_calc)
+        row.addWidget(self.filter_label)
+        row.addWidget(self.filter_box)
+        row.addWidget(self.axis_label)
+        row.addWidget(self.axis_box)
         row.addStretch(1)
         lay.addLayout(row)
 
@@ -719,29 +744,45 @@ class MainWindow(QMainWindow):
             self.plg = None
             self.rpy_deg = None
             self.rpy_error = ""
+            self._rpy_cache.clear()
             self.bin_info.setText(str(exc))
             self._push_plot_data()
             self._fill_stats()
             self._sync_buttons()
             return
-        plg = self.plg
+        self._rpy_cache.clear()
         self._compute_rpy()
-        note = (
-            f"Sudut tidak dihitung: {self.rpy_error}"
-            if self.rpy_error
-            else "Calculated data: Madgwick dari accel dan gyro. Yaw relatif, bukan kompas."
-        )
+        self._show_bin_info()
+        self._push_plot_data()
+        self._fill_stats()
+        self._sync_buttons()
+        self._log(f"Analisa {self.plg.path.name}: {self.plg.count} rekaman")
+
+    def _attitude_choice(self) -> tuple[str, int]:
+        return str(self.filter_box.currentData()), int(self.axis_box.currentData())
+
+    def _attitude_note(self) -> str:
+        if self.rpy_error:
+            return f"Sudut tidak dihitung: {self.rpy_error}"
+        method, axes = self._attitude_choice()
+        label = "EKF" if method == "ekf" else "Madgwick"
+        if axes == 9:
+            yaw = "Yaw memakai magnetometer mentah."
+        else:
+            yaw = "Yaw relatif, bukan kompas."
+        return f"Calculated data: {label}, {axes} sumbu. {yaw}"
+
+    def _show_bin_info(self) -> None:
+        plg = self.plg
+        if plg is None:
+            return
         self.bin_info.setText(
             f"{plg.path.name}\n"
             f"PLG1 v{plg.version} · {plg.channels} kanal · {plg.record_size} B/rekaman · periode {plg.period_ms} ms\n"
             f"Mulai: {plg.start_text}\n"
             f"{plg.count} rekaman · {plg.duration_s:.2f} dtk\n"
-            f"{note}"
+            f"{self._attitude_note()}"
         )
-        self._push_plot_data()
-        self._fill_stats()
-        self._sync_buttons()
-        self._log(f"Analisa {plg.path.name}: {plg.count} rekaman")
 
     def _compute_rpy(self) -> None:
         plg = self.plg
@@ -749,14 +790,29 @@ class MainWindow(QMainWindow):
             self.rpy_deg = None
             self.rpy_error = ""
             return
+        key = self._attitude_choice()
+        cached = self._rpy_cache.get(key)
+        if cached is not None:
+            self.rpy_deg = cached
+            self.rpy_error = ""
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            self.rpy_deg = madgwick_rpy_deg(
-                plg.time_s, plg.physical[:, 2:5], plg.physical[:, 5:8]
+            self.rpy_deg = attitude_rpy_deg(
+                plg.time_s,
+                plg.physical[:, 2:5],
+                plg.physical[:, 5:8],
+                plg.physical[:, 8:11],
+                method=key[0],
+                axes=key[1],
             )
             self.rpy_error = ""
+            self._rpy_cache[key] = self.rpy_deg
         except Exception as exc:
             self.rpy_deg = np.full((plg.count, 3), np.nan)
             self.rpy_error = str(exc)
+        finally:
+            QApplication.restoreOverrideCursor()
 
     def _on_data_mode(self, checked: bool) -> None:
         if not checked:
@@ -798,6 +854,22 @@ class MainWindow(QMainWindow):
             plot_item.getAxis("right").setLabel("derajat", color="#e2e8f0")
         self.analysis_plot.enableAutoRange()
         self.analysis_right.enableAutoRange(axis="y")
+        self._sync_attitude_options()
+
+    def _sync_attitude_options(self) -> None:
+        enabled = self.mode_calc.isChecked()
+        self.filter_label.setEnabled(enabled)
+        self.filter_box.setEnabled(enabled)
+        self.axis_label.setEnabled(enabled)
+        self.axis_box.setEnabled(enabled)
+
+    def _on_attitude_option(self) -> None:
+        if self.plg is None or not self.mode_calc.isChecked():
+            return
+        self._compute_rpy()
+        self._show_bin_info()
+        self._push_plot_data()
+        self._fill_stats()
 
     def _on_analysis_legend(self, _item) -> None:
         if self.mode_raw.isChecked():

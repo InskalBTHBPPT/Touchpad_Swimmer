@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.3.0] - 2026-11-18
+
+- Calculated data punya dropdown Filter (Madgwick, EKF) dan Axis (6 accel+gyro, 9 ditambah magnetometer). Keduanya hanya aktif di mode calculated.
+
 ## [1.2.0] - 2026-11-18
 
 - Analisa punya pilihan Raw data dan Calculated data di samping Ekspor CSV.

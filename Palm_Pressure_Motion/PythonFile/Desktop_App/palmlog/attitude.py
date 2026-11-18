@@ -1,4 +1,4 @@
-"""Roll, pitch, yaw dari accel dan gyro. Madgwick IMU, sama notebook komparasi."""
+"""Roll, pitch, yaw. Madgwick atau EKF, 6 sumbu atau 9 sumbu."""
 
 from __future__ import annotations
 
@@ -10,17 +10,36 @@ _AXIS = np.array([1.0, -1.0, -1.0])
 
 
 def madgwick_rpy_deg(time_s: np.ndarray, accel_g: np.ndarray, gyro_dps: np.ndarray) -> np.ndarray:
+    """Madgwick 6 sumbu. Accel dalam g, gyro dalam °/s."""
+    return attitude_rpy_deg(time_s, accel_g, gyro_dps, method="madgwick", axes=6)
+
+
+def attitude_rpy_deg(
+    time_s: np.ndarray,
+    accel_g: np.ndarray,
+    gyro_dps: np.ndarray,
+    mag_uT: np.ndarray | None = None,
+    method: str = "madgwick",
+    axes: int = 6,
+) -> np.ndarray:
     """Sudut dalam derajat, kolom roll, pitch, yaw.
 
-    Accel dalam g, gyro dalam °/s. Magnetometer tidak dipakai.
-    Yaw relatif, bukan heading kompas.
+    Accel dalam g, gyro dalam °/s, magnetometer dalam µT.
+    axes 6 memakai accel dan gyro. axes 9 menambahkan magnetometer.
+    Yaw 6 sumbu relatif. Yaw 9 sumbu mengikuti arah medan magnet mentah.
     """
     n = int(len(time_s))
     out = np.full((n, 3), np.nan, dtype=np.float64)
     if n < 2:
         return out
+    if axes not in (6, 9):
+        raise ValueError(f"Jumlah sumbu harus 6 atau 9, dapat {axes}")
+    name = method.strip().lower()
+    if name not in ("madgwick", "ekf"):
+        raise ValueError(f"Filter harus madgwick atau ekf, dapat {method}")
+    if axes == 9 and mag_uT is None:
+        raise ValueError("Magnetometer diperlukan untuk 9 sumbu")
 
-    from ahrs.filters import Madgwick
     from scipy.spatial.transform import Rotation
 
     acc_g = np.asarray(accel_g, dtype=np.float64) * _AXIS
@@ -31,7 +50,17 @@ def madgwick_rpy_deg(time_s: np.ndarray, accel_g: np.ndarray, gyro_dps: np.ndarr
     if dt.size == 0:
         return out
     frequency = 1.0 / float(np.median(dt))
-    filt = Madgwick(gyr=gyr_rads, acc=acc_ms2, frequency=frequency)
+    kwargs = {"gyr": gyr_rads, "acc": acc_ms2, "frequency": frequency}
+    if axes == 9:
+        kwargs["mag"] = np.asarray(mag_uT, dtype=np.float64) * _AXIS
+    if name == "madgwick":
+        from ahrs.filters import Madgwick
+
+        filt = Madgwick(**kwargs)
+    else:
+        from ahrs.filters import EKF
+
+        filt = EKF(**kwargs)
     q_xyzw = np.column_stack([filt.Q[:, 1], filt.Q[:, 2], filt.Q[:, 3], filt.Q[:, 0]])
     euler = Rotation.from_quat(q_xyzw).as_euler("ZYX", degrees=True)
     out[:, 0] = euler[:, 2]
