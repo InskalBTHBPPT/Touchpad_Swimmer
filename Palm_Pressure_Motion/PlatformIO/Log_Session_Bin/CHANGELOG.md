@@ -2,6 +2,13 @@
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/). Versi firmware mengikuti [Semantic Versioning](https://semver.org/).
 
+## [2.4.1] - 2026-11-18
+
+Pembacaan HX711 tidak lagi me-reset board saat serial atau BLE dipakai.
+
+- `noInterrupts()` selama 25 clock ikut mematikan interrupt radio. SoftDevice assert, USB putus, dan sinkron waktu gagal.
+- Clock sekarang lewat register GPIO. Interrupt aplikasi ditahan sebentar; interrupt radio tetap jalan. Sampel dibuang bila pulsa SCK lebih dari 50 µs.
+
 ## [2.4.0] - 2026-11-18
 
 `d1` dan `d2` berisi beban, bukan nol. Format PLG1 v4 tetap 26 byte.

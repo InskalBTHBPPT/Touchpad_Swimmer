@@ -172,3 +172,16 @@ kg = (raw1 − 5800) / 435500
 ```
 
 Di antara dua penahanan 1 kg ada sentuhan singkat ke 448.000, kira-kira 16 gram, lalu nilai kembali. Faktor kanal 1 dan kanal 2 beda sekitar 500 hitungan/kg.
+
+## 2026-11-18 13:02 — coba firmware 2.3.0
+
+Di-flash dari salinan `D:\Pengujian\Log_Session_Bin_230` (tag `Log_Session_Bin_v2.3.0`). Serial COM12 menampilkan `Log_Session_Bin 2.3.0`. RTC awalnya tahun di bawah 2020, lalu ponsel mengirim waktu dan `BLE SET_TIME OK`.
+
+| Cek | Hasil |
+|---|---|
+| IMU | `IMU OK LSM6DSOX+LIS3MDL` |
+| Baterai | `vbat_mV=4092` |
+| Rekaman | `261118130252.bin`, 3086 rekaman, 80492 byte, `prod=3086`, `drop=0` |
+| Ponsel | BLE connected, `LIST` 8 berkas, `GET` berkas baru dan `261110090147` selesai |
+
+Rekaman dan koneksi ke ponsel oke. `d1..d2` masih 0, sesuai firmware 2.3.0. Daya 3,3 V ke kedua HX711 tetap tersambung selama uji ini.

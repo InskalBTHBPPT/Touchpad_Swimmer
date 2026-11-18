@@ -1,13 +1,13 @@
 # Log Session Binary — PalmLog1
 
-Versi **2.4.0**. Riwayat ada di `CHANGELOG.md`. Hasil uji hardware ada di `TEST_LOG.md`.
+Versi **2.4.1**. Riwayat ada di `CHANGELOG.md`. Hasil uji hardware ada di `TEST_LOG.md`.
 
 Firmware logger untuk **SuperMini nRF52840 di carrier skema 1.1**.  
 Port dari `Log_Session_Bin_v3.1.1` (PalmLog20 / W25Q32 / DS3231).
 
 | Item | Nilai |
 |---|---|
-| Versi FW | **2.4.0** |
+| Versi FW | **2.4.1** |
 | Advertising BLE | `PalmLog1` |
 | Format berkas | **PLG1 version 4** |
 | Rekaman | **26 B** = `t_rel_ms` u32 LE + 11×int16 |

@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief PalmLog1 firmware — Log_Session_Bin **2.4.0**
+ * @brief PalmLog1 firmware — Log_Session_Bin **2.4.1**
  *
  * Logger carrier skema 1.1: rekam 100 Hz ke flash W25Q128 (PLG1 v4, 26 B/rekaman),
  * BLE NUS untuk status / sync waktu / LIST-GET / DELETE-FORMAT / stream uji.
@@ -32,6 +32,9 @@
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h>
 #include <bluefruit.h>
+#include <nrf_gpio.h>
+#include <nrf_nvic.h>
+#include <nrf_soc.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <time.h>
@@ -943,26 +946,65 @@ static int16_t clampI16(long v) {
   return (int16_t)v;
 }
 
-static int32_t hxReadRaw(uint8_t sck, uint8_t dt) {
-  uint32_t value = 0;
-  noInterrupts();
-  for (uint8_t i = 0; i < 24; i++) {
-    digitalWrite(sck, HIGH);
-    delayMicroseconds(1);
-    value = (value << 1) | (uint32_t)digitalRead(dt);
-    digitalWrite(sck, LOW);
-    delayMicroseconds(1);
-  }
-  digitalWrite(sck, HIGH);
-  delayMicroseconds(1);
-  digitalWrite(sck, LOW);
-  interrupts();
-  delayMicroseconds(1);
+static void hxArmCycleCounter() {
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+}
 
+// noInterrupts() memasang PRIMASK dan ikut mematikan interrupt radio SoftDevice.
+// Radio yang tertunda membuat SoftDevice assert, lalu board reset (USB putus, BLE putus).
+static void hxAppIrqLock(uint8_t *nested, bool *viaSd) {
+  uint8_t enabled = 0;
+  *viaSd = sd_softdevice_is_enabled(&enabled) == NRF_SUCCESS && enabled != 0;
+  if (*viaSd) {
+    (void)sd_nvic_critical_region_enter(nested);
+    return;
+  }
+  __disable_irq();
+}
+
+static void hxAppIrqUnlock(uint8_t nested, bool viaSd) {
+  if (viaSd) {
+    (void)sd_nvic_critical_region_exit(nested);
+    return;
+  }
+  __enable_irq();
+}
+
+/** 24 bit + pulsa ke-25. false = pulsa SCK memanjang, sampel jangan dipakai. */
+static bool hxReadRaw(uint8_t sck, uint8_t dt, int32_t *rawOut) {
+  hxArmCycleCounter();
+  uint8_t nested = 0;
+  bool viaSd = false;
+  hxAppIrqLock(&nested, &viaSd);
+
+  uint32_t value = 0;
+  bool timed = true;
+  for (uint8_t i = 0; i < 25 && timed; i++) {
+    const uint32_t t0 = DWT->CYCCNT;
+    nrf_gpio_pin_set(sck);
+    delayMicroseconds(1);
+    if (i < 24) {
+      value = (value << 1) | nrf_gpio_pin_read(dt);
+    }
+    nrf_gpio_pin_clear(sck);
+    if ((DWT->CYCCNT - t0) > (64u * 50u)) {
+      timed = false;
+    } else {
+      delayMicroseconds(1);
+    }
+  }
+  nrf_gpio_pin_clear(sck);
+  hxAppIrqUnlock(nested, viaSd);
+
+  if (!timed) {
+    return false;
+  }
   if (value & 0x800000u) {
     value |= 0xFF000000u;
   }
-  return (int32_t)value;
+  *rawOut = (int32_t)value;
+  return true;
 }
 
 static int16_t hxToMilliKg(int32_t raw, int32_t zero, int32_t countsPerKg) {
@@ -982,7 +1024,10 @@ static void hxPoll() {
     if (digitalRead(HX_DT[i]) != LOW) {
       continue;
     }
-    const int32_t raw = hxReadRaw(HX_SCK[i], HX_DT[i]);
+    int32_t raw = 0;
+    if (!hxReadRaw(HX_SCK[i], HX_DT[i], &raw)) {
+      continue;
+    }
     if ((int32_t)(millis() - hxReadyAt) < 0) {
       continue;
     }
@@ -1840,7 +1885,7 @@ static void onDisconnect(uint16_t conn_handle, uint8_t reason) {
 // ===========================================================================
 static void printHelp() {
   Serial.println();
-  Serial.println(F("Log_Session_Bin 2.4.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
+  Serial.println(F("Log_Session_Bin 2.4.1  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
   Serial.println(F("VBAT P0.31: R5/R6 1M/1M x2 cal=0.9726"));
   Serial.println(F("IMU: LSM6DSOX 0x6A + LIS3MDL 0x1C @ P1.04/P1.06"));
   Serial.println(F("PB P0.24:"));
