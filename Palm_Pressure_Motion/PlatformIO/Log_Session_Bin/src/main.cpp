@@ -1,10 +1,11 @@
 /**
  * @file main.cpp
- * @brief PalmLog1 firmware — Log_Session_Bin **2.3.0**
+ * @brief PalmLog1 firmware — Log_Session_Bin **2.4.0**
  *
  * Logger carrier skema 1.1: rekam 100 Hz ke flash W25Q128 (PLG1 v4, 26 B/rekaman),
  * BLE NUS untuk status / sync waktu / LIST-GET / DELETE-FORMAT / stream uji.
- * Accel/gyro LSM6DSOX + mag LIS3MDL (sama LSM6_LIS3MDL 2.0.0). d1..d2 masih 0.
+ * Accel/gyro LSM6DSOX + mag LIS3MDL (sama LSM6_LIS3MDL 2.0.0).
+ * d1..d2 = beban HX711 dalam 0,001 kg.
  *
  * ### Solusi A — timer + ring
  * SoftwareTimer 10 ms hanya capture -> ring (64); loop()/sampleTick() tulis flash.
@@ -26,6 +27,7 @@
  * - RTC RV-3032: SDA P1.04, SCL P1.06, addr 0x51 (bb_rtc lokal)
  * - Bat(+): R5 1 MΩ — P0.31 — R6 1 MΩ — AGND. Vbat = Vpin × 2 × 0,9726
  * - IMU U4 LSM6DSOX 0x6A + mag U3 LIS3MDL 0x1C (SDA P1.04, SCL P1.06)
+ * - HX711-1 SCK P0.06 DT P0.08; HX711-2 SCK P0.20 DT P0.17
  */
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h>
@@ -45,6 +47,17 @@ static const uint8_t PIN_BTN = PIN_024;
 static const uint8_t PIN_FLASH_CS = PIN_010;
 static const uint8_t PIN_EXT_VCC = PIN_013;
 static const uint8_t PIN_VBAT = PIN_031;
+
+// HX711 kanal A gain 128. Serial USB, bukan Serial1 (P0.06/P0.08 adalah TX/RX-nya).
+// d1/d2 = 0,001 kg. Uji 2026-11-18: kg = (raw - nol) / hitungan_per_kg.
+static const uint8_t HX_SCK[2] = {PIN_006, PIN_020};
+static const uint8_t HX_DT[2] = {PIN_008, PIN_017};
+static const int32_t HX_ZERO[2] = {5800, 871000};
+static const int32_t HX_COUNTS_PER_KG[2] = {435500, 436000};
+static const uint32_t HX_SETTLE_MS = 400;
+
+static volatile int16_t hxMilliKg[2] = {0, 0};
+static uint32_t hxReadyAt = 0;
 
 // Sama dengan VBAT_ADC 1.1.1: SAADC 12 bit, penuh skala pin 3,6 V, pembagi 1:2.
 static const int VBAT_ADC_BITS = 12;
@@ -153,7 +166,7 @@ struct __attribute__((packed)) FileHeader {
 
 /**
  * Satu sampel PLG1 v4 (26 B).
- * d1..d2 general (0); d3..d5 accel mg; d6..d8 gyro 0.1°/s; d9..d11 mag µT.
+ * d1..d2 beban 0,001 kg; d3..d5 accel mg; d6..d8 gyro 0.1°/s; d9..d11 mag µT.
  */
 struct __attribute__((packed)) SampleRec {
   uint32_t t_rel_ms;  ///< millis() - sampleEpochMs
@@ -930,11 +943,58 @@ static int16_t clampI16(long v) {
   return (int16_t)v;
 }
 
-/** Isi d3..d11 dari chip. d1..d2 = 0. Gagal baca → kanal IMU/mag = 0. */
+static int32_t hxReadRaw(uint8_t sck, uint8_t dt) {
+  uint32_t value = 0;
+  noInterrupts();
+  for (uint8_t i = 0; i < 24; i++) {
+    digitalWrite(sck, HIGH);
+    delayMicroseconds(1);
+    value = (value << 1) | (uint32_t)digitalRead(dt);
+    digitalWrite(sck, LOW);
+    delayMicroseconds(1);
+  }
+  digitalWrite(sck, HIGH);
+  delayMicroseconds(1);
+  digitalWrite(sck, LOW);
+  interrupts();
+  delayMicroseconds(1);
+
+  if (value & 0x800000u) {
+    value |= 0xFF000000u;
+  }
+  return (int32_t)value;
+}
+
+static int16_t hxToMilliKg(int32_t raw, int32_t zero, int32_t countsPerKg) {
+  const int64_t milli = ((int64_t)raw - zero) * 1000 / countsPerKg;
+  if (milli > 32767) {
+    return 32767;
+  }
+  if (milli < -32768) {
+    return -32768;
+  }
+  return (int16_t)milli;
+}
+
+/** Clock chip yang sudah siap. Timer 10 ms hanya menyalin nilai terakhir. */
+static void hxPoll() {
+  for (uint8_t i = 0; i < 2; i++) {
+    if (digitalRead(HX_DT[i]) != LOW) {
+      continue;
+    }
+    const int32_t raw = hxReadRaw(HX_SCK[i], HX_DT[i]);
+    if ((int32_t)(millis() - hxReadyAt) < 0) {
+      continue;
+    }
+    hxMilliKg[i] = hxToMilliKg(raw, HX_ZERO[i], HX_COUNTS_PER_KG[i]);
+  }
+}
+
+/** Isi d1..d2 dari HX711 dan d3..d11 dari IMU. Gagal baca IMU → kanal IMU/mag = 0. */
 static void fillSensorSample(SampleRec *r) {
   r->t_rel_ms = millis() - sampleEpochMs;
-  r->d1 = 0;
-  r->d2 = 0;
+  r->d1 = hxMilliKg[0];
+  r->d2 = hxMilliKg[1];
   r->d3 = 0;
   r->d4 = 0;
   r->d5 = 0;
@@ -1780,7 +1840,7 @@ static void onDisconnect(uint16_t conn_handle, uint8_t reason) {
 // ===========================================================================
 static void printHelp() {
   Serial.println();
-  Serial.println(F("Log_Session_Bin 2.3.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
+  Serial.println(F("Log_Session_Bin 2.4.0  PalmLog1  PLG1 v4  W25Q128+RV3032  timer+ring + stream"));
   Serial.println(F("VBAT P0.31: R5/R6 1M/1M x2 cal=0.9726"));
   Serial.println(F("IMU: LSM6DSOX 0x6A + LIS3MDL 0x1C @ P1.04/P1.06"));
   Serial.println(F("PB P0.24:"));
@@ -1789,7 +1849,7 @@ static void printHelp() {
   Serial.println(F("LED P0.15: idle 4x ON100/OFF250 /5s | measure 2x/5s"));
   Serial.println(F("BLE: 0x10 status | 0x11 time_ms | 0x20 LIST | 0x21 GET | 0x23 DEL | 0x24 FMT | 0x30 STREAM"));
   Serial.println(F("Sample: SoftwareTimer 10ms -> I2C sensor -> ring -> flash"));
-  Serial.println(F("Rekaman: t_rel_ms | d1..d2=0 | accel mg d3..d5 | gyro 0.1dps d6..d8 | mag uT d9..d11"));
+  Serial.println(F("Rekaman: t_rel_ms | d1 d2 beban 0.001kg | accel mg d3..d5 | gyro 0.1dps d6..d8 | mag uT d9..d11"));
   Serial.println(F("Perintah Serial:"));
   Serial.println(F("  HELP | STATUS | NOW"));
   Serial.println(F("  LOG GET [ON|OFF]          log Serial tiap potongan unduh .bin (default OFF)"));
@@ -2148,6 +2208,13 @@ void setup() {
   digitalWrite(LED_BUILTIN, LED_STATE_OFF);
   digitalWrite(PIN_EXT_VCC, LOW);
 
+  for (uint8_t i = 0; i < 2; i++) {
+    pinMode(HX_SCK[i], OUTPUT);
+    pinMode(HX_DT[i], INPUT_PULLUP);
+    digitalWrite(HX_SCK[i], LOW);
+  }
+  hxReadyAt = millis() + HX_SETTLE_MS;
+
   // Gate power SEBELUM Serial/SPI: baterai tanpa hold 5s → System OFF.
   // USB (setelah flash): langsung ON (pwr_save=N).
   gatePowerOnFromButton();
@@ -2238,6 +2305,7 @@ void loop() {
   }
 
   buttonTick();
+  hxPoll();
   sampleTick();
   heartbeatTick();
   pollSerial();

@@ -2,6 +2,15 @@
 
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/). Versi firmware mengikuti [Semantic Versioning](https://semver.org/).
 
+## [2.4.0] - 2026-11-18
+
+`d1` dan `d2` berisi beban, bukan nol. Format PLG1 v4 tetap 26 byte.
+
+- HX711-1 di `d1` (SCK P0.06, DT P0.08). HX711-2 di `d2` (SCK P0.20, DT P0.17).
+- Satuan 0,001 kg. `kg = (raw − nol) / hitungan_per_kg`, lalu × 1000.
+- Kanal 1: nol 5.800, 435.500 hitungan/kg. Kanal 2: nol 871.000, 436.000 hitungan/kg.
+- `loop()` mengambil 24 bit saat DT rendah. Timer 10 ms hanya menyalin nilai terakhir ke rekaman yang sama dengan IMU.
+
 ## [2.3.0] - 2026-11-09
 
 Timing tombol dan heartbeat LED disesuaikan untuk pemakaian lapangan.

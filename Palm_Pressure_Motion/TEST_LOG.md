@@ -131,3 +131,44 @@ Beban adalah ayunan tekan-lepas, bukan beban yang ditahan rata. Rata-rata seluru
 | HX711-2 | diam, sesudah beban | 304 | 3,49 s | 810.536 | 2.378 | 805.788 | 817.762 |
 
 HX711-1 diam memakai pita 4.500–6.500. Ekor lepas yang jatuh di bawah pita itu masih dihitung sebagai beban. HX711-2 dihitung beban saat hitungan melewati 819.000. Selama diam, HX711-2 tetap naik pelan: 778.389 di awal cuplikan, 813.508 tepat sebelum beban, lalu 805.788–817.762 sesudah beban. HX711-1 beban 2 lebih pendek dan tidak punya bagian yang menempel seperti beban 1.
+
+## 2026-11-18 — HX711_Dual, skala kg
+
+Anak timbangan pada satu kanal. Kanal yang tidak dibebani tetap diam. Angka di bawah adalah level bagian yang menempel, bukan rata-rata jalan naik dan turun.
+
+### HX711-2 — urutan 3 kg, 1 kg, tanpa beban
+
+HX711-1 tetap di sekitar 5.600–6.000.
+
+| Fase | Hitungan |
+|---|---:|
+| 3 kg | 2.178.500 |
+| 1 kg | 1.307.400 |
+| tanpa beban | 870.900 |
+
+Dari 0 ke 1 kg naik 436.500 hitungan. Dari 1 ke 3 kg naik 871.000 hitungan, yaitu 435.500 hitungan tiap kg. Faktor **436.000 hitungan/kg**, nol **871.000**.
+
+```text
+kg = (raw2 − 871000) / 436000
+```
+
+Balik ke 1 kg dan 3 kg, sisa sekitar 1 gram.
+
+### HX711-1 — urutan 1 kg, 3 kg, 1 kg, tanpa beban
+
+HX711-2 tetap di sekitar 859.000.
+
+| Fase | Hitungan | Setara |
+|---|---:|---:|
+| diam awal | 441.300 | 1 kg |
+| diam di puncak | 1.312.100 | 3 kg |
+| diam lagi | 441.300 | 1 kg |
+| diam akhir | 5.800 | tanpa beban |
+
+Naik 441.300 → 1.312.100 adalah 870.800 hitungan, pas 2 kg. Turun ke 5.800 adalah 1 kg. Faktor **435.500 hitungan/kg**, nol **5.800**.
+
+```text
+kg = (raw1 − 5800) / 435500
+```
+
+Di antara dua penahanan 1 kg ada sentuhan singkat ke 448.000, kira-kira 16 gram, lalu nilai kembali. Faktor kanal 1 dan kanal 2 beda sekitar 500 hitungan/kg.
