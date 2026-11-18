@@ -1,4 +1,4 @@
-# PalmLog Laptop **1.0.0**
+# PalmLog Laptop **1.1.0**
 
 Companion desktop (**PySide6** + **Bleak** + **pyqtgraph**) di
 `Palm_Pressure_Motion/PythonFile/Desktop_App` (clone dari `NRF52840/PythonFile/V1.0.0`).
@@ -8,7 +8,7 @@ Board Palm baru (`PalmLog1`, flash 16 MB) belum diprofil di app ini.
 
 | Item | Nilai |
 |---|---|
-| Versi app | **1.0.0** |
+| Versi app | **1.1.0** |
 | Target FW | **3.1.1** |
 | Format berkas | **PLG1 v4** — 11 kanal, **26 B**/rekaman (`t_rel_ms` + d1…d11) |
 | Stream | `0xB2` **29 B** (seq + SampleRec) |
@@ -32,7 +32,7 @@ Arsip app lama (8 kanal / 16 B): `../v0.1.0/`.
 
 | Kanal | Makna | Tersimpan | Ditampilkan |
 |---|---|---|---|
-| d1, d2 | general | int16 | mentah |
+| d1, d2 | Force_1, Force_2 | 0,001 kg | **gram** |
 | d3…d5 | accel | mg | **g** (/1000) |
 | d6…d8 | gyro | 0,1 °/s | **°/s** (/10) |
 | d9…d11 | mag | µT | **µT** |

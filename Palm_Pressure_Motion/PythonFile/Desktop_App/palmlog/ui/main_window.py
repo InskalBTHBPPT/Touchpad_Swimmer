@@ -55,6 +55,21 @@ CHANNEL_COLORS = (
     "#f472b6",
 )
 N_CHANNELS = 11
+# d1/d2 = 0,001 kg, angka tabel sudah dalam gram. d3..d5 = g gravitasi.
+CHANNEL_UNITS = ("gram", "gram", "g", "g", "g", "°/s", "°/s", "°/s", "µT", "µT", "µT")
+CHANNEL_NAMES = (
+    "d1 (Force_1)",
+    "d2 (Force_2)",
+    "d3 (accel_X)",
+    "d4 (accel_Y)",
+    "d5 (accel_Z)",
+    "d6 (gyro_X)",
+    "d7 (gyro_Y)",
+    "d8 (gyro_Z)",
+    "d9 (mag_X)",
+    "d10 (mag_Y)",
+    "d11 (mag_Z)",
+)
 
 STYLE = """
 QWidget { background: #0f172a; color: #e2e8f0; font-size: 13px; }
@@ -285,14 +300,14 @@ class MainWindow(QMainWindow):
         chips = QHBoxLayout()
         self.stream_checks: list[QCheckBox] = []
         for i in range(N_CHANNELS):
-            box = QCheckBox(f"d{i + 1}")
+            box = QCheckBox(CHANNEL_NAMES[i])
             box.setChecked(i == 0)
             box.toggled.connect(self._apply_stream_visibility)
             self.stream_checks.append(box)
             chips.addWidget(box)
         all_btn = QPushButton("Semua")
         all_btn.clicked.connect(lambda: self._set_checks(self.stream_checks, True))
-        one_btn = QPushButton("d1 saja")
+        one_btn = QPushButton("Force_1 saja")
         one_btn.clicked.connect(lambda: self._set_checks(self.stream_checks, False))
         chips.addWidget(all_btn)
         chips.addWidget(one_btn)
@@ -309,11 +324,11 @@ class MainWindow(QMainWindow):
         self.stream_plot = pg.PlotWidget()
         self.stream_plot.showGrid(x=True, y=True, alpha=0.25)
         self.stream_plot.setLabel("bottom", "Sampel buffer", units="idx")
-        self.stream_plot.setLabel("left", "Fisik")
+        self.stream_plot.setLabel("left", CHANNEL_UNITS[0])
         self.stream_plot.addLegend(offset=(8, 8))
         self.stream_curves = []
         for i, color in enumerate(CHANNEL_COLORS):
-            curve = self.stream_plot.plot(pen=pg.mkPen(color, width=1.6), name=f"d{i + 1}")
+            curve = self.stream_plot.plot(pen=pg.mkPen(color, width=1.6), name=CHANNEL_NAMES[i])
             curve.setVisible(i == 0)
             self.stream_curves.append(curve)
         lay.addWidget(self.stream_plot, 1)
@@ -345,28 +360,32 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.folder_label)
 
         split = QSplitter()
-        side = QWidget()
-        side_lay = QVBoxLayout(side)
-        side_lay.setContentsMargins(0, 0, 0, 0)
+        side_split = QSplitter(Qt.Orientation.Vertical)
+        side_split.setChildrenCollapsible(False)
+        side_split.setHandleWidth(6)
         self.bin_list = QListWidget()
+        self.bin_list.setMinimumHeight(80)
         self.bin_list.itemClicked.connect(self._open_listed_bin)
-        side_lay.addWidget(self.bin_list, 1)
+        side_split.addWidget(self.bin_list)
         self.bin_info = QLabel("Belum ada berkas.")
         self.bin_info.setWordWrap(True)
         self.bin_info.setObjectName("card")
-        side_lay.addWidget(self.bin_info)
+        self.bin_info.setMinimumHeight(48)
+        side_split.addWidget(self.bin_info)
 
         self.stats_table = QTableWidget(N_CHANNELS, 5)
         self.stats_table.setHorizontalHeaderLabels(["Kanal", "Unit", "Min", "Max", "Rata-rata"])
         self.stats_table.verticalHeader().setVisible(False)
         self.stats_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.stats_table.setMaximumHeight(320)
-        units = ["", "", "g", "g", "g", "°/s", "°/s", "°/s", "µT", "µT", "µT"]
+        self.stats_table.setMinimumHeight(80)
         for i in range(N_CHANNELS):
-            self.stats_table.setItem(i, 0, QTableWidgetItem(f"d{i + 1}"))
-            self.stats_table.setItem(i, 1, QTableWidgetItem(units[i]))
-        side_lay.addWidget(self.stats_table)
-        split.addWidget(side)
+            self.stats_table.setItem(i, 0, QTableWidgetItem(CHANNEL_NAMES[i]))
+            self.stats_table.setItem(i, 1, QTableWidgetItem(CHANNEL_UNITS[i]))
+        self.stats_table.resizeColumnToContents(0)
+        side_split.addWidget(self.stats_table)
+        side_split.setStretchFactor(0, 1)
+        side_split.setSizes([420, 110, 260])
+        split.addWidget(side_split)
 
         plot_side = QWidget()
         plot_lay = QVBoxLayout(plot_side)
@@ -374,24 +393,24 @@ class MainWindow(QMainWindow):
         chips = QHBoxLayout()
         self.analysis_checks: list[QCheckBox] = []
         for i in range(N_CHANNELS):
-            box = QCheckBox(f"d{i + 1}")
+            box = QCheckBox(CHANNEL_NAMES[i])
             box.setChecked(i == 0)
             box.toggled.connect(self._redraw_analysis)
             self.analysis_checks.append(box)
             chips.addWidget(box)
         chips.addWidget(self._mini_button("Semua", lambda: self._set_checks(self.analysis_checks, True)))
-        chips.addWidget(self._mini_button("d1 saja", lambda: self._set_checks(self.analysis_checks, False)))
+        chips.addWidget(self._mini_button("Force_1 saja", lambda: self._set_checks(self.analysis_checks, False)))
         plot_lay.addLayout(chips)
         self.analysis_plot = pg.PlotWidget()
         self.analysis_plot.showGrid(x=True, y=True, alpha=0.25)
         self.analysis_plot.setLabel("bottom", "t_rel", units="s")
-        self.analysis_plot.setLabel("left", "Fisik")
+        self.analysis_plot.setLabel("left", CHANNEL_UNITS[0])
         self.analysis_plot.addLegend(offset=(8, 8))
         self.analysis_curves = []
         for i, color in enumerate(CHANNEL_COLORS):
             curve = self.analysis_plot.plot(
                 pen=pg.mkPen(color, width=1.4),
-                name=f"d{i + 1}",
+                name=CHANNEL_NAMES[i],
                 autoDownsample=True,
                 downsampleMethod="peak",
                 clipToView=True,
@@ -620,7 +639,16 @@ class MainWindow(QMainWindow):
         for i, curve in enumerate(self.stream_curves):
             curve.setData(x, arr[:, i])
 
+    def _y_unit_label(self, checks: list[QCheckBox]) -> str:
+        units: list[str] = []
+        for i, box in enumerate(checks):
+            unit = CHANNEL_UNITS[i]
+            if box.isChecked() and unit not in units:
+                units.append(unit)
+        return ", ".join(units)
+
     def _apply_stream_visibility(self) -> None:
+        self.stream_plot.setLabel("left", self._y_unit_label(self.stream_checks))
         for box, curve in zip(self.stream_checks, self.stream_curves):
             curve.setVisible(box.isChecked())
 
@@ -683,6 +711,8 @@ class MainWindow(QMainWindow):
         )
         for i in range(N_CHANNELS):
             lo, hi, avg = plg.stats(i)
+            self.stats_table.setItem(i, 0, QTableWidgetItem(CHANNEL_NAMES[i]))
+            self.stats_table.setItem(i, 1, QTableWidgetItem(CHANNEL_UNITS[i]))
             self.stats_table.setItem(i, 2, QTableWidgetItem(f"{lo:.4g}"))
             self.stats_table.setItem(i, 3, QTableWidgetItem(f"{hi:.4g}"))
             self.stats_table.setItem(i, 4, QTableWidgetItem(f"{avg:.4g}"))
@@ -691,6 +721,7 @@ class MainWindow(QMainWindow):
         self._log(f"Analisa {plg.path.name}: {plg.count} rekaman")
 
     def _redraw_analysis(self) -> None:
+        self.analysis_plot.setLabel("left", self._y_unit_label(self.analysis_checks))
         plg = self.plg
         if plg is None or plg.count == 0:
             for curve in self.analysis_curves:

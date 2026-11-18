@@ -89,6 +89,8 @@ def physical_channel(channel_1based: int, raw: int) -> float:
 
 
 def unit_for(channel_1based: int) -> str:
+    if channel_1based in (1, 2):
+        return "gram"
     if 3 <= channel_1based <= 5:
         return "g"
     if 6 <= channel_1based <= 8:
