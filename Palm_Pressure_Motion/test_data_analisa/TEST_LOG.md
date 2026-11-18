@@ -185,3 +185,30 @@ Di-flash dari salinan `D:\Pengujian\Log_Session_Bin_230` (tag `Log_Session_Bin_v
 | Ponsel | BLE connected, `LIST` 8 berkas, `GET` berkas baru dan `261110090147` selesai |
 
 Rekaman dan koneksi ke ponsel oke. `d1..d2` masih 0, sesuai firmware 2.3.0. Daya 3,3 V ke kedua HX711 tetap tersambung selama uji ini.
+
+## 2026-11-18 — firmware 2.4.1, beban dan IMU
+
+CSV di `Log_Session_Bin_2.4/`. Satuan `d1` dan `d2` adalah 0,001 kg. USB tetap tersambung. Jarak rekaman 9–10 ms, tidak ada lubang.
+
+### `261118132908.csv` — 4595 rekaman, 44,9 s
+
+Dua kanal dibebani bergantian, lalu IMU diputar. Beban tidak ditahan datar.
+
+| Waktu | Kejadian |
+|---|---|
+| 0–3,0 s | Diam. HX711-1 ≈ 0 kg, HX711-2 ≈ −0,11 kg |
+| 3,0–5,8 s | HX711-2. Median naik sampai sekitar 2,9 kg, puncak 4,7 kg |
+| 7,6–11,2 s | HX711-1. Median sekitar 4,3 kg, puncak halus 7,1 kg |
+| 14,4–26,7 s | IMU diputar. Gyro rata-rata 32 °/s, puncak 73 °/s. Accel tetap dekat 1 g |
+
+Satu sampel rusak pada 39,70 s: `d2 = −16427`. Tetangganya −0,12 kg.
+
+### `261118143507.csv` — 4781 rekaman, 46,7 s
+
+HX711-2 ditahan 1 kg, kemudian HX711-1 ditahan 2 kg, lalu IMU diputar.
+
+| Waktu | Kejadian |
+|---|---|
+| 6,5–12,3 s | HX711-2 rata-rata **0,977 kg** (beban 1 kg). HX711-1 tetap 0,001 kg |
+| 18,2–22,4 s | HX711-1 rata-rata **2,036 kg** (beban 2 kg). HX711-2 tetap 0,004 kg |
+| 26,5–36,4 s | IMU diputar. Gyro rata-rata 55 °/s, puncak 126 °/s |
