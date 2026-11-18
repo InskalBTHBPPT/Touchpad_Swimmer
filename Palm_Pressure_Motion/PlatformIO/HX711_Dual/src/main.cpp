@@ -5,7 +5,8 @@
  * HX711-2  SCK P0.20 (hijau lumut)  DT P0.17 (orange)
  * RATE sudah ditarik ke VCC = 80 SPS. Serial lewat USB, bukan Serial1.
  *
- * Baris data: t_ms,kanal,raw
+ * Baris data: t_ms,raw1,raw2
+ * Satu baris setelah kedua chip punya sampel baru. t_ms saat pasangan itu lengkap.
  * raw = hitungan 24-bit bertanda, kanal A gain 128, belum diubah ke gram.
  */
 #include <Arduino.h>
@@ -17,6 +18,8 @@ static const uint8_t DT_PIN[2] = {PIN_008, PIN_017};
 static const uint32_t SETTLE_MS = 400;
 
 static uint32_t printAfter = 0;
+static int32_t lastRaw[2];
+static bool fresh[2];
 
 static int32_t readRaw(uint8_t sck, uint8_t dt) {
   uint32_t value = 0;
@@ -54,7 +57,10 @@ void setup() {
   }
 
   printAfter = millis() + SETTLE_MS;
+  fresh[0] = false;
+  fresh[1] = false;
   Serial.println(F("HX711 dua kanal, 80 SPS"));
+  Serial.println(F("baris: t_ms,raw1,raw2"));
   Serial.println(F("1 = SCK P0.06  DT P0.08"));
   Serial.println(F("2 = SCK P0.20  DT P0.17"));
 }
@@ -68,10 +74,18 @@ void loop() {
     if ((int32_t)(millis() - printAfter) < 0) {
       continue;
     }
-    Serial.print(millis());
-    Serial.print(',');
-    Serial.print(i + 1);
-    Serial.print(',');
-    Serial.println(raw);
+    lastRaw[i] = raw;
+    fresh[i] = true;
   }
+
+  if (!fresh[0] || !fresh[1]) {
+    return;
+  }
+  fresh[0] = false;
+  fresh[1] = false;
+  Serial.print(millis());
+  Serial.print(',');
+  Serial.print(lastRaw[0]);
+  Serial.print(',');
+  Serial.println(lastRaw[1]);
 }

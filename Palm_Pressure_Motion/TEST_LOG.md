@@ -95,3 +95,39 @@ Estimasi masa pakai (usable \(0{,}8\cdot C/I\)); LIR2032 ≈ 40 mAh (interpretas
 | OFF ~0,62 mA | ~51 jam | ~7,5 hari | ~16 hari | ~21 hari |
 
 Spike kecil non-measure: paling mungkin LED heartbeat. Spike besar saat measure: tulis flash SPI (+ LED). Stream tidak dipakai untuk estimasi lapangan.
+
+## 2026-11-18 — HX711_One, serial monitor
+
+Firmware `PlatformIO/HX711_One`. USB 115200. Board sudah menyala sekitar 203 s saat cuplikan dimulai. 817 sampel, `t_ms` 203510–213069 (9,56 s). Jarak sampel median 11 ms.
+
+Perintah yang tersimpan di cuplikan hanya `ch,1`. Tidak ada `ch,2`. Angka sebelum perintah adalah kanal yang sedang berjalan saat log dimulai. Setelah `ch,1` kanalnya HX711-1 (SCK P0.06, DT P0.08). Jeda 418 ms di antara dua segmen sama dengan 400 ms yang dibuang firmware setelah kanal dipilih.
+
+Fase beban yang diam tidak ada. Yang terlihat hanya ekor penurunan 392 ms (35 sampel), dari 1.328.985 ke 813.219, lalu nilai menempel. Rata-rata di lereng itu 1.159.982, tetapi itu bukan level beban.
+
+| Segmen | Kanal | Fase | n | Durasi | Rata-rata | Simpangan | Min | Max |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| Sebelum `ch,1` | tidak tercatat di cuplikan | diam, setelah penurunan | 420 | 4,82 s | 797.712 | 2.017 | 792.721 | 805.494 |
+| Sesudah `ch,1` | HX711-1 | diam, beban tidak berubah | 362 | 3,92 s | 5.367 | 122 | 4.949 | 5.681 |
+
+Lompatan 797.712 → 5.367 terjadi tepat setelah perintah `1`, jadi itu ganti kanal / hidup ulang chip, bukan perubahan beban.
+
+## 2026-11-18 — HX711_Dual, serial monitor
+
+Firmware `PlatformIO/HX711_Dual`. USB 115200. Baris `t_ms,raw1,raw2`. 940 sampel, `t_ms` 1491–12295 (10,80 s). Kedua kanal dibebani terpisah, tidak bersamaan.
+
+Beban adalah ayunan tekan-lepas, bukan beban yang ditahan rata. Rata-rata seluruh ayunan ikut menghitung jalan naik dan jalan turun. Baris "menempel" adalah bagian yang tinggal di dekat puncak.
+
+| Kanal | Fase | n | Durasi | Rata-rata | Simpangan | Min | Max |
+|---|---|---:|---:|---:|---:|---:|---:|
+| HX711-1 | diam, awal | 212 | 2,43 s | 5.386 | 133 | 5.065 | 5.740 |
+| HX711-1 | beban 1, seluruh ayunan | 199 | 2,28 s | 521.377 | 288.470 | 541 | 777.712 |
+| HX711-1 | beban 1, di atas 700.000 | 96 | 1,09 s | 750.462 | 21.526 | 701.277 | 777.712 |
+| HX711-1 | diam, antara dua beban | 268 | 3,07 s | 5.233 | 161 | 4.693 | 5.955 |
+| HX711-1 | beban 2, seluruh ayunan | 89 | 1,01 s | 306.498 | 152.155 | 2.833 | 463.446 |
+| HX711-1 | diam, akhir | 172 | 1,97 s | 5.483 | 117 | 5.125 | 5.803 |
+| HX711-2 | diam, sebelum beban | 473 | 5,43 s | 798.187 | 5.777 | 778.389 | 813.508 |
+| HX711-2 | beban, seluruh ayunan | 163 | 1,86 s | 1.382.514 | 262.318 | 819.753 | 1.588.987 |
+| HX711-2 | beban, di atas 1.500.000 | 96 | 1,09 s | 1.558.059 | 17.552 | 1.501.949 | 1.588.987 |
+| HX711-2 | diam, sesudah beban | 304 | 3,49 s | 810.536 | 2.378 | 805.788 | 817.762 |
+
+HX711-1 diam memakai pita 4.500–6.500. Ekor lepas yang jatuh di bawah pita itu masih dihitung sebagai beban. HX711-2 dihitung beban saat hitungan melewati 819.000. Selama diam, HX711-2 tetap naik pelan: 778.389 di awal cuplikan, 813.508 tepat sebelum beban, lalu 805.788–817.762 sesudah beban. HX711-1 beban 2 lebih pendek dan tidak punya bagian yang menempel seperti beban 1.
