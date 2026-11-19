@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.4.0] - 2026-11-19
+
+- Calculated data 6 sumbu punya koreksi bias gyro. Bias diambil dari jendela diam, dikurangi sebelum filter, dan yaw ditahan selama sensor diam. Kotak Koreksi bias hanya aktif di mode calculated dengan Axis 6.
+
 ## [1.3.0] - 2026-11-18
 
 - Calculated data punya dropdown Filter (Madgwick, EKF) dan Axis (6 accel+gyro, 9 ditambah magnetometer). Keduanya hanya aktif di mode calculated.

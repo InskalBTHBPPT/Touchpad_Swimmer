@@ -13,6 +13,7 @@ from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QGridLayout,
@@ -109,6 +110,7 @@ QComboBox {
     background: #1e293b; border: 1px solid #475569; border-radius: 6px; padding: 4px 8px;
     min-width: 88px;
 }
+QCheckBox:disabled { color: #64748b; }
 QComboBox:disabled { color: #64748b; background: #0f172a; }
 QComboBox QAbstractItemView {
     background: #1e293b; color: #e2e8f0; selection-background-color: #0369a1;
@@ -134,7 +136,7 @@ class MainWindow(QMainWindow):
         self.plg = None
         self.rpy_deg = None
         self.rpy_error = ""
-        self._rpy_cache: dict[tuple[str, int], np.ndarray] = {}
+        self._rpy_cache: dict[tuple[str, int, bool], np.ndarray] = {}
         self._stream_q: deque[tuple[float, ...]] = deque(maxlen=800)
         self._stream_pending: list[tuple[float, ...]] = []
 
@@ -363,8 +365,15 @@ class MainWindow(QMainWindow):
         self.axis_box = QComboBox()
         self.axis_box.addItem("6", 6)
         self.axis_box.addItem("9", 9)
+        self.bias_box = QCheckBox("Koreksi bias")
+        self.bias_box.setChecked(True)
+        self.bias_box.setToolTip(
+            "Bias gyro diambil dari jendela diam minimal 1 detik, lalu dikurangi. "
+            "Selama sensor diam, yaw ditahan."
+        )
         self.filter_box.currentIndexChanged.connect(self._on_attitude_option)
         self.axis_box.currentIndexChanged.connect(self._on_attitude_option)
+        self.bias_box.toggled.connect(self._on_attitude_option)
         row.addWidget(self.btn_open_bin)
         row.addWidget(self.btn_folder)
         row.addWidget(self.btn_reload_bins)
@@ -375,6 +384,7 @@ class MainWindow(QMainWindow):
         row.addWidget(self.filter_box)
         row.addWidget(self.axis_label)
         row.addWidget(self.axis_box)
+        row.addWidget(self.bias_box)
         row.addStretch(1)
         lay.addLayout(row)
 
@@ -758,16 +768,21 @@ class MainWindow(QMainWindow):
         self._sync_buttons()
         self._log(f"Analisa {self.plg.path.name}: {self.plg.count} rekaman")
 
-    def _attitude_choice(self) -> tuple[str, int]:
-        return str(self.filter_box.currentData()), int(self.axis_box.currentData())
+    def _attitude_choice(self) -> tuple[str, int, bool]:
+        method = str(self.filter_box.currentData())
+        axes = int(self.axis_box.currentData())
+        correct = bool(self.bias_box.isChecked()) and axes == 6
+        return method, axes, correct
 
     def _attitude_note(self) -> str:
         if self.rpy_error:
             return f"Sudut tidak dihitung: {self.rpy_error}"
-        method, axes = self._attitude_choice()
+        method, axes, correct = self._attitude_choice()
         label = "EKF" if method == "ekf" else "Madgwick"
         if axes == 9:
             yaw = "Yaw memakai magnetometer mentah."
+        elif correct:
+            yaw = "Yaw relatif. Bias gyro dikurangi dan yaw ditahan saat diam."
         else:
             yaw = "Yaw relatif, bukan kompas."
         return f"Calculated data: {label}, {axes} sumbu. {yaw}"
@@ -805,6 +820,7 @@ class MainWindow(QMainWindow):
                 plg.physical[:, 8:11],
                 method=key[0],
                 axes=key[1],
+                correct_bias=key[2],
             )
             self.rpy_error = ""
             self._rpy_cache[key] = self.rpy_deg
@@ -862,6 +878,7 @@ class MainWindow(QMainWindow):
         self.filter_box.setEnabled(enabled)
         self.axis_label.setEnabled(enabled)
         self.axis_box.setEnabled(enabled)
+        self.bias_box.setEnabled(enabled and int(self.axis_box.currentData()) == 6)
 
     def _on_attitude_option(self) -> None:
         if self.plg is None or not self.mode_calc.isChecked():
